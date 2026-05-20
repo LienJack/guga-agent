@@ -1,9 +1,6 @@
 [English](docs/03-Tool-Registry.md)
 
 # 03 Tool Registry：比 LangChain 更朴素的工具注册方式
-
-![Tool Registry 架构总览](../imgs/03-tool-registry-overview.png)
-
 LangChain 给工具系统套了四层抽象：BaseTool → StructuredTool → @tool 装饰器 → ToolNode，一个 web_search 落地要穿三件外套。hermes-agent 的选择正好相反——**一个字典，一个单例，一套模块级 register() 调用**，完事。
 
 这篇拆的就是这套朴素到有点粗暴的工具系统：从元数据结构 ToolEntry，到单例注册表 ToolRegistry，到 model_tools.py 的发现与分发机制，再到那个解决 sync/async 阻抗的持久化 event loop。整套核心代码不到 600 行。
@@ -382,9 +379,6 @@ def _run_async(coro):
     tool_loop = _get_tool_loop()
     return tool_loop.run_until_complete(coro)
 ```
-
-![异步桥接策略](../imgs/03-async-bridge.png)
-
 三条路径的决策树：
 
 ```
@@ -704,9 +698,6 @@ def _coerce_number(value: str, integer_only: bool = False):
 **Claude Code** 走的是另一个极端——工具列表直接写死在代码里，没有注册机制。能这么做是因为 Claude Code 的工具集固定在 Bash、Read、Write、Edit 等少数几个，不需要动态增减。hermes-agent 要支持 20+ 个可选工具集 + MCP 外部工具 + 插件系统，写死不现实。
 
 **OpenClaw** 基于 MCP 协议和 Extensions 插件体系管理工具。每个 Extension 通过 manifest 声明自己提供的工具，Gateway 启动时自动发现和注册。新增工具就是新增一个 npm 包，不需要改核心代码。hook 机制支持 `before_tool_call` 和 `requireApproval` 审批流。
-
-![工具系统对比](../imgs/03-tool-system-comparison.png)
-
 四套系统最能说明一个道理：**工具注册的复杂度应该匹配你的扩展需求**。LangChain 是通用框架，必须考虑所有可能的用法，所以抽象层多。Claude Code 是封闭产品，工具集固定，所以零抽象。hermes-agent 介于两者之间——需要扩展但不需要无限灵活，所以用最少的抽象覆盖实际需求。
 
 hermes-agent 的 `register()` 方法有一个最能体现这种哲学的细节：**它不做任何 schema 校验**。你传什么 dict 进来它就存什么。校验的责任交给 LLM provider 的 API 层。这种做法在生产环境会不会出问题？会。但它让你在开发阶段**零摩擦地加工具**——写一个 handler，丢一个 schema dict，挂上去就能测试，10 秒搞定。

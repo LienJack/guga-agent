@@ -3,65 +3,96 @@
 
 No custom config found at repomix.config.ts, repomix.config.mts, repomix.config.cts, repomix.config.js, repomix.config.mjs, repomix.config.cjs, repomix.config.json5, repomix.config.jsonc, repomix.config.json or global config at /Users/lienli/.config/repomix/repomix.config.ts, /Users/lienli/.config/repomix/repomix.config.mts, /Users/lienli/.config/repomix/repomix.config.cts, /Users/lienli/.config/repomix/repomix.config.js, /Users/lienli/.config/repomix/repomix.config.mjs, /Users/lienli/.config/repomix/repomix.config.cjs, /Users/lienli/.config/repomix/repomix.config.json5, /Users/lienli/.config/repomix/repomix.config.jsonc, /Users/lienli/.config/repomix/repomix.config.json.
 You can add a config file for additional settings. Please check https://github.com/yamadashy/repomix for more information.
-[K[?25l⠋ Initializing...
-[K[1A[K[?25l⠙ Searching for files...
-[K[1A[K[?25l⠹ Searching for files...
-[K[1A[K[?25l⠸ Collect file... (200/3320) packages/@ant/ink/src/core/termio/ansi.ts
-[K[1A[K[?25l⠼ Collect file... (671/3320) packages/builtin-tools/src/tools/TaskUpdateTool/prompt.ts
-[K[1A[K[?25l⠴ Collect file... (1206/3320) src/commands/install-github-app/ExistingWorkflowStep.tsx
-[K[1A[K[?25l⠦ Collect file... (1494/3320) src/components/CustomSelect/select-option.tsx
-[K[1A[K[?25l⠧ Collect file... (1933/3320) src/hooks/__tests__/swarmPermissionPoller.test.ts
-[K[1A[K[?25l⠇ Collect file... (2557/3320) src/utils/__tests__/sanitization.test.ts
-[K[1A[K[?25l⠏ Collect file... (3255/3320) src/utils/zodToJsonSchema.ts
-[K[1A[K[?25l⠋ Processing file... (3320/3320) vite.config.ts
-[K[1A[K[?25l⠙ Running security check... (400/3320) packages/builtin-tools/src/tools/AgentTool/built-in/planAgent.ts
-[K[1A[K[?25l⠹ Running security check... (1800/3320) src/components/IdeAutoConnectDialog.tsx
-[K[1A[K[?25l⠸ Running security check... (2950/3320) src/utils/autoUpdater.ts
-[K[1A[K[?25l⠼ Writing output file...
-[K[1A[K[?25l⠴ Calculating metrics... (200/3318) docs/lsp-integration.md
-[K[1A[K[?25l⠦ Calculating metrics... (610/3318) packages/builtin-tools/src/tools/SearchExtraToolsTool/SearchExtraToolsTool.ts
-[K[1A[K[?25l⠧ Calculating metrics... (990/3318) scripts/rcs-ccb.sh
-[K[1A[K[?25l⠇ Calculating metrics... (1660/3318) src/components/permissions/WorkerPendingPermission.tsx
-[K[1A[K[?25l⠏ Calculating metrics... (2120/3318) src/services/analytics/firstPartyEventLogger.ts
-[K[1A[K[?25l⠋ Calculating metrics... (2550/3318) src/utils/__tests__/sequential.test.ts
-[K[1A[K[?25l⠙ Calculating metrics... (2850/3318) src/utils/skills/skillChangeDetector.ts
-[K[1A[K[?25l⠹ Calculating metrics... (3150/3318) src/utils/systemPrompt.ts
-[K[1A[K[?25l⠸ Calculating metrics... (3308/3318) src/replLauncher.tsx
-[K[1A[K[?25l⠼ Calculating metrics... (3318/3318) src/utils/attachments.ts
-[K[1A[K[?25l✔ Packing completed successfully!
-[?25h
-📈 Top 30 Files by Token Count:
-───────────────────────────────
-1.  src/screens/REPL.tsx (62,409 tokens, 292,169 chars, 1%)
-2.  src/main.tsx (55,035 tokens, 248,851 chars, 0.9%)
-3.  src/utils/messages.ts (48,036 tokens, 210,812 chars, 0.8%)
-4.  src/cli/print.ts (46,790 tokens, 222,535 chars, 0.8%)
-5.  src/utils/ansiToPng.ts (46,522 tokens, 214,904 chars, 0.8%)
-6.  src/utils/sessionStorage.ts (42,872 tokens, 180,981 chars, 0.7%)
-7.  src/utils/bash/bashParser.ts (39,677 tokens, 130,040 chars, 0.7%)
-8.  packages/@ant/computer-use-mcp/src/toolCalls.ts (39,278 tokens, 162,733 chars, 0.6%)
-9.  src/utils/hooks.ts (37,630 tokens, 165,381 chars, 0.6%)
-10. src/utils/attachments.ts (30,654 tokens, 130,712 chars, 0.5%)
-11. src/commands/insights.ts (29,790 tokens, 115,997 chars, 0.5%)
-12. src/services/api/claude.ts (29,297 tokens, 132,040 chars, 0.5%)
-13. src/utils/bash/ast.ts (28,525 tokens, 111,432 chars, 0.5%)
-14. src/services/mcp/client.ts (26,746 tokens, 122,652 chars, 0.4%)
-15. packages/builtin-tools/src/tools/BashTool/bashSecurity.ts (26,446 tokens, 103,977 chars, 0.4%)
-16. src/bridge/bridgeMain.ts (26,163 tokens, 114,778 chars, 0.4%)
-17. src/utils/plugins/pluginLoader.ts (24,877 tokens, 110,182 chars, 0.4%)
-18. packages/builtin-tools/src/tools/BashTool/bashPermissions.ts (23,651 tokens, 98,636 chars, 0.4%)
-19. src/bridge/replBridge.ts (23,571 tokens, 103,662 chars, 0.4%)
-20. src/components/PromptInput/PromptInput.tsx (22,928 tokens, 98,386 chars, 0.4%)
-21. packages/@ant/ink/src/core/yoga-layout/index.ts (22,347 tokens, 83,420 chars, 0.4%)
-22. src/services/mcp/auth.ts (20,264 tokens, 88,747 chars, 0.3%)
-23. src/commands/plugin/ManagePlugins.tsx (20,140 tokens, 90,219 chars, 0.3%)
-24. packages/@ant/ink/src/core/ink.tsx (18,544 tokens, 77,635 chars, 0.3%)
-25. packages/builtin-tools/src/tools/BashTool/readOnlyValidation.ts (18,015 tokens, 68,199 chars, 0.3%)
-26. packages/remote-control-server/src/__tests__/routes.test.ts (17,640 tokens, 69,234 chars, 0.3%)
-27. packages/builtin-tools/src/tools/PowerShellTool/pathValidation.ts (17,466 tokens, 72,905 chars, 0.3%)
-28. src/utils/shell/readOnlyCommandValidation.ts (17,239 tokens, 68,143 chars, 0.3%)
-29. src/components/Settings/Config.tsx (17,021 tokens, 81,377 chars, 0.3%)
-30. src/query.ts (16,803 tokens, 79,612 chars, 0.3%)
+⠋ Initializing...
+⠙ Searching for files...
+⠹ Collect file... (228/3335) packages/@ant/ink/src/core/yoga-layout/enums.ts
+⠸ Collect file... (615/3335) packages/builtin-tools/src/tools/ReadMcpResourceTool/ReadMcpResourceTool.ts
+⠼ Collect file... (1097/3335) src/commands/add-dir/add-dir.tsx
+⠴ Collect file... (1535/3335) src/components/FeedbackSurvey/utils.ts
+⠦ Collect file... (2552/3335) src/utils/__tests__/markdown.test.ts
+⠧ Writing output file...
+⠇ Calculating metrics... (10/3326) docs/features/debug-mode.mdx
+⠏ Calculating metrics... (80/3326) docs/safety/auto-mode.mdx
+⠋ Calculating metrics... (390/3326) packages/@ant/ink/src/core/reconciler.ts
+⠙ Calculating metrics... (840/3326) packages/remote-control-server/web/components/ai-elements/reasoning.tsx
+⠹ Calculating metrics... (1300/3326) src/commands/review/reviewRemote.ts
+⠸ Calculating metrics... (1880/3326) src/entrypoints/agentSdkTypes.ts
+⠼ Calculating metrics... (2270/3326) src/services/skillLearning/__tests__/skillGenerator.test.ts
+⠴ Calculating metrics... (2730/3326) src/utils/permissions/PermissionUpdateSchema.ts
+⠦ Calculating metrics... (3020/3326) src/utils/jsonRead.ts
+⠧ Calculating metrics... (3296/3326) CLAUDE.md
+⠇ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠏ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠋ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠙ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠹ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠸ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠼ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠴ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠦ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠧ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠇ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠏ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠋ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠙ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠹ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠸ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠼ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠴ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠦ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠧ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠇ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠏ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠋ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠙ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠹ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠸ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠼ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠴ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠦ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠧ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠇ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠏ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠋ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠙ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠹ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠸ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠼ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠴ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠦ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠧ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠇ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠏ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠋ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠙ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠹ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠸ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠼ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠴ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠦ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠧ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠇ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠏ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠋ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠙ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠹ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠸ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠼ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠴ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠦ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠧ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠇ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠏ Calculating metrics... (3316/3326) src/utils/ansiToSvg.ts
+⠋ Calculating metrics... (3326/3326) README_EN.md
+✔ Packing completed successfully!
+
+📈 Top 5 Files by Token Count:
+──────────────────────────────
+1.  contributors.svg (1,572,984 tokens, 2,322,914 chars, 7303.3%)
+2.  src/screens/REPL.tsx (62,409 tokens, 292,169 chars, 289.8%)
+3.  src/main.tsx (55,035 tokens, 248,851 chars, 255.5%)
+4.  src/utils/messages.ts (48,036 tokens, 210,812 chars, 223%)
+5.  src/cli/print.ts (46,790 tokens, 222,535 chars, 217.2%)
 
 🔢 Token Count Tree:
 ────────────────────
@@ -78,6 +109,7 @@ You can add a config file for additional settings. Please check https://github.c
 ├── bunfig.toml (11 tokens)
 ├── CLAUDE.md (7,593 tokens)
 ├── codecov.yml (488 tokens)
+├── contributors.svg (1,572,984 tokens)
 ├── DEV-LOG.md (15,291 tokens)
 ├── docs.json (1,213 tokens)
 ├── Friends.md (776 tokens)
@@ -103,13 +135,16 @@ You can add a config file for additional settings. Please check https://github.c
 │       └── update-contributors.yml (259 tokens)
 ├── .husky/ (5 tokens)
 │   └── pre-commit (5 tokens)
-├── docs/ (265,164 tokens)
+├── docs/ (274,382 tokens)
 │   ├── auto-updater.md (3,396 tokens)
 │   ├── external-dependencies.md (3,120 tokens)
+│   ├── favicon.svg (79 tokens)
 │   ├── lsp-integration.md (2,767 tokens)
 │   ├── memory-leak-audit.md (6,026 tokens)
 │   ├── memory-peak-analysis.md (2,490 tokens)
+│   ├── ONBOARDING.md (6,718 tokens)
 │   ├── telemetry-remote-config-audit.md (1,919 tokens)
+│   ├── TOUR.md (2,129 tokens)
 │   ├── agent/ (26,709 tokens)
 │   │   ├── coordinator-and-swarm.mdx (2,966 tokens)
 │   │   ├── sub-agents.mdx (11,398 tokens)
@@ -198,6 +233,9 @@ You can add a config file for additional settings. Please check https://github.c
 │   │   ├── architecture-overview.mdx (1,738 tokens)
 │   │   ├── what-is-claude-code.mdx (1,558 tokens)
 │   │   └── why-this-whitepaper.mdx (1,574 tokens)
+│   ├── logo/ (292 tokens)
+│   │   ├── dark.svg (149 tokens)
+│   │   └── light.svg (143 tokens)
 │   ├── safety/ (14,958 tokens)
 │   │   ├── auto-mode.mdx (3,024 tokens)
 │   │   ├── permission-model.mdx (1,938 tokens)
@@ -1232,7 +1270,7 @@ You can add a config file for additional settings. Please check https://github.c
 │       ├── spec-human-verify.md (4,509 tokens)
 │       ├── spec-plan-1.md (11,831 tokens)
 │       └── spec-plan-2.md (8,814 tokens)
-├── src/ (3,943,457 tokens)
+├── src/ (3,964,575 tokens)
 │   ├── commands.ts (6,743 tokens)
 │   ├── context.ts (1,589 tokens)
 │   ├── cost-tracker.ts (2,630 tokens)
@@ -2861,7 +2899,7 @@ You can add a config file for additional settings. Please check https://github.c
 │   ├── upstreamproxy/ (6,535 tokens)
 │   │   ├── relay.ts (3,918 tokens)
 │   │   └── upstreamproxy.ts (2,617 tokens)
-│   ├── utils/ (1,609,964 tokens)
+│   ├── utils/ (1,631,082 tokens)
 │   │   ├── abortController.ts (745 tokens)
 │   │   ├── activityManager.ts (1,116 tokens)
 │   │   ├── advisor.ts (1,294 tokens)
@@ -3377,7 +3415,7 @@ You can add a config file for additional settings. Please check https://github.c
 │   │   │       ├── auto_mode_system_prompt.txt (888 tokens)
 │   │   │       ├── permissions_anthropic.txt (900 tokens)
 │   │   │       └── permissions_external.txt (714 tokens)
-│   │   ├── plugins/ (137,655 tokens)
+│   │   ├── plugins/ (158,773 tokens)
 │   │   │   ├── addDirPluginSettings.ts (508 tokens)
 │   │   │   ├── cacheUtils.ts (1,660 tokens)
 │   │   │   ├── dependencyResolver.ts (2,769 tokens)
@@ -3395,6 +3433,7 @@ You can add a config file for additional settings. Please check https://github.c
 │   │   │   ├── lspRecommendation.ts (2,477 tokens)
 │   │   │   ├── managedPlugins.ts (209 tokens)
 │   │   │   ├── marketplaceHelpers.ts (4,234 tokens)
+│   │   │   ├── marketplaceManager.ts (21,118 tokens)
 │   │   │   ├── mcpbHandler.ts (7,407 tokens)
 │   │   │   ├── mcpPluginIntegration.ts (4,649 tokens)
 │   │   │   ├── officialMarketplace.ts (172 tokens)
@@ -3568,25 +3607,15 @@ You can add a config file for additional settings. Please check https://github.c
             ├── sample-claudemd.md (17 tokens)
             └── sample-messages.json (189 tokens)
 
-🔎 Security Check:
-──────────────────
-2 suspicious file(s) detected and excluded from the output:
-1. packages/builtin-tools/src/tools/WebFetchTool/__tests__/urlValidation.test.ts
-   - 1 security issue detected
-2. src/utils/plugins/marketplaceManager.ts
-   - 2 security issues detected
-
-These files have been excluded from the output for security reasons.
-Please review these files for potential sensitive information.
 
 
 📊 Pack Summary:
 ────────────────
-  Total Files: 3,318 files
- Total Tokens: 6,073,648 tokens
-  Total Chars: 24,729,420 chars
-       Output: /tmp/claude-code-repomix-discard.xml
-     Security: 2 suspicious file(s) detected and excluded
+  Total Files: 3,326 files
+ Total Tokens: 21,538 tokens
+  Total Chars: 90,298 chars
+       Output: /tmp/claude-code-token-tree-pack.xml
+     Security: Security check disabled
 
 🎉 All Done!
 Your repository has been successfully packed.

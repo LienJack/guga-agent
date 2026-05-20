@@ -6,6 +6,17 @@
 
 本文沿用 Deep Dive 的写法，但目标不是评价某个仓库，而是给出一条“从最小可运行一路演进到商业级复刻”的路线：L0 先能跑，L1 统一事件，L2 支持流式，L3 加控制面，L4 补齐 artifact、附件、压缩和 usage，L5 再做多客户端商业级协议。
 
+## Guga 的取舍校准：先定 canonical event，再选生态协议
+
+L0 到 L5 是协议复杂度路线，不等于 Guga 要等到 L5 才有 Server/SSE。结合 `ui-protocol.md` 和 `agent-react-pattern.md`，Guga 应该把 UI/客户端协议拆成三层：core runtime event、canonical `AgentUIEvent`、传输/客户端 adapter。这样 Web SSE、CLI stream、IDE ACP、IM wait/stream 都是投影，不会反过来污染 agent loop。
+
+- **Server/SSE 进入 P0，但只承载最小事件**：`ui-protocol.md` 建议 Guga Phase 1 采用 HTTP Server + SSE。这里的 P0 不是完整多客户端平台，而是 `run.started / message.delta / tool.started / tool.completed / run.completed / run.failed` 这种最小可观察事实。
+- **控制面进入 P1，而不是等商业化后再补**：权限批准、拒绝、取消、等待是 agent 可控性的基础。它们可以先用 HTTP endpoint 实现，远端 WebSocket、ACP 和 IM adapter 后置。
+- **artifact/usage/compact 是 P1/P2 的产品能力**：文件产物、token/cost、compact boundary 要在 runtime event 里有位置，但第一版可以只做结构化元数据，不做完整权限矩阵。
+- **AG-UI / LangGraph / ACP 都先当 adapter**：不要把某个外部协议当 canonical schema。Guga 自己的事件合同应更小、更稳定，再映射到生态协议。
+
+证据强度：`run/resource + SSE` 是 `deer-flow`、`opencode`、`ui-protocol.md` 的 `Fact`；Guga 采用 canonical event + adapter 是 `Inference`；具体事件字段和版本策略是 `Pending Verification`，需要等第一版 Web/CLI 客户端落地后收敛。
+
 ## 读源码前的定位：AG-UI 不是聊天框，而是运行时事实的投影
 
 一个可用的 agent UI 不只是把最终回答 append 到聊天列表。它必须回答更难的问题：模型是否正在输出？工具是否已经开始？工具输入有没有形成？权限请求卡在哪里？用户取消后后台是否真的停了？文件生成后能否离开聊天框？上下文压缩后客户端如何恢复历史？
@@ -310,6 +321,14 @@ L5 的推荐架构是三层：
 | L3 | 控制面 | permission/cancel/wait endpoint | `cc-haha` RemoteSessionManager，`deer-flow` cancel/wait |
 | L4 | 产品能力 | artifact、attachments、compact、usage | `deer-flow` artifacts/usage，`cc-haha` compact，`opencode` attachments |
 | L5 | 商业协议平台 | event store，多客户端 adapter，审计 | `deer-flow` runs API，`blade-code` ACP，`cc-haha` remote bridge，`hermes-agent` API server/gateway/ACP |
+
+如果面向 Guga 当前阶段，可以把这条路线压成更具体的优先级：
+
+| 优先级 | 先做什么 | 暂时不做什么 |
+| --- | --- | --- |
+| P0 | HTTP Server、最小 SSE、`runId/seq`、message/tool/run 事件、run 状态查询 | WebSocket 全双工、完整 AG-UI 标准兼容、多租户事件库 |
+| P1 | permission/cancel/wait endpoint、compact boundary、artifact metadata、usage summary、断线后状态恢复 | 完整 artifact 权限、IM streaming edit、ACP/LSP |
+| P2 | canonical event versioning、多客户端 adapter、event store/replay、Webhook/IM/IDE 映射、协议观测指标 | Hermes 式全平台 gateway、复杂租户策略 |
 
 最容易走错的是把 L5 的形态搬到 L1：一开始就做多端、多租户、完整事件库、完整 artifact 权限。更稳的方式是让每层只解决一个主要风险。L0 验证 agent 能跑；L1 验证 UI 不靠猜；L2 验证实时输出；L3 验证人能介入；L4 验证交付物和成本可见；L5 才验证多客户端、协议版本和商业运维。
 

@@ -7,9 +7,6 @@
 - **路径**: `packages/console`
 - **定位**: OpenCode 的 SaaS 管理后台与云服务基础设施。
 - **架构**: 基于 SST (Serverless Stack) 和 SolidStart 构建的全栈应用。
-
-![OpenCode Console Architecture](opencode_console_architecture.png)
-
 ## 2. 子包结构 (Sub-packages)
 
 | 子路径 | 包名 | 描述 |

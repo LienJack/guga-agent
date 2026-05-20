@@ -1,7 +1,4 @@
 # Module 0: OpenCode 架构总览
-
-![Structure Banner](./structure_banner.png)
-
 > **深度解密系列**:
 > 这是 **"OpenCode 内核揭秘"** 系列课程的 **Module 0**。
 >

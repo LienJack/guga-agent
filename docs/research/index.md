@@ -9,12 +9,17 @@
 - [Repomix 快照](./repomix/)：核心参考项目的源码级 packed context 和 token tree。
 - [源码分析语料](./source-analysis/index.md)：从本地 `agent-ref` workspace 复制来的人工源码阅读材料。
 - [设计理念索引](./source-analysis/design-ideas-index.md)：按主题查询源码分析语料中的设计理念。
+- [参考项目省 Token 工作流](./reference-project-workflow.md)：组合 Graphify、Understand-Anything、GitNexus、LLM Context Pack 与 repomix 的查询协议。
+- [参考项目索引建设状态](./index-build-status.md)：记录 Repomix token tree、GitNexus、Graphify、Understand-Anything 的当前建设状态。
+- [Context Packs](./context-packs/)：用于沉淀高频主题的小型 LLM 上下文包。
 
 ## 查询方式
 
 如果问题是设计原则或架构理念，先读 [source-analysis/design-ideas-index.md](./source-analysis/design-ideas-index.md)，再只打开其中链接的相关主题文件。
 
 如果问题是实现细节或源码验证，先读 [intake/source-contract.md](./intake/source-contract.md)，再使用 [repomix](./repomix/) 下的相关文件；只有在 packed context 不足时才打开原始参考仓库。
+
+如果问题是“如何更快参考别人的项目”或需要反复横向对比参考项目，使用 [参考项目省 Token 工作流](./reference-project-workflow.md)。
 
 如果架构设计请求中出现 "参考全项目"，遵循 [架构设计工作流](../../.trellis/spec/guides/agent-reference-projects-guide.md#架构设计工作流)：
 

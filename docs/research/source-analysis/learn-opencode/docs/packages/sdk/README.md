@@ -5,9 +5,6 @@
 - **路径**: `packages/sdk`
 - **定位**: Client 与 Server 通信的桥梁。
 - **观察**: 该目录包含 `openapi.json`，强烈暗示 SDK 是基于 OpenAPI 规范生成的。
-
-![OpenCode SDK Architecture](opencode_sdk_architecture.png)
-
 ## 2. 核心架构 (Core Architecture)
 
 SDK 采用 **Generator + Launcher** 的混合模式：
@@ -44,9 +41,6 @@ SDK 使用双轨通信：
 ## 4. 深入技术细节 (Advanced Details)
 ### 4.1 自定义 SSE 实现
 为了支持更复杂的交互场景（不仅是 GET），SDK 没有使用浏览器原生的 `EventSource`，而是实现了一个基于 `fetch` 的 **Custom SSE Client** (`core/serverSentEvents.gen.ts`)。
-
-![OpenCode SSE Pipeline](opencode_sdk_sse_pipeline.png)
-
 - **特性**: 支持任意 HTTP 方法 (POST/PUT等) 进行流式订阅。
 - **机制**: 手动使用 `TextDecoderStream` 解析 Response Body，按 `\n\n` 分割数据块，解析 `data:`, `event:`, `id:` 等标准字段。
 - **容错**: 内置了指数退避 (Exponential Backoff) 的自动重连机制。

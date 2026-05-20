@@ -56,7 +56,6 @@ git submodule update --remote
 ## 1. 宏观视角 (Macro View)
 
 ### 1.1 系统全景图 (System Overview)
-![OpenCode System Architecture](docs/architecture/opencode_system_architecture.png)
 *(图解: Desktop 启动 Server，加载 Plugin; Web App 通过 SDK 与 Server 实时同步状态)*
 
 ### 1.2 架构与设计

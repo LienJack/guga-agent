@@ -1,7 +1,4 @@
 # Module 1: 大脑 - Agent 与权限
-
-![Agents Banner](./structure_banner.png)
-
 > **目标**: 理解 OpenCode 如何定义其智能体 (Agent)，以及安全沙箱是如何限制它们的。
 
 ---

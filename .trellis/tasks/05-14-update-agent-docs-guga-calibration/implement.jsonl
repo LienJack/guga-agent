@@ -1,0 +1,7 @@
+{"file":"docs/research/intake/source-contract.md","reason":"Reference project set and version anchors for all doc updates."}
+{"file":"docs/research/context-packs/agent-loop.md","reason":"Agent loop and runtime priority evidence."}
+{"file":"docs/research/context-packs/tool-registry.md","reason":"Tool/MCP/permission/skill boundary evidence."}
+{"file":"docs/research/context-packs/context-compression.md","reason":"Context, compaction, JSONL, resume priority evidence."}
+{"file":"docs/research/context-packs/provider-abstraction.md","reason":"LLM provider and transport priority evidence."}
+{"file":"docs/research/context-packs/ui-protocol.md","reason":"AG-UI, SSE, server/client protocol priority evidence."}
+{"file":"docs/research/context-packs/multi-agent.md","reason":"Subagent delegation priority evidence."}

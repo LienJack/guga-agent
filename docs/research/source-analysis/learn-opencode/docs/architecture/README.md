@@ -1,9 +1,6 @@
 # Monorepo 结构解析 (Structure Analysis)
 
 > 本文档解析 `opencode` 项目的整体目录结构与依赖关系。
-
-![System Architecture](opencode_system_architecture.png)
-
 > [查看 Mermaid 源码版本](system_diagram.md) (已废弃)
 
 ## 核心 (Core)

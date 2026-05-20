@@ -17,9 +17,6 @@
     - **Styling**: TailwindCSS
     - **Terminal**: Ghostty Web
 - **依赖**: `@opencode-ai/sdk`, `@opencode-ai/ui`。
-
-![OpenCode App Data Flow](opencode_app_data_flow.png)
-
 ## 2. 核心架构 (Core Architecture)
 
 App 采用了 **Server-Driven UI** 和 **Reactive State Sync** 的架构模式。

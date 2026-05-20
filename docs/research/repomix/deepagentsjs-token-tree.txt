@@ -3,47 +3,21 @@
 
 No custom config found at repomix.config.ts, repomix.config.mts, repomix.config.cts, repomix.config.js, repomix.config.mjs, repomix.config.cjs, repomix.config.json5, repomix.config.jsonc, repomix.config.json or global config at /Users/lienli/.config/repomix/repomix.config.ts, /Users/lienli/.config/repomix/repomix.config.mts, /Users/lienli/.config/repomix/repomix.config.cts, /Users/lienli/.config/repomix/repomix.config.js, /Users/lienli/.config/repomix/repomix.config.mjs, /Users/lienli/.config/repomix/repomix.config.cjs, /Users/lienli/.config/repomix/repomix.config.json5, /Users/lienli/.config/repomix/repomix.config.jsonc, /Users/lienli/.config/repomix/repomix.config.json.
 You can add a config file for additional settings. Please check https://github.com/yamadashy/repomix for more information.
-[K[?25l⠋ Initializing...
-[K[1A[K[?25l⠙ Collecting files...
-[K[1A[K[?25l⠹ Processing file... (441/441) tsconfig.json
-[K[1A[K[?25l⠸ Running security check... (150/441) examples/backends/filesystem-backend.ts
-[K[1A[K[?25l⠼ Calculating metrics... (30/438) evals/hitl/vitest.config.ts
-[K[1A[K[?25l⠴ Calculating metrics... (200/438) examples/streaming/progress.ts
-[K[1A[K[?25l⠦ Calculating metrics... (320/438) libs/deepagents/src/middleware/skills.ts
-[K[1A[K[?25l✔ Packing completed successfully!
-[?25h
-📈 Top 30 Files by Token Count:
-───────────────────────────────
-1.  libs/deepagents/src/middleware/skills.test.ts (15,174 tokens, 66,029 chars, 2.4%)
-2.  libs/deepagents/src/middleware/async_subagents.test.ts (13,009 tokens, 52,666 chars, 2%)
-3.  libs/deepagents/src/middleware/fs.test.ts (11,680 tokens, 51,415 chars, 1.8%)
-4.  libs/deepagents/src/middleware/fs.ts (10,578 tokens, 47,721 chars, 1.6%)
-5.  libs/deepagents/CHANGELOG.md (10,511 tokens, 33,388 chars, 1.6%)
-6.  libs/acp/src/server.test.ts (10,406 tokens, 44,973 chars, 1.6%)
-7.  libs/deepagents/src/middleware/summarization.test.ts (10,193 tokens, 43,871 chars, 1.6%)
-8.  libs/acp/src/server.ts (9,303 tokens, 41,542 chars, 1.4%)
-9.  libs/deepagents/src/middleware/fs.int.test.ts (9,127 tokens, 41,170 chars, 1.4%)
-10. libs/deepagents/src/middleware/summarization.ts (8,856 tokens, 39,728 chars, 1.4%)
-11. evals/tool-usage-relational/index.ts (8,633 tokens, 34,404 chars, 1.3%)
-12. libs/deepagents/src/backends/store.test.ts (7,805 tokens, 31,557 chars, 1.2%)
-13. libs/deepagents/src/backends/state.test.ts (7,354 tokens, 28,841 chars, 1.1%)
-14. libs/providers/quickjs/src/session.test.ts (7,312 tokens, 29,866 chars, 1.1%)
-15. libs/deepagents/src/middleware/async_subagents.ts (6,989 tokens, 30,526 chars, 1.1%)
-16. libs/deepagents/src/backends/utils.ts (6,854 tokens, 27,600 chars, 1.1%)
-17. libs/deepagents/src/middleware/subagents.int.test.ts (6,642 tokens, 31,015 chars, 1%)
-18. libs/deepagents/src/backends/sandbox.test.ts (6,592 tokens, 28,306 chars, 1%)
-19. libs/deepagents/src/backends/composite.test.ts (6,562 tokens, 27,514 chars, 1%)
-20. evals/external-benchmarks/data/curated_cases.json (6,515 tokens, 24,378 chars, 1%)
-21. libs/deepagents/src/middleware/subagents.ts (6,384 tokens, 29,119 chars, 1%)
-22. libs/deepagents/src/middleware/patch_tool_calls.test.ts (6,311 tokens, 27,359 chars, 1%)
-23. libs/deepagents/src/middleware/skills.ts (5,985 tokens, 25,905 chars, 0.9%)
-24. libs/deepagents/src/backends/filesystem.ts (5,871 tokens, 25,820 chars, 0.9%)
-25. libs/deepagents/src/backends/utils.test.ts (5,834 tokens, 22,865 chars, 0.9%)
-26. libs/providers/daytona/src/sandbox.ts (5,691 tokens, 25,252 chars, 0.9%)
-27. libs/providers/modal/src/sandbox.test.ts (5,646 tokens, 25,018 chars, 0.9%)
-28. .agents/skills/eval-creator/SKILL.md (5,623 tokens, 22,178 chars, 0.9%)
-29. libs/providers/quickjs/src/session.ts (5,583 tokens, 24,039 chars, 0.9%)
-30. libs/deepagents/src/middleware/subagent.test.ts (5,447 tokens, 24,438 chars, 0.8%)
+⠋ Initializing...
+⠙ Collect file... (1/444) .github/images/deepagents_tools.png
+⠹ Generating output...
+⠸ Generating output...
+⠼ Calculating metrics... (130/443) evals/tool-usage-relational/vitest.config.ts
+⠴ Calculating metrics... (433/443) libs/standard-tests/README.md
+✔ Packing completed successfully!
+
+📈 Top 5 Files by Token Count:
+──────────────────────────────
+1.  libs/deepagents/src/middleware/skills.test.ts (15,174 tokens, 66,029 chars, 603.3%)
+2.  libs/deepagents/src/middleware/async_subagents.test.ts (13,009 tokens, 52,666 chars, 517.3%)
+3.  libs/deepagents/src/middleware/fs.test.ts (11,680 tokens, 51,415 chars, 464.4%)
+4.  libs/deepagents/src/middleware/fs.ts (10,578 tokens, 47,721 chars, 420.6%)
+5.  libs/deepagents/CHANGELOG.md (10,511 tokens, 33,388 chars, 417.9%)
 
 🔢 Token Count Tree:
 ────────────────────
@@ -68,8 +42,11 @@ You can add a config file for additional settings. Please check https://github.c
 │   ├── config.json (135 tokens)
 │   ├── README.md (111 tokens)
 │   └── wild-kings-scream.md (16 tokens)
-├── .github/ (5,965 tokens)
+├── .github/ (11,439 tokens)
 │   ├── dependabot.yml (232 tokens)
+│   ├── images/ (5,474 tokens)
+│   │   ├── logo-dark.svg (2,736 tokens)
+│   │   └── logo-light.svg (2,738 tokens)
 │   └── workflows/ (5,733 tokens)
 │       ├── ci.yml (1,998 tokens)
 │       ├── cli-release.yml (2,950 tokens)
@@ -204,16 +181,19 @@ You can add a config file for additional settings. Please check https://github.c
 │       ├── package.json (123 tokens)
 │       ├── README.md (67 tokens)
 │       └── vitest.config.ts (93 tokens)
-├── examples/ (43,406 tokens)
+├── examples/ (46,581 tokens)
 │   ├── .gitignore (8 tokens)
 │   ├── package.json (406 tokens)
 │   ├── tsconfig.json (211 tokens)
 │   ├── acp-server/ (1,291 tokens)
 │   │   ├── README.md (655 tokens)
 │   │   └── server.ts (636 tokens)
-│   ├── async-subagent-server/ (2,226 tokens)
+│   ├── async-subagent-server/ (5,401 tokens)
+│   │   ├── .env.example (103 tokens)
+│   │   ├── docker-compose.yml (200 tokens)
 │   │   ├── Dockerfile (316 tokens)
 │   │   ├── README.md (754 tokens)
+│   │   ├── server.ts (2,872 tokens)
 │   │   └── supervisor.ts (1,156 tokens)
 │   ├── async-subagents/ (8,077 tokens)
 │   │   └── parallel-research/ (8,077 tokens)
@@ -568,27 +548,15 @@ You can add a config file for additional settings. Please check https://github.c
                 ├── read.ts (1,918 tokens)
                 └── write.ts (1,459 tokens)
 
-🔎 Security Check:
-──────────────────
-3 suspicious file(s) detected and excluded from the output:
-1. examples/async-subagent-server/.env.example
-   - 1 security issue detected
-2. examples/async-subagent-server/docker-compose.yml
-   - 1 security issue detected
-3. examples/async-subagent-server/server.ts
-   - 1 security issue detected
-
-These files have been excluded from the output for security reasons.
-Please review these files for potential sensitive information.
 
 
 📊 Pack Summary:
 ────────────────
-  Total Files: 438 files
- Total Tokens: 644,731 tokens
-  Total Chars: 2,697,912 chars
-       Output: repomix-output.xml
-     Security: 3 suspicious file(s) detected and excluded
+  Total Files: 443 files
+ Total Tokens: 2,515 tokens
+  Total Chars: 9,909 chars
+       Output: /tmp/deepagentsjs-token-tree-pack.xml
+     Security: Security check disabled
 
 🎉 All Done!
 Your repository has been successfully packed.

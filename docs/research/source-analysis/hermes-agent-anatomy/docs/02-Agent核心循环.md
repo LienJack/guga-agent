@@ -5,9 +5,6 @@
 上一篇我们站在 30,000 英尺的高度看了 Hermes Agent 的整体骨架。这一篇下到地面，钻进引擎舱。
 
 run_agent.py 是整个项目的心脏。9,431 行代码（实际约 10,500 行含注释），一个文件，一个类 **AIAgent**，承载了从构造到运行到收尾的完整生命周期。你可以把它理解成一台**状态机**：接收用户输入，进入 while 循环，不断调用 LLM API → 执行工具 → 检查预算 → 压缩上下文，直到模型不再返回 tool_calls 为止。
-
-![AIAgent 生命周期](../imgs/02-agent-lifecycle.png)
-
 ## 1️⃣ AIAgent 构造：一个 486 行的 `__init__`
 
 翻开 `__init__` 的签名，56 个参数。这不是设计失控，是**单体架构的代价**。CLI、Gateway、子 Agent、批量跑分器全部复用同一个类，每个调用方需要不同的旋钮。
@@ -73,9 +70,6 @@ def __init__(
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
-
-![回调系统](../imgs/02-callback-system.png)
-
 值得注意的是 `_SafeWriter` 这个小组件。`__init__` 第一行就调用 `_install_safe_stdio()`，把 stdout/stderr 包一层。为什么？因为 Agent 可能跑在 systemd 服务、Docker 容器、无头守护进程里，stdout 管道随时可能断开。一个 `print()` 抛出 `OSError` 就能把整个 Agent 循环炸掉。**防御式编程的典型案例：你不知道你的输出管道什么时候会死。**
 
 ## 2️⃣ IterationBudget：工具调用的油量表
@@ -106,9 +100,6 @@ class IterationBudget:
             if self._used > 0:
                 self._used -= 1
 ```
-
-![IterationBudget 预算控制](../imgs/02-iteration-budget.png)
-
 几个设计细节：
 
 1. **线程安全**：`threading.Lock()` 保护计数器。因为子 Agent 跑在 ThreadPoolExecutor 的工作线程里，多个 Agent 可能共享同一个 budget。
@@ -149,9 +140,6 @@ def _get_budget_warning(self, api_call_count: int) -> Optional[str]:
 ## 3️⃣ run_conversation：主循环的全貌
 
 `run_conversation` 是 AIAgent 唯一的公开入口方法。每次用户发一条消息，上层调用一次这个方法。它内部是一个 while 循环，循环次数由 `max_iterations` 和 `IterationBudget` 双重控制。
-
-![主循环流程](../imgs/02-main-loop.png)
-
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                     run_conversation()                           │
@@ -204,9 +192,6 @@ def _get_budget_warning(self, api_call_count: int) -> Optional[str]:
 ## 4️⃣ 并行工具执行：ThreadPoolExecutor 的安全边界
 
 模型一次返回多个 tool_calls 是常见场景。比如同时读 3 个文件，或者并行跑 web_search 和 read_file。Hermes 不是无脑并行，而是先做**安全检查**，通过才走并行路径。
-
-![并行工具执行](../imgs/02-parallel-tools.png)
-
 ```python
 # run_agent.py L212-L235
 _NEVER_PARALLEL_TOOLS = frozenset({"clarify"})  # 交互式工具，永远串行
@@ -297,9 +282,6 @@ worker 数量取 `min(工具数, 8)`。结果按**原始顺序**收集到 `resul
 ## 5️⃣ 工具结果大小处理：超限就落盘
 
 LLM 的上下文窗口是有限的。一个 `search_files` 返回 200KB 的结果，直接塞进 messages 数组会把上下文撑爆。Hermes 设计了**三级防御体系**来处理这个问题。
-
-![工具结果落盘](../imgs/02-tool-result-persist.png)
-
 ```python
 # tools/tool_result_storage.py L1-L21 (文档注释)
 """
@@ -363,9 +345,6 @@ Preview (first 2000 chars):
 ## 6️⃣ 消息清洗：不该留在历史里的东西
 
 每轮 API 调用之前，Hermes 对 messages 做一系列清洗。这些清洗看起来琐碎，但每个都踩过真实的坑。
-
-![消息清洗流程](../imgs/02-message-sanitize.png)
-
 **Surrogate 字符消毒**
 
 用户从 Google Docs 或 Word 粘贴内容，可能带上 lone surrogate code points（U+D800-U+DFFF）。这些在 UTF-8 里是非法的，OpenAI SDK 的 `json.dumps()` 会直接崩溃。
@@ -425,9 +404,6 @@ def _strip_budget_warnings_from_history(messages: list) -> None:
 ## 7️⃣ 错误重试与 Fallback 链
 
 Agent 跑在真实网络环境里，API 调用失败是家常便饭。Hermes 的重试策略不是简单的 `sleep(5)` + retry，而是一套**多层防御**。
-
-![错误重试和 fallback](../imgs/02-retry-fallback.png)
-
 **Jittered Backoff**
 
 ```python
@@ -494,9 +470,6 @@ elif isinstance(fallback_model, dict):
 # indefinitely when the provider keeps the connection
 # alive with SSE pings but never delivers a response.
 ```
-
-![流式处理](../imgs/02-streaming.png)
-
 非流式 API 调用有个隐蔽的问题：provider 可以用 SSE keep-alive ping 保持连接不断开，但就是不返回实际数据。HTTP 层面没超时，应用层面没心跳，Agent 就这么**无限挂住**。流式路径自带健康检查：90 秒没收到新 chunk 就判定连接死了，60 秒读超时自动断开。
 
 `_interruptible_streaming_api_call` 统一处理三种 API 模式：
@@ -530,9 +503,6 @@ elif isinstance(fallback_model, dict):
 ## 9️⃣ 与 Claude Code 的 AsyncGenerator 实现对比
 
 Claude Code 用 TypeScript 写，核心循环用 **AsyncGenerator**（`yield` 出每一步的状态变化）。Hermes 用 Python，核心循环是**同步 while 循环 + 回调**。两种风格代表了 Agent 架构的两个流派。
-
-![同步 while vs AsyncGenerator 对比](../imgs/02-sync-vs-async.png)
-
 | 维度 | Hermes Agent (Python) | Claude Code (TypeScript) |
 |------|----------------------|--------------------------|
 | 核心循环 | 同步 `while` + callback | `async function*` yield |

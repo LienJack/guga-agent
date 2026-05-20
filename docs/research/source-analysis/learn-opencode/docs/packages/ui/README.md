@@ -10,9 +10,6 @@
     - `marked`: Markdown 渲染。
     - `katex`: 数学公式渲染。
     - `@opencode-ai/sdk`: 复用类型定义。
-
-![OpenCode UI Architecture](opencode_ui_architecture.png)
-
 ## 2. 核心架构 (Core Architecture)
 
 `packages/ui` 不仅仅是一个简单的组件库，它内置了高性能的代码渲染引擎。
