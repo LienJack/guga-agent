@@ -1,7 +1,7 @@
 ---
 title: feat: Build M0 core kernel runtime
 type: feat
-status: active
+status: completed
 date: 2026-05-26
 origin: .trellis/tasks/05-26-05-26-core-kernel-spike/prd.md
 ---
