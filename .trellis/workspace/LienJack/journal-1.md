@@ -116,3 +116,36 @@ Completed the M2 provider AI SDK bridge branch: core provider/model contracts, r
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: M3 tool permission runtime
+
+**Date**: 2026-05-27
+**Task**: M3 tool permission runtime
+**Branch**: `codex/feat-tool-permission-runtime`
+
+### Summary
+
+Implemented core-owned tool execution pipeline, permission kernel, conservative scheduling, result budgeting, first-party filesystem/shell/git tool plugins, ESM package smoke checks, and the M3 blog article.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a027a3b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
