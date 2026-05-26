@@ -414,4 +414,46 @@ describe("AgentRuntime", () => {
     );
     expect(result.events.map((event) => event.type)).toContain(AgentEventType.ToolResult);
   });
+
+  it("returns structured run failures for router provider failures", async () => {
+    const runtime = createAgentRuntime({
+      routerPolicy: {
+        primary: { providerId: "fatal-provider", modelId: "fatal-model" }
+      }
+    });
+    runtime.registerProvider(
+      createMockProvider(
+        [
+          {
+            type: "failure",
+            error: {
+              category: ProviderErrorCategory.Fatal,
+              code: "FATAL_PROVIDER",
+              message: "fatal provider failure"
+            }
+          }
+        ],
+        { id: "fatal-provider" }
+      )
+    );
+    runtime.registerModel({ providerId: "fatal-provider", modelId: "fatal-model", purposes: ["primary"] });
+
+    const result = await runtime.run({
+      input: "hello",
+      providerId: "fatal-provider",
+      runId: "runtime-router-fatal"
+    });
+
+    expect(result).toMatchObject({ ok: false, error: { code: "PROVIDER_FAILED", message: "All provider router candidates failed" } });
+    expect(result.events).toContainEqual(
+      expect.objectContaining({
+        type: AgentEventType.ModelEvent,
+        event: expect.objectContaining({ type: ModelEventType.ProviderError })
+      })
+    );
+    expect(result.events).toContainEqual(expect.objectContaining({ type: AgentEventType.Error }));
+    expect(result.events).toContainEqual(
+      expect.objectContaining({ type: AgentEventType.RunFinished, status: "failed" })
+    );
+  });
 });

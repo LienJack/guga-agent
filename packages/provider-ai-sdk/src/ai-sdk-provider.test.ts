@@ -72,6 +72,22 @@ describe("AI SDK provider bridge", () => {
     );
   });
 
+  it("uses the router-selected model id when present on the request", async () => {
+    const modelFactory = vi.fn(() => "selected-model");
+    const provider = createAiSdkProvider(
+      { id: "ai-sdk", mode: "openai-compatible", modelId: "default-model" },
+      { generateText: async () => ({ text: "ok" }), modelFactory }
+    );
+
+    await provider.generate({
+      messages: [{ role: "user", content: "hello" }],
+      tools: [],
+      model: { providerId: "ai-sdk", modelId: "router-selected" }
+    });
+
+    expect(modelFactory).toHaveBeenCalledWith(expect.objectContaining({ modelId: "router-selected" }));
+  });
+
   it("returns normalized provider failures from AI SDK errors", async () => {
     const provider = createAiSdkProvider(
       { id: "ai-sdk", mode: "openai", modelId: "gpt-test" },

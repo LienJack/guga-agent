@@ -19,7 +19,27 @@ describe("AI SDK mappers", () => {
       },
       {
         role: "tool",
-        content: [{ type: "tool-result", toolCallId: "call-1", toolName: "echo", output: "hi", isError: false }]
+        content: [{ type: "tool-result", toolCallId: "call-1", toolName: "echo", output: { type: "text", value: "hi" } }]
+      }
+    ]);
+  });
+
+  it("maps failed tool observations to AI SDK error-text outputs", () => {
+    expect(
+      mapCoreMessagesToAiSdk([
+        { role: "tool", toolCallId: "call-1", name: "echo", content: "TOOL_FAILED: nope", isError: true }
+      ])
+    ).toEqual([
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "call-1",
+            toolName: "echo",
+            output: { type: "error-text", value: "TOOL_FAILED: nope" }
+          }
+        ]
       }
     ]);
   });

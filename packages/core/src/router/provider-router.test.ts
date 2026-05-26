@@ -161,4 +161,44 @@ describe("ProviderRouter", () => {
       error: { code: "MODEL_NOT_FOUND", message: "Model not registered: mock/missing" }
     });
   });
+
+  it("returns structured errors when selected provider metadata has no provider", async () => {
+    const registry = new CapabilityRegistry();
+    registry.registerModel({ providerId: "missing-provider", modelId: "primary", purposes: ["primary"] });
+
+    const result = await new ProviderRouter({
+      registry,
+      policy: { primary: { providerId: "missing-provider", modelId: "primary" } }
+    }).route(request);
+
+    expect(result).toMatchObject({ ok: false, error: { code: "PROVIDER_NOT_FOUND" } });
+    expect(result.events.map((event) => event.type)).toEqual([
+      ModelEventType.Requested,
+      ModelEventType.Selected
+    ]);
+  });
+
+  it("normalizes thrown provider exceptions into provider error events", async () => {
+    const registry = new CapabilityRegistry();
+    registry.registerProvider({
+      id: "throwing",
+      generate() {
+        throw new Error("provider exploded");
+      }
+    });
+    registry.registerModel({ providerId: "throwing", modelId: "primary", purposes: ["primary"] });
+
+    const result = await new ProviderRouter({
+      registry,
+      policy: { primary: { providerId: "throwing", modelId: "primary" } }
+    }).route(request);
+
+    expect(result).toMatchObject({ ok: false, error: { code: "PROVIDER_FAILED" } });
+    expect(result.events).toContainEqual(
+      expect.objectContaining({
+        type: ModelEventType.ProviderError,
+        error: expect.objectContaining({ code: "PROVIDER_FAILED", message: "provider exploded" })
+      })
+    );
+  });
 });

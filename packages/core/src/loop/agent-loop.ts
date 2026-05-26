@@ -2,7 +2,7 @@ import { CoreError } from "../contracts/errors";
 import { AgentEventType, type AgentEvent } from "../contracts/events";
 import { ModelEventType } from "../contracts/model-events";
 import type { ToolCall } from "../contracts/messages";
-import type { Provider, ProviderRequest, ProviderResponse } from "../contracts/provider";
+import type { LegacyProviderError, Provider, ProviderError, ProviderRequest, ProviderResponse } from "../contracts/provider";
 import { ProviderErrorCategory } from "../contracts/provider";
 import type { AgentRunFailure, AgentRunOptions, AgentRunResult } from "../contracts/runtime";
 import type { ToolExecutionContext, ToolResult } from "../contracts/tools";
@@ -87,10 +87,14 @@ export class AgentLoop {
       }
 
       if (response.type === "failure") {
+        const providerError = normalizeProviderError(response.error, {
+          providerId: routeResult.model.providerId,
+          modelId: routeResult.model.modelId
+        });
         return this.fail(
           runId,
           eventStartIndex,
-          new CoreError("PROVIDER_FAILED", response.error.message, response.error),
+          new CoreError("PROVIDER_FAILED", providerError.message, providerError),
           "provider_failed"
         );
       }
@@ -286,7 +290,11 @@ function modelEventsFromDirectResponse(
     events.push({ ...base, type: ModelEventType.Usage, usage: response.usage });
   }
   if (response.type === "failure") {
-    events.push({ ...base, type: ModelEventType.ProviderError, error: response.error });
+    events.push({
+      ...base,
+      type: ModelEventType.ProviderError,
+      error: normalizeProviderError(response.error, { providerId, modelId })
+    });
   } else {
     events.push({
       ...base,
@@ -303,6 +311,28 @@ function requireDirectProvider(provider: Provider | undefined): Provider {
     throw new CoreError("PROVIDER_NOT_FOUND", "Provider not resolved for direct provider call");
   }
   return provider;
+}
+
+function normalizeProviderError(
+  error: ProviderError | LegacyProviderError,
+  model: { providerId: string; modelId: string }
+): ProviderError {
+  if ("category" in error) {
+    return {
+      ...error,
+      providerId: error.providerId ?? model.providerId,
+      modelId: error.modelId ?? model.modelId
+    };
+  }
+
+  return {
+    category: ProviderErrorCategory.Fatal,
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    providerId: model.providerId,
+    modelId: model.modelId
+  };
 }
 
 async function executeTool(

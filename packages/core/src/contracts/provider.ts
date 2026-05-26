@@ -75,6 +75,7 @@ export type ProviderError = {
   category: ProviderErrorCategory;
   code: string;
   message: string;
+  details?: unknown;
   retryable?: boolean;
   providerId?: string;
   modelId?: string;
@@ -82,6 +83,12 @@ export type ProviderError = {
   statusCode?: number;
   metadata?: Record<string, unknown>;
   cause?: unknown;
+};
+
+export type LegacyProviderError = {
+  code: string;
+  message: string;
+  details?: unknown;
 };
 
 export type ProviderRawReference = {
@@ -116,7 +123,7 @@ export type ProviderToolCallResponse = {
 
 export type ProviderFailureResponse = {
   type: "failure";
-  error: ProviderError;
+  error: ProviderError | LegacyProviderError;
   usage?: Usage;
   raw?: ProviderRawReference[];
 };

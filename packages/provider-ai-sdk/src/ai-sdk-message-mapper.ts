@@ -30,8 +30,10 @@ export function mapCoreMessagesToAiSdk(messages: readonly CoreMessage[]): AiSdkM
             type: "tool-result",
             toolCallId: message.toolCallId,
             toolName: message.name,
-            output: message.content,
-            isError: message.isError
+            output: {
+              type: message.isError ? "error-text" : "text",
+              value: message.content
+            }
           }
         ]
       };

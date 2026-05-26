@@ -49,8 +49,8 @@ export type AgentRuntimeShutdownResult = {
 
 export type AgentRuntime = {
   registerProvider(provider: Provider): void;
-  registerModel(model: ModelMetadata): void;
-  listModels(): ModelMetadata[];
+  registerModel?(model: ModelMetadata): void;
+  listModels?(): ModelMetadata[];
   registerTool(tool: ToolDefinition): void;
   onEvent(listener: (event: AgentEvent) => void): () => void;
   run(options: AgentRunOptions): Promise<AgentRunResult>;

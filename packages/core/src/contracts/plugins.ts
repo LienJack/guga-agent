@@ -5,7 +5,7 @@ import type { ToolDefinition } from "./tools";
 export type PluginContext = {
   pluginId: string;
   registerProvider(provider: Provider): void;
-  registerModel(model: ModelMetadata): void;
+  registerModel?(model: ModelMetadata): void;
   registerTool(tool: ToolDefinition): void;
   registerHook(hook: HookRegistration): void;
 };

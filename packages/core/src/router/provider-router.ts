@@ -3,6 +3,7 @@ import { ModelEventType, type ModelEvent } from "../contracts/model-events";
 import {
   ProviderErrorCategory,
   type ModelIdentifier,
+  type LegacyProviderError,
   type ProviderError,
   type ProviderResponse
 } from "../contracts/provider";
@@ -96,13 +97,21 @@ export class ProviderRouter {
       }
 
       for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
-        const response = await provider.generate({
-          messages: request.messages,
-          tools: request.tools,
-          model: candidate,
-          ...(request.purpose ? { purpose: request.purpose } : {}),
-          ...(request.signal ? { signal: request.signal } : {})
-        });
+        let response: ProviderResponse;
+        try {
+          response = await provider.generate({
+            messages: request.messages,
+            tools: request.tools,
+            model: candidate,
+            ...(request.purpose ? { purpose: request.purpose } : {}),
+            ...(request.signal ? { signal: request.signal } : {})
+          });
+        } catch (error) {
+          response = {
+            type: "failure",
+            error: thrownProviderError(error, candidate)
+          };
+        }
 
         const modelEvents = eventsFromResponse(request, candidate, attempt, response);
         events.push(...modelEvents);
@@ -111,7 +120,9 @@ export class ProviderRouter {
           return { ok: true, response, model: candidate, events };
         }
 
-        if (shouldRetry(response.error, attempt, maxRetries)) {
+        const providerError = normalizeProviderError(response.error, candidate);
+
+        if (shouldRetry(providerError, attempt, maxRetries)) {
           events.push({
             type: ModelEventType.RetryScheduled,
             runId: request.runId,
@@ -119,7 +130,7 @@ export class ProviderRouter {
             attempt,
             providerId: candidate.providerId,
             modelId: candidate.modelId,
-            error: response.error,
+            error: providerError,
             nextAttempt: attempt + 1,
             ...(request.purpose ? { purpose: request.purpose } : {})
           });
@@ -136,7 +147,7 @@ export class ProviderRouter {
               attempt,
               from: candidate,
               to: next,
-              reason: response.error,
+              reason: providerError,
               ...(request.purpose ? { purpose: request.purpose } : {})
             });
           }
@@ -204,7 +215,7 @@ function eventsFromResponse(
   }
 
   if (response.type === "failure") {
-    events.push({ ...base, type: ModelEventType.ProviderError, error: response.error });
+    events.push({ ...base, type: ModelEventType.ProviderError, error: normalizeProviderError(response.error, model) });
     return events;
   }
 
@@ -218,6 +229,39 @@ function eventsFromResponse(
 
 function shouldRetry(error: ProviderError, attempt: number, maxRetries: number): boolean {
   return attempt < maxRetries && (error.retryable === true || error.category === ProviderErrorCategory.Retryable);
+}
+
+function normalizeProviderError(
+  error: ProviderError | LegacyProviderError,
+  model: ModelIdentifier
+): ProviderError {
+  if ("category" in error) {
+    return {
+      ...error,
+      providerId: error.providerId ?? model.providerId,
+      modelId: error.modelId ?? model.modelId
+    };
+  }
+
+  return {
+    category: ProviderErrorCategory.Fatal,
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    providerId: model.providerId,
+    modelId: model.modelId
+  };
+}
+
+function thrownProviderError(error: unknown, model: ModelIdentifier): ProviderError {
+  return {
+    category: ProviderErrorCategory.Fatal,
+    code: "PROVIDER_FAILED",
+    message: error instanceof Error ? error.message : "Provider failed",
+    providerId: model.providerId,
+    modelId: model.modelId,
+    cause: error
+  };
 }
 
 function toRouterError(error: unknown): ProviderRouterFailure["error"] {

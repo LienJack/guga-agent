@@ -110,7 +110,7 @@ export function createAiSdkProviderPlugin(
     name: "AI SDK Provider Bridge",
     init(context) {
       context.registerProvider(provider);
-      context.registerModel(metadata);
+      context.registerModel?.(metadata);
     }
   };
 }

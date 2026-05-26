@@ -103,6 +103,19 @@ describe("core contracts", () => {
     expect(error.retryable).toBe(true);
   });
 
+  it("keeps legacy provider failure errors representable during migration", () => {
+    const response: ProviderResponse = {
+      type: "failure",
+      error: {
+        code: "LEGACY_PROVIDER_FAILED",
+        message: "Legacy provider failed",
+        details: { retryable: false }
+      }
+    };
+
+    expect(response.error).toMatchObject({ code: "LEGACY_PROVIDER_FAILED" });
+  });
+
   it("can express model events for text, tool intent, usage, finish, and provider errors", () => {
     const call: ToolCall = { id: "call-model-1", name: "search", input: { q: "guga" } };
     const events: ModelEvent[] = [
@@ -172,7 +185,7 @@ describe("core contracts", () => {
             return { type: "final", content: "ok" };
           }
         });
-        context.registerModel({
+        context.registerModel?.({
           providerId: "example-provider",
           modelId: "example-model",
           capabilities: { usage: "optional" }
