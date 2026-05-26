@@ -147,5 +147,6 @@ describe("AI SDK provider bridge", () => {
         capabilities: { toolCalling: true, usage: "optional" }
       })
     ]);
+    expect(plugin.model).toEqual({ providerId: "ai-sdk", modelId: "claude-test" });
   });
 });

@@ -75,6 +75,7 @@ export type {
 } from "./contracts/provider-router";
 export type {
   LocalPlugin,
+  LocalModelPlugin,
   PluginCapabilityKind,
   PluginContext,
   PluginFailure,

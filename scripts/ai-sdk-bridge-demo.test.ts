@@ -34,24 +34,18 @@ test("runs through the AI SDK bridge against a local OpenAI-compatible endpoint"
   const baseURL = `http://127.0.0.1:${port}/v1`;
 
   const runtime = createAgentRuntime({
-    plugins: [
-      createAiSdkProviderPlugin({
-        id: "ai-sdk-demo",
-        mode: "openai-compatible",
-        modelId: "demo-model",
-        baseURL,
-        apiKey: "demo-key",
-        metadata: {
-          displayName: "Local OpenAI-compatible Demo Model",
-          purposes: ["primary"],
-          capabilities: { toolCalling: true, usage: "optional" }
-        }
-      })
-    ],
-    routerPolicy: {
-      primary: { providerId: "ai-sdk-demo", modelId: "demo-model" },
-      maxRetries: 0
-    }
+    model: createAiSdkProviderPlugin({
+      id: "ai-sdk-demo",
+      mode: "openai-compatible",
+      modelId: "demo-model",
+      baseURL,
+      apiKey: "demo-key",
+      metadata: {
+        displayName: "Local OpenAI-compatible Demo Model",
+        purposes: ["primary"],
+        capabilities: { toolCalling: true, usage: "optional" }
+      }
+    })
   });
 
   runtime.registerTool({
@@ -80,7 +74,6 @@ test("runs through the AI SDK bridge against a local OpenAI-compatible endpoint"
 
   const result = await runtime.run({
     input: "Use the echo tool with value guga, then summarize the result.",
-    providerId: "ai-sdk-demo",
     runId: "demo-run"
   });
 

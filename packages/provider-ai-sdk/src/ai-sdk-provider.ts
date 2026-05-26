@@ -4,6 +4,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type {
   LocalPlugin,
+  LocalModelPlugin,
   ModelMetadata,
   Provider,
   ProviderRequest,
@@ -97,7 +98,7 @@ export function createAiSdkProvider(
 export function createAiSdkProviderPlugin(
   config: AiSdkProviderConfig,
   options: AiSdkProviderFactoryOptions = {}
-): LocalPlugin {
+): LocalModelPlugin {
   const provider = createAiSdkProvider(config, options);
   const metadata: ModelMetadata = {
     providerId: provider.id,
@@ -108,6 +109,10 @@ export function createAiSdkProviderPlugin(
   return {
     id: provider.id,
     name: "AI SDK Provider Bridge",
+    model: {
+      providerId: provider.id,
+      modelId: config.modelId
+    },
     init(context) {
       context.registerProvider(provider);
       context.registerModel?.(metadata);

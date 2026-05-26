@@ -46,7 +46,9 @@ export class AgentLoop {
 
     let directProvider: Provider | undefined;
     if (!this.router) {
-      const providerOrError = this.resolveProvider(options.providerId);
+      const providerOrError = options.providerId
+        ? this.resolveProvider(options.providerId)
+        : new CoreError("PROVIDER_NOT_FOUND", "Provider id is required when no provider router is configured");
       if (providerOrError instanceof CoreError) {
         return this.fail(runId, eventStartIndex, providerOrError, "provider_missing");
       }

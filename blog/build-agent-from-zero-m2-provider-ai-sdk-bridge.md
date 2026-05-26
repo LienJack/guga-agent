@@ -4,6 +4,7 @@ tags:
   - agent
   - runtime
   - provider
+  - gateway
   - ai-sdk
   - router
   - guga
@@ -171,7 +172,133 @@ packages/provider-ai-sdk
 
 **M2 采用 AI SDK 的覆盖能力，但不采用 AI SDK 作为 Guga 的架构边界。**
 
-## 三、Core 先拥有 provider runtime contract
+## 三、先分清 Provider、Gateway 和 Guga Router
+
+讨论多模型接入时，最容易混在一起的三个词是：
+
+```text
+provider
+gateway
+router
+```
+
+它们听起来都像“模型入口”，但解决的问题不一样。
+
+先看 AI SDK 最直观的 provider 写法：
+
+```ts
+import { generateText } from "ai";
+import { google } from "@ai-sdk/google";
+
+const { text } = await generateText({
+  model: google("gemini-3-pro-preview"),
+  prompt: "What is love?"
+});
+```
+
+这里的 `google` 就是一个 provider。它代表的是“我直接使用 Google 这个模型厂商的接入包”。如果换成 OpenAI，写法会变成：
+
+```ts
+import { openai } from "@ai-sdk/openai";
+
+model: openai("gpt-5")
+```
+
+如果换成 Anthropic，又会变成：
+
+```ts
+import { anthropic } from "@ai-sdk/anthropic";
+
+model: anthropic("claude-sonnet-4-5")
+```
+
+这种写法的好处是清楚、直接、控制力强。你一眼就知道请求会发给哪个厂商。
+
+但它也带来一个现实问题：每多接一个厂商，就多一组 package、认证方式、模型命名、provider option 和兼容细节。对普通应用来说这可以接受；对 Guga 这种要先把 agent runtime 地基打稳的项目来说，M2 阶段不应该把精力过早花在多个厂商接入包的细枝末节上。
+
+Gateway 模式解决的是另一个问题：
+
+```ts
+import { generateText, gateway } from "ai";
+
+const { text } = await generateText({
+  model: gateway("google/gemini-3-pro-preview"),
+  prompt: "What is love?"
+});
+```
+
+这里的 `gateway` 本身也可以看成一种 provider，但它不是某一个模型厂商，而是一个统一入口。模型 ID 里带上厂商前缀：
+
+```text
+google/gemini-3-pro-preview
+openai/gpt-5
+anthropic/claude-sonnet-4-5
+```
+
+请求先进入 Gateway，再由 Gateway 转到背后的模型厂商。
+
+所以 provider 和 gateway 的关系可以这样记：
+
+```text
+provider = 直接连某个模型厂商
+gateway = 先连统一入口，再由统一入口路由到模型厂商
+```
+
+那 Guga 的 `ProviderRouter` 又是什么？
+
+它不是 AI SDK Gateway 的替代品。它解决的是 Guga runtime 自己的问题：
+
+```text
+这次 agent 主循环该用哪个模型？
+摘要任务该用哪个便宜模型？
+provider 返回 rate limit 后要不要 retry？
+payment/auth 失败后要不要 fallback？
+context overflow 是换模型，还是先 compact？
+```
+
+也就是说，三层关系是：
+
+```text
+Guga ProviderRouter
+  -> 选择一个 Guga provider/model candidate
+    -> packages/provider-ai-sdk
+      -> AI SDK gateway("google/gemini-3-pro-preview")
+        -> 真实模型厂商
+```
+
+Gateway 负责把“多厂商接入”简化成一个模型入口。
+
+Guga Router 负责把“agent runtime 的模型选择、retry、fallback、事件审计”留在 core 里。
+
+这就是为什么 M2 继续保留 Gateway 模式作为默认主路径。
+
+Guga 可以以后支持这种直连 provider 写法：
+
+```ts
+import { google } from "@ai-sdk/google";
+
+createAiSdkProviderPlugin({
+  id: "google",
+  modelId: "gemini-3-pro-preview",
+  model: google("gemini-3-pro-preview")
+});
+```
+
+但 M2 更适合先坚持 Gateway 写法：
+
+```ts
+createAiSdkProviderPlugin({
+  id: "ai-gateway",
+  mode: "gateway",
+  modelId: "google/gemini-3-pro-preview"
+});
+```
+
+原因很简单：M2 要证明的不是“Guga 能不能 import 每个厂商的 SDK”，而是“真实模型世界能不能通过一个 bridge 进入 Guga runtime，同时不破坏 core contract”。
+
+Gateway 把第一阶段的厂商复杂度压低；Guga Router 把 runtime 控制权留住。两者不是竞争关系，而是上下两层。
+
+## 四、Core 先拥有 provider runtime contract
 
 M2 首先扩展的是 `packages/core/src/contracts/provider.ts`。
 
@@ -200,6 +327,78 @@ summarizer  -> 辅助摘要模型
 cheap       -> 低成本辅助模型
 reasoning   -> 长思考模型
 ```
+
+这里的 `purposes` 很容易被误解成 provider 分类。它不是。
+
+`providerId` 回答的是：
+
+```text
+这个模型从哪个 provider 入口调用？
+```
+
+`modelId` 回答的是：
+
+```text
+这个 provider 入口下面具体调用哪个模型？
+```
+
+`purposes` 回答的是：
+
+```text
+这个模型在 Guga runtime 里适合做什么工作？
+```
+
+比如同样走 Gateway：
+
+```ts
+{
+  providerId: "ai-gateway",
+  modelId: "google/gemini-3-pro-preview",
+  purposes: ["primary"]
+}
+```
+
+表示这个模型适合做主模型，参与 agent 主循环、规划和工具调用。
+
+另一个模型也可以走同一个 Gateway：
+
+```ts
+{
+  providerId: "ai-gateway",
+  modelId: "google/gemini-3-flash",
+  purposes: ["auxiliary", "summarizer"]
+}
+```
+
+表示它更适合做辅助任务，比如摘要、压缩、便宜快速的分类判断。
+
+这就是 `purposes` 的价值：它让模型选择从“字符串硬编码”变成“按任务意图选择”。
+
+```text
+主循环请求       -> purpose: primary
+上下文压缩请求   -> purpose: summarizer
+便宜辅助判断请求 -> purpose: auxiliary
+```
+
+如果没有 `purposes`，Guga 只能在调用处写死：
+
+```text
+摘要任务就用 google/gemini-3-flash
+主循环就用 google/gemini-3-pro-preview
+```
+
+这会让模型分工散落在各个模块里。
+
+有了 `purposes`，调用方只表达意图，`ProviderRouter` 再根据 policy 找 candidate：
+
+```text
+purpose: summarizer
+  -> candidates:
+     - ai-gateway/google/gemini-3-flash
+     - ai-gateway/openai/gpt-5-mini
+```
+
+这不是一个很复杂的功能，但它让 Guga 从 M2 开始就有了“主模型”和“辅助模型”分工的语言。
 
 M2 没有做完整模型运营平台，也没有接 `models.dev`，但先把最小 model metadata 放进 core，是为了让 router 和 debug path 有稳定依据。
 
@@ -231,7 +430,7 @@ cost: {
 
 因为 usage 是审计事实，不能为了界面好看而制造假的精确性。
 
-## 四、ProviderError：错误不是日志，而是 router 的输入
+## 五、ProviderError：错误不是日志，而是 router 的输入
 
 真实 provider 接入后，错误分类会直接影响下一步动作。
 
@@ -273,7 +472,7 @@ M2 还没有实现 credential pool、payment fallback、context compaction，但
 
 **API wrapper 把错误抛出去；provider runtime 把错误变成控制流事实。**
 
-## 五、ModelEvent：streaming 和 non-streaming 先使用同一种语言
+## 六、ModelEvent：streaming 和 non-streaming 先使用同一种语言
 
 真实模型调用还有一个常见分叉：streaming 和 non-streaming。
 
@@ -336,7 +535,7 @@ model.finished
 以后再试图抽象回来
 ```
 
-## 六、ProviderRouter：fallback 不能交给 bridge 偷偷做
+## 七、ProviderRouter：fallback 不能交给 bridge 偷偷做
 
 AI SDK 和 Gateway 都可能提供自己的 retry、routing 或 fallback 能力。
 
@@ -405,7 +604,15 @@ AI SDK bridge owns single-call transport mapping
 
 这样每次 selection、retry、fallback、provider error 都能以 `ModelEvent` 进入 runtime event stream。
 
-## 七、ModelRegistry：模型元数据进入同一个能力池
+这里也解释了为什么 Gateway 模式不能替代 Guga Router。
+
+Gateway 可以帮你找到背后的模型厂商，可以统一鉴权、观测、限流，也可以提供一些服务侧能力。
+
+但 Gateway 不知道 Guga 的 agent loop 正在做什么。它不知道这次调用是主循环、摘要、视觉理解，还是一次压缩失败后的恢复请求；它也不知道工具执行必须经过 Guga 的 permission 和 hook pipeline。
+
+所以 Gateway 可以是模型入口，但不能是 agent runtime 的决策中心。
+
+## 八、ModelRegistry：模型元数据进入同一个能力池
 
 M1 的 `CapabilityRegistry` 已经能注册 provider 和 tool。
 
@@ -447,7 +654,7 @@ CapabilityRegistry
 
 这样 host 手动注册、插件注册、AI SDK bridge 注册，最终都进入同一个 runtime 能力集合。
 
-## 八、AI SDK bridge：只做翻译，不接管 agent loop
+## 九、AI SDK bridge：只做翻译，不接管 agent loop
 
 新的 `packages/provider-ai-sdk` 是 M2 的第一条真实 provider bridge。
 
@@ -525,7 +732,7 @@ AI SDK tool call = Guga tool intent
 AI SDK must not execute the tool
 ```
 
-## 九、Tool Intent：模型可以提出意图，不能执行副作用
+## 十、Tool Intent：模型可以提出意图，不能执行副作用
 
 M1 已经证明 pre-tool gate 必须在真实工具执行路径上：
 
@@ -574,7 +781,7 @@ expect("execute" in tools.echo!).toBe(false);
 
 **模型可以产生 tool intent，但工具副作用必须回到 Guga tool pipeline。**
 
-## 十、为什么 model hooks 只做 contract-first
+## 十一、为什么 model hooks 只做 contract-first
 
 M1 已经有了 `HookKernel`，支持 runtime lifecycle 和 pre-tool gate。
 
@@ -612,7 +819,7 @@ M2 的重点已经很满：provider contract、model registry、ModelEvent、rou
 
 这和 M1 的思路是一致的：先把边界立住，再把执行接进 critical path。
 
-## 十一、这次实现后的运行路径
+## 十二、这次实现后的运行路径
 
 把 M2 放回完整 run，会变成这样：
 
@@ -659,7 +866,7 @@ sequenceDiagram
 
 AI SDK 是默认真实 backend，但不是系统主人。
 
-## 十二、M2 没有做什么
+## 十三、M2 没有做什么
 
 M2 很容易被误解成“Guga 已经完成 provider 平台了”。
 
@@ -696,7 +903,7 @@ usage/error/fallback 都有结构化事实
 
 否则 provider 平台做得越完整，core 被外部 SDK 牵着走的风险越大。
 
-## 十三、测试真正证明了什么
+## 十四、测试真正证明了什么
 
 M2 的测试重点不是“真的调到了 OpenAI”。
 
@@ -724,7 +931,7 @@ M2 的测试重点不是“真的调到了 OpenAI”。
 
 **真实 provider SDK 进入系统时，没有突破 Guga 的 runtime 边界。**
 
-## 十四、把 M2 放回从 0 到 1 的演进链
+## 十五、把 M2 放回从 0 到 1 的演进链
 
 现在回头看 M0、M1、M2，这条线很清楚。
 
@@ -765,3 +972,7 @@ M2 的答案是：真实模型 SDK 可以来自 bridge，但模型选择、fallb
 **AI SDK 是 Guga 通向真实模型世界的桥，不是 Guga core 的地基。**
 
 M2 最重要的选型不是“用了 AI SDK”，而是“把 AI SDK 放在了正确的位置”。
+
+如果再加上这一篇里的三个词，可以记成更具体的一句话：
+
+**Gateway 负责减少多厂商接入摩擦，Provider bridge 负责翻译模型调用，Guga Router 负责保留 agent runtime 的控制权。**

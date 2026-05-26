@@ -27,15 +27,18 @@ export class AgentRuntime implements AgentRuntimeContract {
   private disposed = false;
 
   constructor(options: AgentRuntimeOptions = {}) {
+    const plugins = options.model ? [options.model, ...(options.plugins ?? [])] : (options.plugins ?? []);
+    const routerPolicy = options.routerPolicy ?? (options.model ? { primary: options.model.model } : undefined);
+
     this.hookKernel = new HookKernel({ eventBus: this.eventBus });
     this.pluginHost = new PluginHost({
-      plugins: options.plugins ?? [],
+      plugins,
       registry: this.registry,
       hookKernel: this.hookKernel,
       eventBus: this.eventBus
     });
-    this.router = options.routerPolicy
-      ? new ProviderRouter({ registry: this.registry, policy: options.routerPolicy })
+    this.router = routerPolicy
+      ? new ProviderRouter({ registry: this.registry, policy: routerPolicy })
       : undefined;
   }
 

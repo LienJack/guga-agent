@@ -1,5 +1,5 @@
 import type { HookRegistration } from "./hooks";
-import type { ModelMetadata, Provider } from "./provider";
+import type { ModelIdentifier, ModelMetadata, Provider } from "./provider";
 import type { ToolDefinition } from "./tools";
 
 export type PluginContext = {
@@ -19,6 +19,10 @@ export type LocalPlugin = {
   name?: string;
   init(context: PluginContext): Promise<void> | void;
   shutdown?(context: PluginShutdownContext): Promise<void> | void;
+};
+
+export type LocalModelPlugin = LocalPlugin & {
+  model: ModelIdentifier;
 };
 
 export type PluginCapabilityKind = "provider" | "model" | "tool" | "hook";

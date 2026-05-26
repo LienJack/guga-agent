@@ -10,25 +10,19 @@ const modelId = env.DEEPSEEK_MODEL;
 
 test.runIf(apiKey && baseURL && modelId)("runs the AI SDK bridge against the real OpenAI-compatible environment", async () => {
   const runtime = createAgentRuntime({
-    plugins: [
-      createAiSdkProviderPlugin({
-        id: "real-ai-sdk",
-        mode: "openai-compatible",
-        modelId,
-        baseURL,
-        apiKey,
-        name: "real-openai-compatible",
-        metadata: {
-          displayName: modelId,
-          purposes: ["primary"],
-          capabilities: { toolCalling: true, usage: "optional" }
-        }
-      })
-    ],
-    routerPolicy: {
-      primary: { providerId: "real-ai-sdk", modelId },
-      maxRetries: 0
-    }
+    model: createAiSdkProviderPlugin({
+      id: "real-ai-sdk",
+      mode: "openai-compatible",
+      modelId,
+      baseURL,
+      apiKey,
+      name: "real-openai-compatible",
+      metadata: {
+        displayName: modelId,
+        purposes: ["primary"],
+        capabilities: { toolCalling: true, usage: "optional" }
+      }
+    })
   });
 
   const observedEvents: unknown[] = [];
@@ -36,7 +30,6 @@ test.runIf(apiKey && baseURL && modelId)("runs the AI SDK bridge against the rea
 
   const result = await runtime.run({
     input: "Reply with one short sentence that starts with: Guga real bridge",
-    providerId: "real-ai-sdk",
     runId: "real-demo-run",
     maxTurns: 2
   });

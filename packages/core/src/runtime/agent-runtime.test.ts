@@ -70,6 +70,23 @@ describe("AgentRuntime", () => {
     });
   });
 
+  it("requires providerId only when no provider router is configured", async () => {
+    const runtime = createAgentRuntime();
+
+    const result = await runtime.run({
+      input: "hello",
+      runId: "runtime-missing-provider-id"
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "PROVIDER_NOT_FOUND",
+        message: "Provider id is required when no provider router is configured"
+      }
+    });
+  });
+
   it("lets hosts mount plugins before the first run and observe lazy initialization", async () => {
     const runtime = createAgentRuntime({
       plugins: [
@@ -413,6 +430,39 @@ describe("AgentRuntime", () => {
       })
     );
     expect(result.events.map((event) => event.type)).toContain(AgentEventType.ToolResult);
+  });
+
+  it("uses a model plugin as the primary routed model", async () => {
+    const runtime = createAgentRuntime({
+      model: {
+        id: "model-plugin",
+        model: { providerId: "model-plugin-provider", modelId: "model-plugin-primary" },
+        init(context) {
+          context.registerProvider(
+            createMockProvider([{ type: "final", content: "model plugin final" }], {
+              id: "model-plugin-provider"
+            })
+          );
+          context.registerModel({
+            providerId: "model-plugin-provider",
+            modelId: "model-plugin-primary",
+            purposes: ["primary"],
+            capabilities: { usage: "optional" }
+          });
+        }
+      }
+    });
+
+    const result = await runtime.run({
+      input: "hello",
+      runId: "runtime-model-plugin"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "model plugin final" });
+    const modelEvents = result.events
+      .filter((event) => event.type === AgentEventType.ModelEvent)
+      .map((event) => event.event.type);
+    expect(modelEvents).toContain(ModelEventType.Selected);
   });
 
   it("returns structured run failures for router provider failures", async () => {
