@@ -27,6 +27,8 @@ Runtime work is TypeScript-first and test-first around behavior-bearing units. T
 - Add behavior tests for every feature-bearing runtime unit.
 - Prefer in-memory fixtures for M0 tests: mock provider and test tool, not external services.
 - Keep plan/task artifacts out of runtime imports; code must not depend on `.trellis/` or `docs/`.
+- Keep plugin and hook contracts minimal: local trusted plugin object, restricted plugin context, provider/tool/hook registration, and init/shutdown lifecycle only.
+- Hook control-flow decisions belong in `HookKernel` and the agent loop control path; do not implement blocking behavior as an `EventBus` listener.
 
 ---
 
@@ -49,6 +51,10 @@ Required coverage points for the M0 core loop:
 - Provider exception normalized to structured provider failure.
 - Max-turns stop path.
 - Run result event list contains only the current run's events.
+- Local plugin provider/tool/hook registration through `createAgentRuntime({ plugins })`.
+- Plugin init failure and partial cleanup.
+- Pre-tool gate allow, deny, and thrown-failure paths.
+- Async runtime dispose, shutdown failures, and disposed-runtime behavior.
 
 ---
 

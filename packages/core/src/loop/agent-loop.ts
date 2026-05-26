@@ -5,27 +5,34 @@ import type { ProviderRequest } from "../contracts/provider";
 import type { AgentRunFailure, AgentRunOptions, AgentRunResult } from "../contracts/runtime";
 import type { ToolExecutionContext, ToolResult } from "../contracts/tools";
 import { EventBus } from "../events/event-bus";
+import { HookKernel } from "../hooks/hook-kernel";
 import { CapabilityRegistry } from "../registry/capability-registry";
 import { ConversationState } from "../state/conversation-state";
 
 export type AgentLoopOptions = {
   registry: CapabilityRegistry;
   eventBus?: EventBus;
+  eventStartIndex?: number;
+  hookKernel?: HookKernel;
 };
 
 export class AgentLoop {
   private readonly registry: CapabilityRegistry;
   private readonly eventBus: EventBus;
+  private readonly eventStartIndex: number | undefined;
+  private readonly hookKernel: HookKernel | undefined;
 
   constructor(options: AgentLoopOptions) {
     this.registry = options.registry;
     this.eventBus = options.eventBus ?? new EventBus();
+    this.eventStartIndex = options.eventStartIndex;
+    this.hookKernel = options.hookKernel;
   }
 
   async run(options: AgentRunOptions): Promise<AgentRunResult> {
     const runId = options.runId ?? crypto.randomUUID();
     const maxTurns = options.maxTurns ?? 8;
-    const eventStartIndex = this.eventBus.events.length;
+    const eventStartIndex = this.eventStartIndex ?? this.eventBus.events.length;
     const state = new ConversationState();
     state.addUserMessage(options.input);
 
@@ -98,6 +105,38 @@ export class AgentLoop {
 
       for (const call of response.toolCalls) {
         this.publish({ type: AgentEventType.ToolCalled, runId, turn, call });
+
+        if (this.hookKernel) {
+          const gateResult = await this.hookKernel.runPreToolGate({ runId, turn, call, tools });
+          if (!gateResult.ok) {
+            return this.fail(
+              runId,
+              eventStartIndex,
+              new CoreError("HOOK_FAILED", gateResult.error.message, {
+                hook: gateResult.failedHook,
+                error: gateResult.error
+              }),
+              "hook_failed"
+            );
+          }
+
+          if ("deniedBy" in gateResult) {
+            const blockedResult: ToolResult = {
+              ok: false,
+              error: {
+                code: "TOOL_CALL_BLOCKED",
+                message: gateResult.decision.reason,
+                details: {
+                  hookId: gateResult.deniedBy.id,
+                  pluginId: gateResult.deniedBy.pluginId
+                }
+              }
+            };
+            state.addToolResult(call, blockedResult);
+            this.publish({ type: AgentEventType.ToolResult, runId, turn, call, result: blockedResult });
+            continue;
+          }
+        }
 
         const tool = this.registry.getTool(call.name);
         if (!tool) {

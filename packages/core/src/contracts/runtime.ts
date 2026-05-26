@@ -1,4 +1,5 @@
 import type { AgentEvent } from "./events";
+import type { LocalPlugin } from "./plugins";
 import type { Provider } from "./provider";
 import type { ToolDefinition } from "./tools";
 
@@ -30,10 +31,21 @@ export type AgentRunFailure = {
 
 export type AgentRunResult = AgentRunSuccess | AgentRunFailure;
 
+export type AgentRuntimeOptions = {
+  plugins?: LocalPlugin[];
+};
+
+export type AgentRuntimeShutdownResult = {
+  ok: boolean;
+  runId: string;
+  failures: AgentRunFailure["error"][];
+  events: AgentEvent[];
+};
+
 export type AgentRuntime = {
   registerProvider(provider: Provider): void;
   registerTool(tool: ToolDefinition): void;
   onEvent(listener: (event: AgentEvent) => void): () => void;
   run(options: AgentRunOptions): Promise<AgentRunResult>;
-  dispose(): void;
+  dispose(): Promise<AgentRuntimeShutdownResult>;
 };

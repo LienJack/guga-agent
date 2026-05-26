@@ -15,6 +15,7 @@ Core runtime errors must be structured and observable. Provider failures, missin
 - `CoreError`: internal runtime exception class with `code`, `message`, and optional `details`.
 - `AgentRunFailure`: host-facing run result with `ok: false`, `runId`, structured `error`, and the run's event slice.
 - `ToolFailure`: tool result with `ok: false` and an error payload; it is converted into a `role: "tool"` message with `isError: true`.
+- `AgentRuntimeShutdownResult`: host-facing async dispose result with `ok`, `runId`, `failures`, and shutdown event slice.
 
 Current core error codes:
 
@@ -23,6 +24,10 @@ Current core error codes:
 - `CAPABILITY_ALREADY_REGISTERED`
 - `PROVIDER_FAILED`
 - `MAX_TURNS_EXCEEDED`
+- `PLUGIN_INIT_FAILED`
+- `PLUGIN_SHUTDOWN_FAILED`
+- `HOOK_FAILED`
+- `RUNTIME_DISPOSED`
 
 ---
 
@@ -33,6 +38,11 @@ Current core error codes:
 - Provider throws or returns failure: normalize to `PROVIDER_FAILED`, emit an `error` event, and return `AgentRunFailure`.
 - Tool returns failure or throws: convert to `ToolFailure`, append it to conversation state as a model-visible observation, emit `tool.result`, and continue the loop.
 - Max turns exceeded: fail the run with `MAX_TURNS_EXCEEDED` and emit an `error` event.
+- Plugin init fails: publish `plugin.failure`, return `AgentRunFailure`, and clean up any plugin capabilities already registered for that runtime.
+- Pre-tool gate hook denies: do not execute the tool; append a model-visible `TOOL_CALL_BLOCKED` tool observation and emit hook decision/tool result events.
+- Pre-tool gate hook throws: return `AgentRunFailure` with `HOOK_FAILED`; do not disguise this as a tool execution failure.
+- Plugin shutdown or shutdown hook fails: return the failure through `AgentRuntimeShutdownResult` and publish observable failure events before clearing event listeners.
+- Disposed runtime is terminal: later `run()` calls return `RUNTIME_DISPOSED`, and later manual capability registration throws `RUNTIME_DISPOSED`.
 
 ---
 
@@ -68,3 +78,7 @@ Tool failure must be visible to the model as a tool observation. Returning only 
 ### Correct: return run-specific event slices
 
 When a runtime has a long-lived in-memory `EventBus`, each `AgentRunResult.events` should include only events for that run, not historical events from previous runs.
+
+### Correct: keep hook failure separate from tool failure
+
+A tool exception becomes a model-visible tool observation so the provider can recover. A pre-tool hook exception is a runtime control-plane failure and must return `HOOK_FAILED`; otherwise policy or lifecycle bugs can look like ordinary tool output.

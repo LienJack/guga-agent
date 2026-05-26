@@ -28,6 +28,10 @@ export class CapabilityRegistry {
     return this.providers.get(id);
   }
 
+  removeProvider(id: string): void {
+    this.providers.delete(id);
+  }
+
   requireProvider(id: string): Provider {
     const provider = this.getProvider(id);
     if (!provider) {
@@ -38,6 +42,10 @@ export class CapabilityRegistry {
 
   getTool(name: string): ToolDefinition | undefined {
     return this.tools.get(name);
+  }
+
+  removeTool(name: string): void {
+    this.tools.delete(name);
   }
 
   requireTool(name: string): ToolDefinition {

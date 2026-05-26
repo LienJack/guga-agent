@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { AgentLoop } from "./agent-loop";
 import { AgentEventType } from "../contracts/events";
+import { HookEffect, HookPhase } from "../contracts/hooks";
 import { EventBus } from "../events/event-bus";
+import { HookKernel } from "../hooks/hook-kernel";
 import { CapabilityRegistry } from "../registry/capability-registry";
 import { createMockProvider } from "../testing/mock-provider";
 import { createTestTool } from "../testing/test-tool";
@@ -179,5 +181,205 @@ describe("AgentLoop", () => {
     const second = await loop.run({ input: "two", providerId: "mock", runId: "run-two" });
 
     expect(second.events.every((event) => event.runId === "run-two")).toBe(true);
+  });
+
+  it("blocks a tool call before execution and returns the denial as a model-visible observation", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    let executions = 0;
+    hookKernel.registerHook("gate-plugin", 0, {
+      id: "deny-secret",
+      phase: HookPhase.PreToolGate,
+      effect: HookEffect.Gate,
+      handler(context) {
+        return context.call.name === "secret"
+          ? { type: "deny", reason: "secret is blocked" }
+          : { type: "allow" };
+      }
+    });
+    registry.registerProvider(
+      createMockProvider([
+        { type: "tool_calls", toolCalls: [{ id: "call-secret", name: "secret", input: {} }] },
+        (request) => {
+          const last = request.messages.at(-1);
+          return {
+            type: "final",
+            content: last?.role === "tool" && last.isError ? last.content : "missing blocked observation"
+          };
+        }
+      ])
+    );
+    registry.registerTool({
+      name: "secret",
+      description: "Secret tool",
+      inputSchema: { type: "object" },
+      effect: "read",
+      execute() {
+        executions += 1;
+        return { ok: true, content: "should not happen" };
+      }
+    });
+
+    const result = await new AgentLoop({ registry, eventBus, hookKernel }).run({
+      input: "Use secret",
+      providerId: "mock",
+      runId: "run-gate-deny"
+    });
+
+    expect(executions).toBe(0);
+    expect(result).toMatchObject({ ok: true, finalAnswer: "TOOL_CALL_BLOCKED: secret is blocked" });
+    expect(result.events.map((event) => event.type)).toContain(AgentEventType.HookDecision);
+    expect(result.events).toContainEqual(
+      expect.objectContaining({
+        type: AgentEventType.ToolResult,
+        result: expect.objectContaining({ ok: false })
+      })
+    );
+  });
+
+  it("preserves existing successful tool execution when the gate allows", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    hookKernel.registerHook("gate-plugin", 0, {
+      id: "allow-all",
+      phase: HookPhase.PreToolGate,
+      effect: HookEffect.Gate,
+      handler() {
+        return { type: "allow" };
+      }
+    });
+    registry.registerProvider(
+      createMockProvider([
+        { type: "tool_calls", toolCalls: [{ id: "call-allowed", name: "echo", input: {} }] },
+        { type: "final", content: "allowed final" }
+      ])
+    );
+    registry.registerTool(createTestTool({ name: "echo", content: "allowed" }));
+
+    const result = await new AgentLoop({ registry, eventBus, hookKernel }).run({
+      input: "Use echo",
+      providerId: "mock",
+      runId: "run-gate-allow"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "allowed final" });
+    expect(result.events.map((event) => event.type)).toContain(AgentEventType.ToolResult);
+  });
+
+  it("can allow one tool call and deny a later tool call in the same assistant message", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    const executed: string[] = [];
+    hookKernel.registerHook("gate-plugin", 0, {
+      id: "deny-second",
+      phase: HookPhase.PreToolGate,
+      effect: HookEffect.Gate,
+      handler(context) {
+        return context.call.name === "blocked"
+          ? { type: "deny", reason: "second blocked" }
+          : { type: "allow" };
+      }
+    });
+    registry.registerProvider(
+      createMockProvider([
+        {
+          type: "tool_calls",
+          toolCalls: [
+            { id: "call-allowed", name: "allowed", input: {} },
+            { id: "call-blocked", name: "blocked", input: {} }
+          ]
+        },
+        (request) => ({
+          type: "final",
+          content: request.messages
+            .filter((message) => message.role === "tool")
+            .map((message) => message.content)
+            .join(" | ")
+        })
+      ])
+    );
+    for (const name of ["allowed", "blocked"]) {
+      registry.registerTool({
+        name,
+        description: name,
+        inputSchema: { type: "object" },
+        effect: "read",
+        execute() {
+          executed.push(name);
+          return { ok: true, content: name };
+        }
+      });
+    }
+
+    const result = await new AgentLoop({ registry, eventBus, hookKernel }).run({
+      input: "Use two tools",
+      providerId: "mock",
+      runId: "run-mixed-gates"
+    });
+
+    expect(executed).toEqual(["allowed"]);
+    expect(result).toMatchObject({ ok: true, finalAnswer: "allowed | TOOL_CALL_BLOCKED: second blocked" });
+  });
+
+  it("returns structured run failure when a gate hook throws", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    hookKernel.registerHook("gate-plugin", 0, {
+      id: "throwing-gate",
+      phase: HookPhase.PreToolGate,
+      effect: HookEffect.Gate,
+      handler() {
+        throw new Error("gate failed");
+      }
+    });
+    registry.registerProvider(
+      createMockProvider([{ type: "tool_calls", toolCalls: [{ id: "call-1", name: "echo", input: {} }] }])
+    );
+    registry.registerTool(createTestTool({ name: "echo", content: "unused" }));
+
+    const result = await new AgentLoop({ registry, eventBus, hookKernel }).run({
+      input: "Use echo",
+      providerId: "mock",
+      runId: "run-gate-throws"
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "HOOK_FAILED", message: "gate failed" }
+    });
+    expect(result.events.map((event) => event.type)).toContain(AgentEventType.HookFailure);
+  });
+
+  it("checks for missing tools only after the gate allows the call", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    hookKernel.registerHook("gate-plugin", 0, {
+      id: "allow-missing",
+      phase: HookPhase.PreToolGate,
+      effect: HookEffect.Gate,
+      handler() {
+        return { type: "allow" };
+      }
+    });
+    registry.registerProvider(
+      createMockProvider([{ type: "tool_calls", toolCalls: [{ id: "call-missing", name: "missing", input: {} }] }])
+    );
+
+    const result = await new AgentLoop({ registry, eventBus, hookKernel }).run({
+      input: "Use missing",
+      providerId: "mock",
+      runId: "run-gate-missing"
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "TOOL_NOT_FOUND" }
+    });
+    expect(result.events.map((event) => event.type)).toContain(AgentEventType.HookDecision);
   });
 });

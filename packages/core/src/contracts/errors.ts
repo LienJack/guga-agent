@@ -3,7 +3,11 @@ export type CoreErrorCode =
   | "TOOL_NOT_FOUND"
   | "CAPABILITY_ALREADY_REGISTERED"
   | "PROVIDER_FAILED"
-  | "MAX_TURNS_EXCEEDED";
+  | "MAX_TURNS_EXCEEDED"
+  | "PLUGIN_INIT_FAILED"
+  | "PLUGIN_SHUTDOWN_FAILED"
+  | "HOOK_FAILED"
+  | "RUNTIME_DISPOSED";
 
 export class CoreError extends Error {
   readonly code: CoreErrorCode;

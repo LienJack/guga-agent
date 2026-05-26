@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { AgentEventType } from "./events";
+import { HookEffect, HookPhase, type PreToolGateDecision } from "./hooks";
 import type { CoreMessage, ToolCall } from "./messages";
+import type { LocalPlugin } from "./plugins";
 import type { ProviderResponse } from "./provider";
 import type { ToolResult } from "./tools";
 
@@ -43,5 +46,81 @@ describe("core contracts", () => {
 
     expect(response.type).toBe("tool_calls");
     expect(response.usage?.totalTokens).toBe(3);
+  });
+
+  it("can express a local plugin that registers provider, tool, and hook capabilities", () => {
+    const plugin: LocalPlugin = {
+      id: "example",
+      init(context) {
+        context.registerProvider({
+          id: "example-provider",
+          generate() {
+            return { type: "final", content: "ok" };
+          }
+        });
+        context.registerTool({
+          name: "example-tool",
+          description: "Example tool",
+          inputSchema: { type: "object" },
+          effect: "read",
+          execute() {
+            return { ok: true, content: "ok" };
+          }
+        });
+        context.registerHook({
+          id: "example-gate",
+          phase: HookPhase.PreToolGate,
+          effect: HookEffect.Gate,
+          handler() {
+            return { type: "allow" };
+          }
+        });
+      }
+    };
+
+    expect(plugin.id).toBe("example");
+  });
+
+  it("can express pre-tool gate allow and deny decisions", () => {
+    const allow: PreToolGateDecision = { type: "allow" };
+    const deny: PreToolGateDecision = {
+      type: "deny",
+      reason: "blocked by policy",
+      metadata: { policy: "test" }
+    };
+
+    expect(allow.type).toBe("allow");
+    expect(deny.reason).toBe("blocked by policy");
+  });
+
+  it("can express plugin lifecycle, hook decision, and structured failure events", () => {
+    const call: ToolCall = { id: "call-4", name: "blocked", input: {} };
+
+    expect([
+      {
+        type: AgentEventType.PluginCapabilityRegistered,
+        runId: "run-contract",
+        pluginId: "example",
+        capability: "provider",
+        name: "example-provider"
+      },
+      {
+        type: AgentEventType.HookDecision,
+        runId: "run-contract",
+        phase: "pre_tool.gate",
+        pluginId: "example",
+        hookId: "example-gate",
+        call,
+        decision: { type: "deny", reason: "blocked" }
+      },
+      {
+        type: AgentEventType.PluginFailure,
+        runId: "run-contract",
+        pluginId: "example",
+        failure: "init",
+        code: "PLUGIN_INIT_FAILED",
+        message: "Init failed"
+      }
+    ]).toHaveLength(3);
   });
 });
