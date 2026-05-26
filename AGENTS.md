@@ -66,7 +66,7 @@ graphify path "ToolRegistry" "ToolExecutor"
 graphify explain "RateLimiter"
 ```
 
-All 8 projects have complete Graphify graphs. `graphify-out/GRAPH_REPORT.md` in each project highlights god nodes and surprising connections.
+Most established reference projects have complete Graphify graphs. `graphify-out/GRAPH_REPORT.md` highlights god nodes and surprising connections where present. `pi` currently has repomix token tree and focused context, but no checked-in Graphify graph yet.
 
 **L3 — Understand-Anything** (`{project}/.understand-anything/knowledge-graph.json`)
 
@@ -75,7 +75,7 @@ Code structure graph with nodes (file/function/class), edges (imports/calls/cont
 - Finding import/dependency relationships
 - Following the architecture tour for a 12-15 step walkthrough
 
-All 8 projects have complete Understand-Anything graphs.
+Most established reference projects have complete Understand-Anything graphs. `pi` currently has repomix token tree and focused context, but no checked-in Understand-Anything graph yet.
 
 **L4 — source-analysis/** (`docs/research/source-analysis/`)
 
@@ -98,8 +98,8 @@ Open individual source files only when layers 1-6 are insufficient for line-leve
 
 ### "参考全项目" Phrase
 
-When the user says **"参考全项目"**, interpret it as **all 8 reference projects**:
-`blade-agent-sdk`, `blade-code`, `cc-haha`, `claude-code`, `deepagentsjs`, `deer-flow`, `hermes-agent`, `opencode`
+When the user says **"参考全项目"**, interpret it as **all 9 reference projects**:
+`blade-agent-sdk`, `blade-code`, `cc-haha`, `claude-code`, `deepagentsjs`, `deer-flow`, `hermes-agent`, `opencode`, `pi`
 
 This is a research-scope phrase, not a requirement to scan every reference repo during routine coding.
 

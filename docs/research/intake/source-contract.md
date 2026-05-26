@@ -27,6 +27,7 @@
 | deer-flow | `/Users/lienli/Documents/GitHub/agent-ref/deer-flow` | `main` | `84f88b6610e5c6384735e703809bc8b35e33dacb` |
 | hermes-agent | `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent` | `main` | `dd0923bb89ed2dd56f82cb63656a1323f6f42e6f` |
 | opencode | `/Users/lienli/Documents/GitHub/agent-ref/opencode` | `dev` | `caf1151cb5d574d2aac2ed6ccb20a9121880c18a` |
+| pi | `/Users/lienli/Documents/GitHub/agent-ref/pi` | `main` | `fc8a1559017f1e581cfa971aa3cef11a507a4975` |
 
 ## Repomix 产物
 
@@ -48,11 +49,14 @@
 - `hermes-agent-focused-context.xml`
 - `opencode-token-tree.txt`
 - `opencode-context.1.xml`
+- `pi-token-tree.txt`
+- `pi-focused-context.xml`
 
 ## 解释边界
 
 - `claude-code` 是 Claude Code 产品形态源码，适合作为官方产品主链路、TUI/CLI 交互、权限、context、MCP/skills、remote/bridge、多 agent 与工具执行的高价值参考；其仓库包含大量 UI、vendored/native 与产品外壳代码，因此只生成 focused context 包，纳入 agent 主链路、context、tools、permissions、MCP、skills、provider、bridge/server 与关键文档。
 - `cc-haha` 更像 Claude Code 产品壳、远端会话、插件与任务桥接层，不是完整独立 agent core；文章中只把它作为客户端协议和外壳协同参考。
 - `hermes-agent` 是体量很大的产品态 agent，文章中不把它当作最小实现范本，而作为商业级外层能力参考：自改进 memory/skills、工具集与审批队列、provider profile、context compressor、gateway/API/ACP 多客户端协议。其全量 token tree 约 1220 万 tokens，因此额外生成 focused context 包，只纳入 `run_agent.py`、`agent/`、`tools/`、`providers/`、`gateway/`、`acp_adapter/` 等主链路文件。
+- `pi` 是 TypeScript monorepo 形态的本地 coding agent 参考，适合研究 agent harness、JSONL session、compaction、skills、OpenAI/Anthropic/OAuth provider 接入、coding-agent CLI/TUI 和扩展机制。其 token tree 暴露了大型 session fixture、generated model registry、CHANGELOG 和 native binary 噪声，因此只生成 focused context，纳入 `packages/agent`、`packages/ai/src`、`packages/coding-agent/src`、`packages/tui/src` 与关键测试/文档。
 - `AG-UI` 在这些仓库中几乎没有直接以该名称出现；本轮将按“agent 与 UI/客户端协议”的方向做映射分析，并明确标注哪些结论属于从事件流、会话协议、远端适配器推导出来的架构启发。
 - 多数项目没有使用显式 `Thought / Action / Observation` 文本模板；它们更多把 ReAct 做成 `messages + tool_calls + tool_result + loop exit` 的结构化事件循环。

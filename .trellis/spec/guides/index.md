@@ -53,7 +53,7 @@ These guides help you **ask the right questions before coding**.
 - [ ] User says "参考全项目" or similar wording
 - [ ] Research, architecture, or roadmap work needs examples from reference agent projects
 - [ ] Code layout decisions should be grounded in existing agent repositories
-- [ ] You need to compare `blade-agent-sdk`, `blade-code`, `opencode`, `deepagentsjs`, `deer-flow`, `cc-haha`, and `hermes-agent`
+- [ ] You need to compare `blade-agent-sdk`, `blade-code`, `opencode`, `deepagentsjs`, `deer-flow`, `cc-haha`, `hermes-agent`, and `pi`
 
 → Read [Agent Reference Projects Guide](./agent-reference-projects-guide.md)
 

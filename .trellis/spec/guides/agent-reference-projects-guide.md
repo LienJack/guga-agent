@@ -46,6 +46,7 @@ docs/research/repomix/
 - `deer-flow`
 - `hermes-agent`
 - `opencode`
+- `pi`
 
 规范路径是：
 
@@ -187,12 +188,12 @@ rg -n "<file path=\".*(keyword|Symbol|file-name)" docs/research/repomix/*-contex
 
 ## 主题路由
 
-- Agent loop / ReAct runtime：先看 `claude-code`、`blade-agent-sdk`、`blade-code`、`opencode`，再看 `hermes-agent`。
-- Tool registry / execution / permissions：先看 `claude-code`、`blade-agent-sdk`、`blade-code`、`opencode`，再看 `hermes-agent`。
-- Context / compaction / session recovery：先看 `claude-code`、`blade-code`、`opencode`、`deepagentsjs`，再看 `hermes-agent`。
-- LLM provider abstraction：先看 `opencode`、`claude-code`、`blade-agent-sdk`、`deer-flow`，再看 `hermes-agent`。
-- UI / protocol / remote clients：先看 `claude-code`、`opencode`、`deer-flow`、`cc-haha`、`blade-code`，再看 `hermes-agent`。
-- Core package / reusable SDK layout：先看 `blade-agent-sdk` 和 `deepagentsjs`；后续平台形态参考 `opencode` 和 `hermes-agent`。
+- Agent loop / ReAct runtime：先看 `claude-code`、`pi`、`blade-agent-sdk`、`blade-code`、`opencode`，再看 `hermes-agent`。
+- Tool registry / execution / permissions：先看 `claude-code`、`pi`、`blade-agent-sdk`、`blade-code`、`opencode`，再看 `hermes-agent`。
+- Context / compaction / session recovery：先看 `claude-code`、`pi`、`blade-code`、`opencode`、`deepagentsjs`，再看 `hermes-agent`。
+- LLM provider abstraction：先看 `opencode`、`pi`、`claude-code`、`blade-agent-sdk`、`deer-flow`，再看 `hermes-agent`。
+- UI / protocol / remote clients：先看 `claude-code`、`pi`、`opencode`、`deer-flow`、`cc-haha`、`blade-code`，再看 `hermes-agent`。
+- Core package / reusable SDK layout：先看 `blade-agent-sdk`、`pi` 和 `deepagentsjs`；后续平台形态参考 `opencode` 和 `hermes-agent`。
 
 ## 输出要求
 

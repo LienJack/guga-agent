@@ -10,6 +10,7 @@ This folder stores local source-code analysis materials copied from `/Users/lien
 - [Hermes Agent Anatomy](./hermes-agent-anatomy/README.md): Hermes anatomy docs and diagrams.
 - [Hermes Wiki](./hermes-wiki/index.md): concept-level Hermes wiki index.
 - [Learn OpenCode](./learn-opencode/docs/index.md): learning-oriented OpenCode source analysis and package internals.
+- Pi source verification: use `docs/research/repomix/pi-token-tree.txt` and `docs/research/repomix/pi-focused-context.xml` for the `pi` agent harness reference.
 
 ## Included Sources
 
@@ -20,6 +21,7 @@ This folder stores local source-code analysis materials copied from `/Users/lien
 | `hermes-agent-anatomy` | `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent-anatomy` | `README*.md`, `_home.md`, `_sidebar.md`, `docs/**/*.md`, diagram images/prompts | Hermes architecture anatomy, diagrams, agent loop, tool registry, provider adapters, context compression, messaging gateway, memory and RL pipeline, comparisons. |
 | `hermes-wiki` | `/Users/lienli/Documents/GitHub/agent-ref/Hermes-Wiki` | `README.md`, `SCHEMA.md`, `index.md`, `log.md`, `concepts/**/*.md`, `entities/**/*.md`, `changelog/**/*.md` | Direct concept lookup for Hermes subsystems and design tradeoffs. |
 | `learn-opencode` | `/Users/lienli/Documents/GitHub/agent-ref/learn-opencode` | root `*.md`, `docs/**/*.md`, architecture/package diagrams | OpenCode monorepo architecture, agent lifecycle, state sync, permission/tool flow, package internals, ACP/LSP/MCP implementations, SDK, plugin, UI, desktop, web and editor integration. |
+| `pi` | `/Users/lienli/Documents/GitHub/agent-ref/pi` | No copied source-analysis mirror; use `docs/research/repomix/pi-token-tree.txt` and `docs/research/repomix/pi-focused-context.xml` | TypeScript coding agent harness, agent core, event streaming, tool hooks, JSONL sessions, compaction, provider/OAuth integration, CLI/TUI, skills, and extension mechanisms. |
 
 ## Excluded Noise
 

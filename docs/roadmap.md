@@ -1,934 +1,537 @@
-# Guga Agent 详细 Roadmap
+# Guga Agent Roadmap
 
-这份 roadmap 把 `docs/` 中的参考架构研究转化为可执行的工程路线。它不是功能愿望清单，而是从 0 到 1 构建商业级 agent 的分层交付计划：每个阶段只解决一类会让下一阶段崩掉的基础问题，完成后必须能被测试、审计和继续演进。
+这份 roadmap 将 Guga Agent 重新定义为一个 **agent core + plugin ecosystem** 的工程路线。核心判断是：agent 的不可替代能力应该沉淀为极小的 core；provider、工具、上下文策略、skills、MCP、UI、session 存储、eval 和商业运营都通过 plugin 接入。
+
+设计理念更偏向 pi agent：Guga 不是先做一个大而全的应用，再从应用里拆 SDK；而是先做一个可编程的 agent workbench。core 只负责稳定的生命周期、事件、状态和能力注册，其他能力都在清晰的插件边界里生长。
+
+在这个方向上，`agent hook` 应该成为 core 的一等契约。插件不只是在启动时注册 tool/provider，还可以在 session、context、model、tool、permission、UI projection 等关键节点，以受控、可审计、可回放的方式参与 agent 行为。
+
+## 一句话结论
+
+Guga Agent 的最终形态不是“内置很多功能的 agent”，而是一个 **小内核、强插件、可恢复、可审计、可嵌入** 的 agent runtime。
+
+## 参考发现
+
+- **pi agent**：把 `core/agent-session*`、`core/extensions`、`core/tools`、`modes` 分开；extension 可以注册 tools、providers、commands、shortcuts、message renderers、UI primitives，并订阅 lifecycle events。它的启发是：agent 应该像可编程工作台，而不是固定 CLI。
+- **pi agent hooks**：extension 暴露了 `before_agent_start`、`resources_discover`、`session_before_compact`、`context`、`tool_call`、`tool_result`、`session_start`、`session_shutdown` 等节点。它的启发是：插件接入不应只靠 registry，还要有稳定的 agent lifecycle hook surface。
+- **deepagentsjs**：通过确定性 middleware 顺序组合 filesystem、subagents、summarization、skills、memory、HITL、cache 等能力。它的启发是：复杂 agent 能力应可组合、可关闭、可替换，不应写死进主循环。
+- **opencode**：插件通过 hook 介入 tool execution 和 compaction，例如 `tool.execute.before`、`tool.execute.after`、`experimental.session.compacting`。它的启发是：插件生态需要可阻断、可补充、可观察的运行时切点。
+- **blade-code**：插件系统有 manifest、namespacing、loader、registry、integrator，并能把 commands、skills、agents、hooks、MCP server 接入既有子系统。它的启发是：插件生态从第一天就需要命名空间、发现、安装、启停和冲突处理。
+- **Claude Code / blade-agent-sdk**：PreToolUse/PostToolUse、ExecutionPipeline hooks 说明工具执行前后的 hook 对权限、审计、策略和 UI 状态很关键。它的启发是：hook 必须进入 tool pipeline，而不是作为事后日志。
+
+证据强度：
+
+- `Fact`：参考项目的 token tree / focused context 显示上述目录和接口存在。
+- `Inference`：Guga 应采用 pi agent 式可编程工作台哲学，并吸收 opencode/blade/Claude/deepagents 的 hook/middleware 顺序经验，而不是照搬任何一个项目的完整结构。
+- `Pending Verification`：具体实现语言、包管理、插件沙箱和签名机制需要在代码落地前再确认。
 
 ## 产品最终形态
 
-Guga Agent 的最终形态是一个商业级 agent runtime platform，而不是聊天包装器。它应该同时具备以下能力：
+Guga Agent 是一个 agent runtime platform。它应该让宿主项目可以：
 
-- **Agent Core Runtime**：ReAct/tool-calling 主循环、streaming、取消、重试、max-turn 控制、重复调用防护、长任务恢复和工具状态流转。
-- **LLM Provider Platform**：统一模型客户端、模型能力注册表、provider adapter、错误归一化、fallback、用户自带 key、模型发现、token 和成本统计。
-- **Tool Runtime**：工具注册表、执行管道、权限系统、路径安全、超时、锁、结果预算、artifact、MCP/plugin 工具和审计记录。
-- **Context Platform**：`system / history / pending` 状态、token budget、工具输出治理、大结果存储、compaction、session recovery 和 context projection audit。
-- **Prompt Platform**：分层 PromptBuilder、项目规则、用户记忆、skills 与 middleware 同步、来源追踪、prompt budget、prompt versioning 和 prompt diff。
-- **Agent UI Protocol**：稳定事件协议，覆盖 message、tool、permission、artifact、usage、compact boundary、cancel、wait、resume 和多客户端投影。
-- **Commercial Operations**：session、run、replay、artifact、provider 配置、权限策略、日志、eval、多租户控制和企业审计。
+- 创建一个 agent session。
+- 注入模型 provider、tools、权限策略、上下文策略和 session store。
+- 通过事件流观察 agent 正在做什么。
+- 通过插件扩展命令、工具、skills、MCP、UI、providers 和 agent hooks。
+- 通过 agent hooks 在受控节点改写 prompt/context、阻断危险动作、贡献资源、补充 UI projection。
+- 从 event log 恢复、回放、审计一次 run。
+- 在 CLI、Web、IDE、API、worker 中复用同一个 core。
 
-## 建议代码布局
+最重要的产品约束：
 
-当前更推荐 **core-first**：先做一个可被其他项目引用的核心 runtime 包，CLI、Web、Server、IDE adapter 都只是外层消费者。这个方向更接近 `blade-agent-sdk` 和 `deepagentsjs` 的价值：核心能力先作为库稳定下来，而不是被某个应用入口绑死。
+- **Core 越小越好。** 任何不是 agent 生命周期必需的能力，都优先做成插件。
+- **Plugin 是一等公民。** first-party 能力和 third-party 能力使用同一套插件契约，只是信任级别不同。
+- **事件是事实源。** UI、审计、恢复、eval 都从事件和投影派生，不猜字符串。
+- **权限在 runtime 层执行。** 模型只能提出意图，不能决定危险动作是否执行。
+- **上下文是投影，不是历史。** 模型输入由 core/plugin 共同投影，原始事件和 artifact 不被 summary 替代。
 
-参考项目给出的布局信号：
+## Core 边界
 
-- **`blade-agent-sdk`** 把核心能力放在 `src/agent/`、`src/agent/loop/`、`src/agent/state/`、`src/context/`、`src/tools/`、`src/tools/execution/`、`src/session/`、`src/prompts/`。它适合作为 Guga core 的主要参考。
-- **`deepagentsjs`** 把 framework 能力放在 `libs/deepagents/src/`，并用 `middleware/`、`backends/`、`stream`、`evals/`、`examples/` 分离扩展能力。它说明 filesystem、summarization、subagents、skills 这类能力应可组合，不应都写死进主循环。
-- **`blade-code`** 把产品入口放在 `packages/cli/src/`、`packages/cli/web/src/`、`packages/cli/src/acp/`。它适合参考 adapter 层，但不应让 Guga 的 core 依赖 CLI/Web。
-- **`opencode`** 是成熟 monorepo：`packages/opencode`、`packages/app`、`packages/console`、`packages/sdk`、`packages/web` 分离。Guga 可以后期演进到这个形态，但早期不需要一次性复制。
-- **`hermes-agent`** 将 `agent/`、`tools/`、`providers/`、`gateway/`、`acp_adapter/`、`environments/` 分开。它说明多客户端 gateway、ACP、provider profile、eval environments 都应该在 core 外围。
+`packages/core` 只保留不可外包的 agent 内核能力：
 
-### 推荐起步：一个核心包，多个薄 adapter
+- `AgentRuntime`：创建 session、运行 turn、停止、恢复、释放资源。
+- `AgentLoop`：模型调用、tool call 回流、max turns、abort、retry、finish 状态机。
+- `ConversationState`：system/history/pending 分层，保证 tool call/result 配对。
+- `EventBus`：统一发布 session、turn、message、tool、permission、context、usage、error 事件。
+- `HookKernel`：定义 typed agent hooks、hook 顺序、effect 权限、timeout、abort、错误隔离和 audit 事件。
+- `CapabilityRegistry`：注册 tools、providers、commands、skills、context policies、renderers 等能力。
+- `PluginHost`：加载插件、绑定 runtime API、向 `HookKernel` 注册 hooks、隔离 stale context。
+- `PermissionKernel`：定义 allow/ask/deny 决策协议，但不内置具体产品 UI。
+- `ProjectionKernel`：定义 model input、UI view、audit view 的投影接口。
+- `CoreContracts`：稳定类型，包括 messages、tools、provider transport、events、session store、artifact store。
 
-第一阶段建议建立 `packages/core`，并保证它可以被其他项目直接依赖。`apps/cli` 只是验证 core 的最小入口，不承担业务逻辑。
+Core 明确不做：
 
-```text
-packages/
-  core/
-    src/
-      index.ts
-      agent/
-        agent-loop.ts
-        loop-controller.ts
-        streaming-tool-executor.ts
-        types.ts
-      state/
-        conversation-state.ts
-        turn-state.ts
-      events/
-        agent-event.ts
-        event-emitter.ts
-      llm/
-        llm-client.ts
-        model-capabilities.ts
-        provider-errors.ts
-      tools/
-        tool-definition.ts
-        tool-registry.ts
-        tool-executor.ts
-        tool-result.ts
-        execution/
-          execution-pipeline.ts
-          scheduler.ts
-          file-lock-manager.ts
-        permissions/
-          permission-manager.ts
-          path-safety.ts
-        builtins/
-          read-file.ts
-      context/
-        context-budgeter.ts
-        output-truncator.ts
-        tool-result-store.ts
-        compaction-service.ts
-        context-assembler.ts
-      prompts/
-        prompt-builder.ts
-        prompt-sources.ts
-      sessions/
-        event-store.ts
-        session-store.ts
-        projections.ts
-      artifacts/
-        artifact-store.ts
-      protocol/
-        agent-ui-event.ts
-        run-api-types.ts
-    test/
-      agent/
-      state/
-      llm/
-      tools/
-      context/
-      prompts/
-      sessions/
-      protocol/
-      e2e/
-apps/
-  cli/
-    src/
-      main.ts
-      commands/run.ts
-examples/
-  minimal-cli/
-  custom-tool/
-  custom-provider/
+- 不内置 OpenAI/Anthropic/Gemini SDK。
+- 不内置 read/write/shell/browser/git 等工具。
+- 不内置 CLI/TUI/Web UI。
+- 不内置 MCP client。
+- 不内置 long-term memory、skills、subagents。
+- 不绑定 JSONL、SQLite、Postgres 或对象存储。
+- 不读取全局配置文件；配置由 host/plugin 注入。
+
+## Plugin 能力模型
+
+插件不是“附加脚本”，而是 runtime 能力提供者。插件可以声明并注册：
+
+- `provider`：模型 transport、模型元数据、credential resolver、fallback policy。
+- `tool`：LLM-callable tool、schema、effect、permission requirement、execution mode、renderer。
+- `contextPolicy`：token budget、compaction、tool result truncation、post-compact reinjection。
+- `sessionStore`：JSONL、SQLite、remote store、branch/fork/search。
+- `skill`：`SKILL.md` 元数据、按需加载、资源路径。
+- `mcpServer`：MCP server 配置、工具命名空间、连接生命周期。
+- `command`：slash command、快捷键、CLI/RPC 命令。
+- `ui`：message renderer、tool renderer、dialogs、status、widgets。
+- `hook`：在 session、context、model、tool、permission、projection 等 phase 上注册受控扩展点。
+- `eval`：测试场景、trace exporter、replay verifier。
+
+插件契约必须支持：
+
+- manifest：name、version、capabilities、permissions、dependencies、entry。
+- namespace：默认 `plugin-name:resource`，MCP 工具采用稳定命名规则，避免冲突。
+- load order：core 插件、project 插件、user 插件、CLI 指定插件，有确定优先级。
+- capability diff：插件加载后能解释新增/移除的 tools、commands、providers。
+- enable/disable/reload：不重启 host 也能刷新能力。
+- stale context guard：session 切换、fork、reload 后，旧插件 context 不能继续操作新 session。
+
+## Agent Hook 模型
+
+Hook 是让插件更好接入 agent runtime 的关键，但它必须是 **受控扩展点**，不是任意 monkey patch。Guga 应把 hook 做进 core contract，让插件可以参与关键运行时节点，同时保持 determinism、权限、审计和 replay。
+
+`EventBus`、`HookKernel`、`CapabilityRegistry` 的分工：
+
+- `EventBus`：发布已经发生的事实，主要用于观察、UI、日志、replay。
+- `HookKernel`：在特定 phase 执行插件逻辑，允许按声明的 effect 观察、改写、阻断或贡献内容。
+- `CapabilityRegistry`：记录插件声明了什么能力，例如 tool、provider、skill、renderer、context policy。
+
+第一批 hook phase：
+
+- `session.start` / `session.shutdown`：建立和释放插件运行态。
+- `run.start` / `run.end`：围绕一次用户请求设置临时策略、trace、预算。
+- `resources.discover`：插件贡献 skills、prompt templates、themes、context files、MCP server。
+- `context.assemble`：插件贡献或裁剪模型输入来源。
+- `context.compact.before` / `context.compact.after`：允许取消、调整、标注 compaction。
+- `model.request.before`：插件返回 prompt/context patches，不直接修改原始 state。
+- `model.response.after`：插件观察模型输出，补充 usage、trace、UI projection。
+- `tool.call.before`：在模型提出 tool call 后做 schema 之外的策略检查和参数 patch。
+- `tool.execute.before` / `tool.execute.after`：进入真实执行前后做权限、审计、锁、结果标注。
+- `tool.result.before`：工具结果回流给模型前做截断、artifact 引用、敏感信息处理。
+- `permission.request.before` / `permission.resolve.after`：插件参与权限策略，但最终由 `PermissionKernel` 落账。
+- `projection.render.before`：插件贡献 UI renderer 或 message annotation。
+
+Hook effect 必须先声明，再执行：
+
+- `observe`：只能读取 event/context，不能改变 runtime 行为，适合 metrics、logging、debug UI。
+- `transform`：只能返回 typed patch，适合 prompt/context/tool args/result projection。
+- `gate`：可以 allow/deny/pause，适合权限、policy、dangerous tool guard。
+- `contribute`：可以追加资源或能力候选，适合 `resources.discover`、skills、prompt templates。
+
+示例 contract：
+
+```ts
+type AgentHook<TEvent, TResult> = {
+  id: string;
+  phase: AgentHookPhase;
+  priority?: number;
+  effect: "observe" | "transform" | "gate" | "contribute";
+  timeoutMs?: number;
+  run(event: TEvent, ctx: HookContext): Promise<TResult>;
+};
 ```
 
-`packages/core` 的公开 API 应该从第一天就收紧：
+Hook 安全规则：
 
-- `createAgent()`：创建 agent runtime。
-- `AgentLoop` 或 `AgentRuntime`：运行 turn / run。
-- `LLMClient`：由宿主项目注入模型能力。
-- `ToolDefinition`、`ToolRegistry`：由宿主项目注册工具。
-- `ConversationState`：可序列化、可恢复的状态对象。
-- `AgentEvent`：宿主项目消费 runtime 事件。
-- `PermissionHandler`：宿主项目决定如何批准/拒绝。
-- `SessionStore`、`EventStore` 接口：core 定义合同，宿主项目选择内存、文件或数据库实现。
+- hook 顺序必须由 load order、priority、phase 明确决定，并能在 debug view 中解释。
+- hook 不能直接 mutate core state，只能返回 patch、decision、contribution 或 annotation。
+- mutating/blocking hook 必须产生 audit event，记录 plugin、phase、input hash、decision、patch summary。
+- 每个 hook 都有 timeout、abort signal 和错误隔离；危险 phase 默认 fail closed。
+- hook 权限按 phase 和 effect 授权，插件不能因为能观察事件就能阻断工具。
+- session replacement、fork、reload 后旧 `HookContext` 必须失效。
+- replay 时默认不重跑有副作用 hook，只重放其已记录 decision；需要重跑时必须显式标记 deterministic。
 
-### Core 依赖原则
-
-`packages/core` 必须保持可嵌入：
-
-- 不依赖 Web 框架。
-- 不依赖 CLI 框架。
-- 不依赖具体数据库。
-- 不直接读取全局配置文件，配置由宿主传入。
-- 不绑定具体 provider SDK 类型，provider adapter 只实现 `LLMClient`。
-- 不假设运行环境是 Node CLI；后续 server/worker 也应能引用。
-
-### Provider 和工具包的演进
-
-M0-M2 可以把一个内置 provider adapter 和少量 builtin tools 放在 `packages/core/src/llm`、`packages/core/src/tools/builtins`，方便快速验证。等到出现复用压力后，再拆成独立包：
+## 推荐代码布局
 
 ```text
 packages/
   core/
-  provider-openai/
-  provider-anthropic/
-  provider-gemini/
-  tools-filesystem/
-  tools-shell/
-  protocol-http/
-  adapter-acp/
+    src/
+      runtime/
+      loop/
+      state/
+      events/
+      hooks/
+      registry/
+      plugin-host/
+      permissions/
+      projections/
+      contracts/
+  plugin-provider-openai/
+  plugin-provider-anthropic/
+  plugin-tools-filesystem/
+  plugin-tools-shell/
+  plugin-context-compaction/
+  plugin-session-jsonl/
+  plugin-skills/
+  plugin-mcp/
+  plugin-eval/
 apps/
   cli/
   server/
   web/
+examples/
+  minimal-agent/
+  custom-tool-plugin/
+  custom-provider-plugin/
+  custom-ui-renderer/
 ```
 
-拆包触发条件：
+起步阶段可以先放在一个仓库内，但包边界要从第一天保持清晰：core 不反向 import 任何 first-party plugin。
 
-- 两个以上项目需要引用同一个 provider adapter。
-- builtin tool 需要单独版本、权限策略或 sandbox 依赖。
-- Web/Server 需要 HTTP/SSE 协议，但 core 不应引入 server 依赖。
-- SDK 用户需要只安装 core，不安装所有 providers/tools。
+## 设计原则
 
-### 为什么不是先做完整应用
+- **小内核，大外围。** Core 只拥有流程控制和契约；能力在插件里注册。
+- **默认可恢复。** 每个 session/run/turn/tool 事件都能落账，恢复不是后补功能。
+- **默认可审计。** 每次模型输入、工具执行、权限决策、上下文压缩都有来源和事件。
+- **默认 fail closed。** 未声明 effect、permission、schema 或 namespace 的能力不能执行。
+- **默认 deterministic order。** 插件、middleware、hooks、context policy 的顺序必须可解释。
+- **默认 hook 可审计。** 插件必须先声明 phase/effect/permission，再由 `HookKernel` 执行并记录结果。
+- **默认可替换。** Provider、session store、context policy、toolset、UI 都可以替换。
+- **默认渐进披露。** Skills、工具详情、长输出、历史内容按需进入上下文，而不是常驻 system prompt。
 
-Guga 的核心价值是 runtime 可复用。先做完整 Web/CLI 应用容易把业务入口、UI 状态、模型调用和工具执行耦在一起，后续其他项目引用时只能复制代码。core-first 的结果应该是：
+## M0：Core Kernel Spike
 
-- 其他项目可以 `import { createAgent } from "@guga-agent/core"`。
-- 其他项目可以注入自己的 `LLMClient`、tools、permission handler、event store。
-- Guga 自己的 CLI/Web 只是示范 adapter，而不是唯一运行方式。
-- M5 之后的 Web UI 消费 `AgentEvent`/`AgentUIEvent`，不反向污染 core。
+**目标：** 证明一个无产品外壳的 core 可以完成 “user -> model -> tool -> model -> final” 的最小闭环。
 
-## 贯穿所有阶段的设计约束
+建设范围：
 
-- **模型输入是投影，不是事实源。** 完整事实源应该是 event log、tool result store、artifact store 和 prompt/context source metadata。
-- **工具行动由 runtime 授权，不由模型授权。** 模型可以提出意图和理由，但不能决定危险操作是否执行。
-- **summary 是续航手段，不是历史替代品。** compact 后仍要保留原始事件和 boundary。
-- **provider 差异不能泄漏到 agent loop。** loop 只消费内部 `LLMEvent`、`ModelTurnOutput` 和 normalized error。
-- **UI 消费 runtime facts，不猜字符串。** tool started、permission requested、context compacted、usage updated 都应该是事件。
-- **每个阶段都要能单独验收。** 没有退出标准的阶段不算完成。
+- 定义 core message、tool call、tool result、usage、event 类型。
+- 实现 `AgentLoop` 最小状态机。
+- 实现 `CapabilityRegistry`，支持注册 provider 和 tool。
+- 实现内存版 `EventBus`。
+- 实现一个测试 provider 和一个测试 tool，验证 tool call/result 配对。
+- 提供 `createAgentRuntime()`，不依赖 CLI/Web。
 
-## M0：技术验证版
+退出标准：
 
-**目标：** 证明最小 agent 可以完成“用户输入 -> 模型 -> 工具 -> 模型 -> 最终回答”的闭环。
+- Core 单元测试能模拟一轮 tool-calling。
+- 没有具体 provider SDK 类型穿透 core。
+- 工具失败作为 structured observation 回到模型。
+- 每个 turn 都有可观察事件。
 
-### 用户可见结果
+不做：
 
-用户可以在 CLI 中输入一句话，例如“读取 README 并总结”，agent 能调用一个只读工具读取文件，并基于结果回答。
+- 不做真实 provider。
+- 不做文件工具。
+- 不做 plugin loader。
+- 不做持久化。
 
-### 建设范围
+## M1：Plugin Host And Hook Kernel
 
-实现最小但合法的消息协议：
+**目标：** 让 core 能通过插件获得能力，并通过 typed hooks 让插件安全参与 agent 生命周期。
 
-- `system` message：固定系统提示词。
-- `user` message：用户输入。
-- `assistant` message：模型文本或 tool calls。
-- `tool` message：带 `tool_call_id` 的工具结果。
+建设范围：
 
-实现一个 provider-backed 模型调用：
+- 定义 plugin manifest 和 capability schema。
+- 实现本地插件加载、初始化、启停、reload。
+- 插件可注册 provider、tool、command、hook。
+- 插件可订阅 lifecycle events。
+- 定义 `AgentHookPhase`、`HookEffect`、`HookContext`、hook result contract。
+- 实现 `HookKernel`：按 phase 收集 hooks、排序、timebox、abort、隔离错误。
+- 首批支持 `session.start`、`session.shutdown`、`resources.discover`、`model.request.before`、`tool.call.before`、`tool.result.before`。
+- hook result 统一进入 event/audit log，mutating/blocking hook 必须可追溯。
+- 实现 namespace 和冲突处理。
+- 实现 stale context guard，session replacement 后旧 context 失效。
 
-- 只支持一个 provider。
-- 支持普通文本输出。
-- 支持 tool calling。
-- 支持 `AbortSignal`。
-- 记录原始 usage，如果 provider 不返回则允许为空。
+first-party 示例插件：
 
-实现一个只读工具：
+- `plugin-provider-mock`
+- `plugin-tool-echo`
+- `plugin-command-debug-events`
 
-- `read_file({ path })`。
-- 只能读取工作区内文件。
-- 失败时返回结构化 observation，而不是抛穿主循环。
+退出标准：
 
-### 建议实现单元
+- 不改 core 代码即可新增一个 tool。
+- 不改 core 代码即可新增一个 provider。
+- 插件可以通过 hook 贡献 resource path、阻断危险 tool call、给模型输入追加 typed patch。
+- hook 的执行顺序、耗时、decision、patch summary 能在 debug event 中看到。
+- 插件 reload 后 registry 与事件订阅不残留旧状态。
+- 同名资源必须显式 namespace，不允许静默覆盖内建能力。
 
-- `apps/cli/src/commands/run.ts`：接收用户输入，启动一次 agent run。
-- `packages/core/src/llm/llm-client.ts`：定义 `LLMClient` 接口。
-- `packages/core/src/llm/providers/openai-client.ts`：第一版 provider adapter。
-- `packages/core/src/agent/agent-loop.ts`：最小 while loop。
-- `packages/core/src/tools/builtins/read-file.ts`：只读工具。
-- `packages/core/src/tools/tool-definition.ts`：最小工具类型。
+不做：
 
-### 核心类型草案
+- 不做远程安装。
+- 不做插件 marketplace。
+- 不做插件沙箱。
+- 不开放任意 state mutation hook。
 
-这些类型是方向约束，不要求逐字照写：
+## M2：Provider Plugins
 
-```ts
-type AgentMessage =
-  | { role: "system"; content: string }
-  | { role: "user"; content: string }
-  | { role: "assistant"; content?: string; toolCalls?: ToolCall[] }
-  | { role: "tool"; toolCallId: string; name: string; content: string };
+**目标：** 把模型接入从 core 中完全剥离，建立 provider transport 插件模型。
 
-type ToolCall = {
-  id: string;
-  name: string;
-  input: unknown;
-};
+建设范围：
 
-type ToolObservation = {
-  ok: boolean;
-  content: string;
-  error?: { code: string; message: string };
-};
-```
+- 定义 `ProviderTransport`：messages/tools 转换、stream normalization、usage normalization、error normalization。
+- 定义 `ModelRegistry`：模型能力、context window、pricing、tool support、thinking support。
+- 支持主模型和辅助模型路由。
+- 支持 streaming，core 只消费统一 `ModelEvent`。
+- 支持 provider fallback 和 retry policy。
+- `model.request.before` hook 可返回 prompt/context/tool definition patches，但不能直接调用 provider。
+- `model.response.after` hook 可记录 usage、cache、trace annotation，但不能改写 provider 原始响应。
 
-### 测试清单
+first-party 插件：
 
-- `packages/core/test/e2e/minimal-tool-loop.test.ts`：模型返回 `read_file` tool call 后，工具结果能进入下一轮模型输入。
-- `packages/core/test/agent/tool-pairing.test.ts`：每个 `tool` message 都能找到对应 assistant tool call。
-- `packages/core/test/tools/read-file.test.ts`：读取存在文件、读取不存在文件、拒绝工作区外路径。
-- `packages/core/test/llm/abort.test.ts`：取消信号能中断模型调用。
+- `plugin-provider-openai`
+- `plugin-provider-anthropic`
+- `plugin-provider-openai-compatible`
 
-### 退出标准
+退出标准：
 
-- 能跑一次真实 CLI demo。
-- 能打印最终 messages 并确认顺序合法。
-- 工具失败不会导致 agent loop 崩溃。
-- 没有 provider SDK 类型穿透到工具层。
+- Agent loop 中没有 `if provider === ...`。
+- 相同 tool-calling 测试能在至少两个 provider transport 上通过。
+- provider error 能归一化为 retryable、auth、rate-limit、context-overflow、payment、fatal。
+- usage 和成本事件能从 provider plugin 发出。
 
-### 不做
+不做：
 
-- 不做 streaming。
-- 不做权限弹窗。
-- 不做 event store。
-- 不做 compaction。
-- 不做多 provider。
-
-### 主要风险
-
-- 过早开放 shell，导致安全边界还没建立就有副作用能力。
-- 用正则解析 `Action/Observation` 文本，而不是使用模型原生 tool call。
-- 工具直接修改 messages，导致后续 loop 无法统一治理。
-
-## M1：最小 Agent Runtime
-
-**目标：** 把 M0 的闭环升级为可维护 runtime，建立后续所有阶段的承重骨架。
-
-### 用户可见结果
-
-用户仍然使用 CLI，但 agent 现在能稳定处理多轮对话、工具失败、无工具结束、max turns 和用户取消。
-
-### 建设范围
-
-引入五个核心对象：
-
-- `AgentLoop`：运行 turn，决定继续或结束。
-- `ConversationState`：拆分 `systemMessages / history / pending`。
-- `LoopController`：处理 `continue / finish / abort / error / max_turns`。
-- `ToolRegistry`：工具 schema、描述、execute 的单一声明源。
-- `PromptBuilder`：从 base、environment、tools、context 生成系统提示词。
-
-### 建议实现单元
-
-- `packages/core/src/state/conversation-state.ts`
-- `packages/core/src/agent/loop-controller.ts`
-- `packages/core/src/events/agent-event.ts`
-- `packages/core/src/tools/tool-registry.ts`
-- `packages/core/src/tools/tool-executor.ts`
-- `packages/core/src/prompts/prompt-builder.ts`
-
-### 关键决策
-
-- `ConversationState.toModelMessages()` 是唯一模型输入出口。
-- `systemMessages` 不进入可压缩历史。
-- `pending` 保存当前轮 assistant tool calls 和 tool results，在提交前不能被 compact 或裁剪。
-- tool result 写回由 `AgentLoop` 统一负责，工具函数只返回 `ToolResult`。
-- PromptBuilder 不调用模型、不改写历史，只负责装配提示词和记录 sources。
-
-### 事件最小集
-
-M1 不需要完整协议，但 runtime 内部应该开始发事件：
-
-- `agent.started`
-- `turn.started`
-- `model.completed`
-- `tool.started`
-- `tool.completed`
-- `tool.failed`
-- `turn.completed`
-- `agent.completed`
-- `agent.failed`
-
-### 测试清单
-
-- `packages/core/test/state/conversation-state.test.ts`
-  - system/history/pending 顺序正确。
-  - pending commit 后进入 history。
-  - replace history 不影响 system。
-- `packages/core/test/agent/agent-loop.test.ts`
-  - 无工具时结束。
-  - 有工具时继续下一轮。
-  - 工具失败作为 observation 回到模型。
-  - max turns 返回明确原因。
-- `packages/core/test/tools/tool-registry.test.ts`
-  - 注册、重复注册、按名称查找、列出模型可见工具。
-- `packages/core/test/prompts/prompt-builder.test.ts`
-  - 启用/禁用工具时，工具说明同步变化。
-
-### 退出标准
-
-- `AgentLoop` 不依赖具体 provider SDK。
-- 工具 schema 与 execute 来自同一 `ToolDefinition`。
-- 任意测试中的 tool result 都有对应 tool call id。
-- agent 可以被取消，并且不会继续执行排队工具。
-
-### 不做
-
-- 不做复杂权限。
-- 不做并发工具执行。
 - 不做 provider marketplace。
-- 不做长期记忆。
+- 不做完整 credential pool。
+- 不做 OAuth 复杂流。
 
-### 主要风险
+## M3：Tool Plugins And Permission Runtime
 
-- 把 prompt、history、tools 都塞进一个大字符串，后续无法做 context projection。
-- 在 loop 里散写退出条件，后续 compaction/retry/cancel 会互相打架。
+**目标：** 让 agent 安全执行真实动作，同时保持工具生态可插拔。
 
-## M2：工具安全与权限系统
+建设范围：
 
-**目标：** 让 agent 能执行真实动作，同时建立商业级安全底线。
+- 定义 `ToolDefinition`：name、description、schema、effect、permission、executionMode、resultBudget、renderer。
+- 实现 `ExecutionPipeline`：schema validate、arg prepare、permission、timeout、abort、execute、normalize、audit。
+- 将 `tool.call.before`、`tool.execute.before`、`tool.execute.after`、`tool.result.before` 纳入 pipeline。
+- 实现 allow/ask/deny 权限协议。
+- 支持工具并发策略：parallel、sequential、path-scoped。
+- 支持工具 partial update 和 structured result。
+- pre-tool hooks 可 patch/block；post-tool hooks 可 annotate/truncate/store artifact，但不能吞掉真实工具错误。
 
-### 用户可见结果
+first-party 插件：
 
-当 agent 想写文件、执行命令或访问外部系统时，runtime 会根据模式自动允许、拒绝或请求确认。拒绝后 agent 能继续解释原因，而不是挂死。
+- `plugin-tools-filesystem`：read、write、edit、grep、find、ls。
+- `plugin-tools-shell`：bash/exec，默认 ask。
+- `plugin-tools-git`：status、diff、commit 辅助。
 
-### 建设范围
+退出标准：
 
-扩展工具定义：
+- 所有副作用工具都必须经过 permission runtime。
+- 危险工具在 permission 前必须经过 `tool.call.before` / `tool.execute.before` gate hooks。
+- 工具拒绝、取消、超时、异常都回流为 tool result。
+- post-tool hook 失败不会掩盖工具原始失败，只能追加 hook failure annotation。
+- 文件工具只能访问声明 workspace/sandbox。
+- 并发执行不会并行写同一路径。
 
-```ts
-type ToolEffect = "read" | "write" | "execute" | "external";
-type PermissionMode = "default" | "plan" | "auto-edit" | "yolo";
+不做：
 
-type ToolDefinition = {
-  name: string;
-  description: string;
-  inputSchema: unknown;
-  effect: ToolEffect;
-  defaultPermission: "auto" | "ask" | "deny";
-  concurrency: "safe" | "exclusive";
-  resultBudget: number;
-  execute(input: unknown, ctx: ToolContext): Promise<ToolResult>;
-};
-```
-
-引入执行管道：
-
-- 参数校验。
-- 参数修复或规范化。
-- 权限检查。
-- 路径安全检查。
-- timeout。
-- abort。
-- tool execution。
-- result normalization。
-- audit record。
-
-### 建议实现单元
-
-- `packages/core/src/tools/execution/execution-pipeline.ts`
-- `packages/core/src/tools/permissions/permission-manager.ts`
-- `packages/core/src/tools/permissions/path-safety.ts`
-- `packages/core/src/tools/tool-result.ts`
-- `packages/core/src/tools/audit.ts`
-- `packages/core/src/tools/builtins/write-file.ts`
-- `packages/core/src/tools/builtins/shell.ts`，可以先只支持白名单命令。
-
-### 权限策略
-
-- `read`：默认自动允许，但仍受路径安全限制。
-- `write`：`default` 模式请求确认，`plan` 模式拒绝，`auto-edit` 模式允许工作区内普通写入。
-- `execute`：默认请求确认，危险命令硬拒绝或强确认。
-- `external`：默认请求确认，后续接企业策略。
-
-`allow always` 必须明确作用域：
-
-- `once`：只批准当前 request。
-- `session`：只在当前 session 有效。
-- `always`：持久化前必须有明确产品入口，M2 可以先不做持久化。
-- `deny`：返回结构化 tool result。
-
-### 测试清单
-
-- `packages/core/test/tools/permission-manager.test.ts`
-  - plan 模式拒绝 write/execute。
-  - auto-edit 允许工作区内写入。
-  - default 模式对 write/execute 生成 permission request。
-- `packages/core/test/tools/path-safety.test.ts`
-  - 拒绝 `../` 越界。
-  - 拒绝读取常见密钥文件。
-  - 允许工作区内普通路径。
-- `packages/core/test/tools/execution-pipeline.test.ts`
-  - timeout 返回 structured error。
-  - abort 返回 cancelled/error result。
-  - 工具抛异常不会炸穿 loop。
-- `packages/core/test/e2e/permission-denied.test.ts`
-  - 权限拒绝后，模型收到 observation 并解释下一步。
-
-### 退出标准
-
-- 所有副作用工具都经过 `ExecutionPipeline`。
-- 权限请求有 `requestId`、`runId`、`callId`、tool name、input、risk summary。
-- 权限拒绝、取消、超时都能回流为 tool result。
-- audit record 覆盖每次工具调用。
-
-### 不做
-
+- 不做浏览器工具。
+- 不做远端执行 sandbox。
 - 不做复杂企业策略。
-- 不做远端权限桥接。
-- 不做并发调度。
-- 不做 MCP 动态工具。
 
-### 主要风险
+## M4：Context Policy Plugins
 
-- 只在 UI 层隐藏危险工具，runtime 仍可执行。
-- 把权限弹窗写进具体工具，导致 CLI/API/IDE 无法复用。
-- 把 session allow always 偷偷持久化为全局允许。
+**目标：** 把“模型看见什么”做成可替换策略，而不是固定 prompt 拼接。
 
-## M3：上下文与长任务生存能力
+建设范围：
 
-**目标：** 让 agent 能跑长任务，遇到大输出、超窗、截断时可以恢复。
+- 定义 `ContextPolicy`：assemble、budget、truncate、compact、reinject。
+- 定义 `ModelInputProjection`：每次模型调用的 messages、sources、token estimate。
+- 支持 `resources.discover`、`context.assemble`、`context.compact.before`、`context.compact.after` hooks。
+- 实现 tool result store，大结果只给 preview 和引用。
+- 实现 compaction plugin，保留 system、pending、recent tail、summary boundary。
+- 实现 post-compact reinjection：当前文件、plan、active skills、active tools。
+- context hooks 只能贡献 source 或返回 patch，不能覆盖原始 event log。
 
-### 用户可见结果
+first-party 插件：
 
-agent 在处理大日志、长文件、多轮工具调用时不会直接失败；当上下文接近上限时，会显示正在压缩，并在压缩后继续当前任务。
+- `plugin-context-basic`：无压缩，仅预算检查。
+- `plugin-context-compaction`：summary + recent tail。
+- `plugin-context-tool-results`：大工具结果落盘和重读引用。
 
-### 建设范围
+退出标准：
 
-引入四个 context 子系统：
+- 大工具输出不会完整塞进模型输入。
+- context overflow 是可恢复分支。
+- compact 不破坏 tool call/result 配对。
+- 插件能通过 `resources.discover` 贡献 skill/prompt/context path。
+- 插件能通过 `context.compact.before` 取消或调整一次 compaction，并留下 audit event。
+- 每次模型输入都能追踪 source metadata。
 
-- `ContextBudgeter`：计算当前模型可用 input、预留 output、压缩阈值。
-- `ToolResultStore`：大工具结果落盘，只给模型 preview 和引用。
-- `OutputTruncator`：按命令/工具类型保留 head/tail 和关键错误行。
-- `CompactionService`：生成 summary、保留 recent tail、记录 pre/post token 和 boundary。
-
-### 建议实现单元
-
-- `packages/core/src/context/context-budgeter.ts`
-- `packages/core/src/context/output-truncator.ts`
-- `packages/core/src/context/tool-result-store.ts`
-- `packages/core/src/context/compaction-service.ts`
-- `packages/core/src/context/compaction-message.ts`
-- `packages/core/src/context/token-estimator.ts`
-
-### 工具输出治理规则
-
-- shell/test/lint 输出：保留失败摘要、错误行、最后 N 行。
-- search 输出：保留匹配数量、前 N 个结果、可重读 query。
-- file read 输出：超过预算时返回片段和路径引用。
-- 大于阈值的 tool result：写入 `ToolResultStore`，模型只看到 artifact id、path、head/tail preview 和重读方式。
-
-### Compaction 规则
-
-压缩结果必须保留：
-
-- 用户原始目标。
-- 明确约束和不做什么。
-- 已完成步骤。
-- 当前阻塞点。
-- 关键文件路径。
-- 工具调用重要结果。
-- 下一步建议。
-
-压缩不能改写：
-
-- root system prompt。
-- 当前 pending tool calls。
-- 当前 pending tool results。
-- 未闭合 tool call/tool result 配对。
-
-### 测试清单
-
-- `packages/core/test/context/output-truncator.test.ts`
-  - 大日志不会完整进入模型。
-  - 测试失败关键错误行不被截掉。
-- `packages/core/test/context/tool-result-store.test.ts`
-  - 大结果落盘后返回 preview 和可重读引用。
-  - artifact id 能定位原始结果。
-- `packages/core/test/context/compaction-service.test.ts`
-  - compact 后 system 不变。
-  - pending 不丢失。
-  - summary 包含目标、约束、进度、下一步。
-- `packages/core/test/e2e/context-overflow-retry.test.ts`
-  - 模拟 provider context overflow，触发 compact 并重试同一轮。
-
-### 退出标准
-
-- 大结果不会直接进入模型输入。
-- overflow 是可恢复分支，不是普通失败。
-- 每次 compaction 都产生 event 和 audit metadata。
-- 压缩前后 token 估算或真实 usage 可记录。
-
-### 不做
+不做：
 
 - 不做长期记忆。
-- 不做向量库。
-- 不做跨 session search。
-- 不做复杂 context eval 平台。
-
-### 主要风险
-
-- 把 summary 当成唯一历史，丢掉原始事件。
-- 静默压缩，让用户和 UI 不知道历史发生过边界变化。
-- 压缩破坏 tool call/tool result 配对。
-
-## M4：事件账本与 Session 恢复
-
-**目标：** 把内存 agent 变成可恢复、可回放、可审计的产品系统。
-
-### 用户可见结果
-
-进程重启或页面刷新后，用户可以恢复 session，看到之前的消息、工具状态、artifact、compact boundary 和错误。
-
-### 建设范围
+- 不做向量搜索。
+- 不做跨 session semantic memory。
 
-建立 append-only event log：
+## M5：Session Store And Replay Plugins
 
-```ts
-type AgentEventRecord = {
-  id: string;
-  seq: number;
-  sessionId: string;
-  runId: string;
-  type: string;
-  payload: unknown;
-  createdAt: string;
-};
-```
-
-事件类型至少包括：
-
-- `session.created`
-- `run.started`
-- `turn.started`
-- `message.created`
-- `message.delta`
-- `message.completed`
-- `tool.started`
-- `tool.completed`
-- `tool.failed`
-- `permission.requested`
-- `permission.resolved`
-- `artifact.created`
-- `usage.recorded`
-- `context.compacting`
-- `context.compacted`
-- `run.completed`
-- `run.failed`
-- `run.cancelled`
-
-### 建议实现单元
-
-- `packages/core/src/sessions/event-store.ts`
-- `packages/core/src/sessions/session-store.ts`
-- `packages/core/src/sessions/projections.ts`
-- `packages/core/src/context/context-assembler.ts`
-- `packages/core/src/artifacts/artifact-store.ts`
-- `packages/core/src/sessions/replay.ts`
-
-### Projection
-
-从 event log 派生三类投影：
-
-- `ConversationProjection`：UI 展示消息、tool parts、compact boundary。
-- `ModelInputProjection`：某一轮模型实际看到的 messages 和 sources。
-- `AuditProjection`：工具调用、权限、usage、error、artifact 的链路。
-
-### 恢复流程
-
-1. 根据 `sessionId` 读取 event log。
-2. `ContextAssembler` 重建 `ConversationState`。
-3. 未完成 run 标记为 interrupted 或 resumable。
-4. 如果存在 pending permission，恢复为可继续等待或取消。
-5. 下一轮模型输入通过 projection 重新生成，不直接读取旧 prompt 字符串。
-
-### 测试清单
-
-- `packages/core/test/sessions/event-store.test.ts`
-  - seq 递增。
-  - 同一 run 事件顺序稳定。
-  - append-only，不允许覆盖历史事件。
-- `packages/core/test/context/context-assembler.test.ts`
-  - 从事件重建 system/history/pending。
-  - compact boundary 后仍能恢复 summary 和 recent tail。
-- `packages/core/test/e2e/session-resume.test.ts`
-  - 模拟进程重启后继续对话。
-- `packages/core/test/e2e/replay-model-input.test.ts`
-  - 某一轮模型输入可重建并与记录一致。
-
-### 退出标准
-
-- session 不依赖进程内存才能继续。
-- 每次模型调用都能追踪输入来源。
-- 每个 tool call 都能关联 permission、result、artifact、usage/error。
-- compact summary 不是唯一事实源。
-
-### 不做
-
-- 不做企业 dashboard。
-- 不做跨设备协作。
-- 不做事件版本迁移平台。
-
-### 主要风险
-
-- 只保存最终 assistant 文本，丢掉工具状态和错误。
-- 把 event log 和 UI projection 混成一个表，后续无法 replay。
-- 不记录 model input projection，线上问题无法复盘。
+**目标：** 让 agent 从内存循环变成可恢复、可回放、可分叉的工作台。
 
-## M5：Web UI 与 Agent Protocol
+建设范围：
 
-**目标：** 让 runtime 通过稳定协议服务 Web UI，并为 CLI、IDE、API、IM 适配打基础。
+- 定义 `SessionStore`、`EventStore`、`ArtifactStore` 接口。
+- 实现 append-only event log。
+- 实现 session resume、fork、tree navigation 的基础协议。
+- 实现 projection replay：conversation view、model input view、audit view。
+- 实现 interrupted run detection。
 
-### 用户可见结果
+first-party 插件：
 
-用户可以在 Web UI 中发起 run，看到模型流式输出、工具进度、权限请求、artifact、usage 和 compact boundary，并能取消或等待 run。
+- `plugin-session-jsonl`
+- `plugin-artifact-filesystem`
+- `plugin-replay-audit`
 
-### 建设范围
+退出标准：
 
-定义 canonical `AgentUIEvent`：
+- 进程重启后可以恢复 session。
+- 可以重建某一轮模型实际看到的输入。
+- 可以 fork 到历史节点继续。
+- 事件日志 append-only，不覆盖历史。
 
-```ts
-type AgentUIEvent =
-  | { type: "run.started"; runId: string; sessionId: string; seq: number }
-  | { type: "message.delta"; runId: string; messageId: string; text: string; seq: number }
-  | { type: "message.completed"; runId: string; messageId: string; seq: number }
-  | { type: "tool.started"; runId: string; callId: string; name: string; seq: number }
-  | { type: "tool.completed"; runId: string; callId: string; outputPreview: string; seq: number }
-  | { type: "tool.failed"; runId: string; callId: string; error: string; seq: number }
-  | { type: "permission.requested"; runId: string; requestId: string; callId: string; seq: number }
-  | { type: "artifact.created"; runId: string; artifactId: string; filename: string; mime: string; seq: number }
-  | { type: "context.compacting"; runId: string; reason: string; seq: number }
-  | { type: "context.compacted"; runId: string; summaryId: string; seq: number }
-  | { type: "usage.updated"; runId: string; inputTokens?: number; outputTokens?: number; cost?: number; seq: number }
-  | { type: "run.completed"; runId: string; seq: number }
-  | { type: "run.failed"; runId: string; error: string; seq: number };
-```
+不做：
 
-### API 面
+- 不做远端同步。
+- 不做全文搜索。
+- 不做多人协作。
 
-第一版建议：
+## M6：Skills, MCP, And Capability Marketplace Foundation
 
-- `POST /sessions`：创建 session。
-- `GET /sessions/:sessionId`：读取 session projection。
-- `POST /sessions/:sessionId/runs/stream`：创建 run 并返回 SSE。
-- `GET /runs/:runId`：读取 run 状态。
-- `GET /runs/:runId/events?afterSeq=`：读取事件，用于断线恢复。
-- `POST /runs/:runId/cancel`：取消 run。
-- `POST /permissions/:requestId/approve`：批准权限。
-- `POST /permissions/:requestId/deny`：拒绝权限。
-- `GET /artifacts/:artifactId`：下载 artifact。
+**目标：** 让 Guga 能通过标准化资源扩展知识和工具，而不是手工改代码。
 
-### UI 页面
+建设范围：
 
-- Session 列表页。
-- Run 详情页。
-- Message stream 区。
-- Tool timeline。
-- Permission prompt。
-- Artifact list。
-- Usage summary。
-- Compact boundary 展示。
+- 实现 `plugin-skills`：扫描 user/project/plugin skill paths。
+- Skills 采用渐进式加载：metadata 常驻、body 按需、assets 执行时读取。
+- 实现 `plugin-mcp`：MCP server 注册、连接、工具转换、namespace。
+- 实现 capability discovery：当前启用插件、工具、skills、commands、providers 可解释。
+- 实现基础 plugin installer，但不做公开 marketplace。
 
-### 建议实现单元
+退出标准：
 
-- `packages/core/src/protocol/agent-ui-event.ts`
-- `apps/server/src/sse.ts`
-- `apps/server/src/run-api.ts`
-- `apps/server/src/permission-api.ts`
-- `packages/core/src/artifacts/artifact-store.ts`
-- `apps/web/src/*`
+- 插件能贡献 skills。
+- MCP 工具与内建工具进入同一个 tool registry。
+- 内建工具优先，第三方工具不能覆盖内建能力。
+- capability diff 可用于 UI 和审计。
 
-### 测试清单
+不做：
 
-- `packages/core/test/protocol/agent-ui-event.test.ts`
-  - internal events 能投影为稳定 UI events。
-  - seq 单调递增。
-- `apps/server/test/sse.test.ts`
-  - message delta、tool state、run completed 能通过 SSE 收到。
-- `apps/server/test/e2e/cancel-run.test.ts`
-  - cancel 会停止模型调用和工具执行。
-- `apps/server/test/e2e/permission-flow.test.ts`
-  - UI approve/deny 能解除 pending permission。
-- `apps/server/test/e2e/artifact-download.test.ts`
-  - artifact 创建后可下载，且带正确 mime/filename。
+- 不做复杂 MCP 远程认证。
+- 不做插件评分/搜索市场。
+- 不做自动安装未知插件。
 
-### 退出标准
+## M7：Host Adapters
 
-- 浏览器刷新后能恢复 run 状态。
-- UI 不依赖字符串猜测工具状态。
-- cancel 不是只改 loading 状态，而是传播到 runtime。
-- artifact 是资源，不只是回答里的 markdown 链接。
+**目标：** 让同一个 core 可以驱动 CLI、server、web、IDE，而不是每个入口复制 loop。
 
-### 不做
+建设范围：
 
-- 不做多用户协作。
-- 不做复杂企业权限。
-- 不做 WebSocket，除非第一客户明确需要双向低延迟控制。
+- `apps/cli`：最小交互、headless run、debug events。
+- `apps/server`：run/session API、SSE/event stream。
+- `apps/web`：消费 AgentEvent，不管理核心状态。
+- `adapter-acp`：把 Guga session 映射到 ACP。
+- `adapter-rpc`：JSONL/RPC headless 协议。
 
-### 主要风险
+退出标准：
 
-- 把内部事件名直接暴露为公共 API，后续无法演进。
-- SSE 断开后没有 events endpoint 恢复。
-- 权限只做前端弹窗，服务端没有 pending request。
+- CLI 和 server 使用同一个 core runtime。
+- UI 只消费事件和投影，不解析 assistant 文本猜状态。
+- permission request 可以跨 CLI/server 表达。
+- cancel/resume 在至少两个 host adapter 中表现一致。
 
-## M6：多 Provider 运营
+不做：
 
-**目标：** 把模型接入从硬编码 adapter 变成可运营能力。
+- 不做重型管理后台。
+- 不做复杂多人协作 UI。
+- 不做 IDE 深度定制。
 
-### 用户可见结果
+## M8：Production And Operations
 
-用户或管理员可以配置 provider、模型、API key、fallback 策略；同一个 agent 可以在不同模型之间切换，并能看到 token、成本和错误原因。
+**目标：** 把插件化 runtime 变成商业级平台底座。
 
-### 建设范围
+建设范围：
 
-Provider 层拆成三部分：
+- 企业级 permission policy plugin。
+- Credential pool 和 provider health。
+- Eval/replay plugin。
+- Audit export。
+- Prompt/context versioning。
+- Plugin trust：签名、allowlist、capability permission、hook phase allowlist。
+- Hook sandbox：限制高危 phase、限制网络/文件访问、记录 hook telemetry。
+- Observability：run metrics、tool latency、retry、cost、context pressure。
 
-- `ProviderProfile`：声明认证方式、base URL、默认模型、能力和模型发现方法。
-- `LLMClientAdapter`：把内部 messages/tools/schema 转成 provider 请求，把 provider stream 转回内部事件。
-- `ModelCapabilityRegistry`：记录模型是否支持 tool calling、parallel tools、JSON schema、reasoning、vision、context limit、output limit、stream usage。
-
-### 建议实现单元
-
-- `packages/core/src/llm/provider-registry.ts`
-- `packages/core/src/llm/provider-profile.ts`
-- `packages/core/src/llm/model-capabilities.ts`
-- `packages/core/src/llm/providers/openai-client.ts`
-- `packages/core/src/llm/providers/anthropic-client.ts`
-- `packages/core/src/llm/providers/gemini-client.ts`
-- `packages/core/src/llm/provider-errors.ts`
-- `packages/core/src/llm/cost-tracker.ts`
-
-### 错误类型
-
-至少归一化：
-
-- `ContextOverflowError`
-- `RateLimitError`
-- `AuthenticationError`
-- `AbortError`
-- `ToolCallParseError`
-- `ModelNotFoundError`
-- `UnsupportedCapabilityError`
-- `UnknownProviderError`
-
-### 测试清单
-
-- `packages/core/test/llm/provider-registry.test.ts`
-  - 注册 provider、覆盖 provider、禁用 provider。
-- `packages/core/test/llm/model-capabilities.test.ts`
-  - 不支持 tool calling 时拒绝工具请求。
-  - 不支持 media tool result 时降级为文本引用。
-- `packages/core/test/llm/provider-errors.test.ts`
-  - provider 原始错误归一化为内部错误类型。
-- `packages/core/test/e2e/provider-switch.test.ts`
-  - 同一 agent run 可以切换 provider adapter。
-
-### 退出标准
-
-- agent loop 不知道当前 provider 是谁。
-- provider 不支持能力时明确失败或降级。
-- token/cost 可按 run/session 聚合。
-- rate limit、auth、overflow、abort 不再混成普通 error。
-
-### 不做
-
-- 不做公开 provider marketplace。
-- 不做用户插件 provider。
-- 不做复杂价格同步系统。
-
-### 主要风险
-
-- 用 provider 名称代替 capability 判断。
-- 把 provider SDK event 暴露给 runtime/UI。
-- 错误只保留 message 字符串，导致 retry/fallback 无法决策。
-
-## M7：商业平台
-
-**目标：** 把 runtime 包装成企业可采用的 agent platform。
-
-### 用户可见结果
-
-企业团队可以管理 workspace、成员、provider key、工具权限、审计日志、prompt 版本、run replay、artifact 和 eval；agent 可以服务 CLI、Web、IDE、API 等多个入口。
-
-### 建设范围
-
-平台能力分为六块：
-
-- **Workspace 和租户**：workspace、project、user、role、policy。
-- **Provider 管理**：key vault、provider profile、model allowlist、fallback。
-- **Tool 管理**：工具开关、MCP server、权限策略、危险命令策略。
-- **Prompt 管理**：base prompt 版本、项目规则、实验、diff、审计。
-- **Run 运营**：session/run 列表、event replay、usage/cost、error 分类。
-- **质量体系**：eval dataset、regression suite、runtime boundary tests。
-
-### 建议实现单元
-
-- `packages/platform/src/workspaces.ts`
-- `packages/platform/src/users.ts`
-- `packages/platform/src/policies.ts`
-- `packages/platform/src/provider-admin.ts`
-- `packages/platform/src/tool-admin.ts`
-- `packages/platform/src/prompt-versions.ts`
-- `packages/platform/src/evals.ts`
-- `packages/platform/src/audit-export.ts`
-
-### 企业级数据对象
-
-- `Workspace`
-- `Project`
-- `User`
-- `Role`
-- `Policy`
-- `ProviderCredential`
-- `ModelAllowlist`
-- `ToolPolicy`
-- `PromptVersion`
-- `EvalRun`
-- `AuditExport`
-
-### 测试清单
-
-- `packages/platform/test/policies.test.ts`
-  - workspace policy 能覆盖工具默认权限。
-  - model allowlist 能拒绝未授权模型。
-- `packages/platform/test/audit-export.test.ts`
-  - 导出内容包含 run、model input projection、tool calls、permissions、artifacts、usage。
-- `packages/platform/test/prompt-versions.test.ts`
-  - prompt version 可回放，可 diff。
-- `packages/platform/test/e2e/enterprise-run.test.ts`
-  - 企业策略下的完整 run 能执行、审批、产出 artifact、记录 audit。
-
-### 退出标准
+退出标准：
 
 - 企业能控制模型、工具、权限、日志和数据边界。
-- 长任务可以跨天恢复。
-- 每次模型调用都可以按 prompt、context source、model 和 tool state 审计。
-- 新工具、新模型、新客户端可以通过 adapter 接入，而不是修改主循环。
+- 每次模型调用、工具执行和权限决策都可审计。
+- 插件能力有 trust level 和 permission scope。
+- 插件 hook 有 phase/effect/permission scope，企业可按 phase 禁用第三方 hook。
+- hook timeout、deny、patch、failure 都进入 telemetry 和 audit export。
+- Provider、tool、context policy 改动可通过 replay/eval 验证。
 
-### 不做
+不做：
 
-- 不做与核心 runtime 无关的重型 BI。
 - 不做脱离 eval 的 prompt 实验平台。
-- 不做没有权限模型支撑的 marketplace。
+- 不做没有 trust model 的 marketplace。
+- 不做和 runtime 无关的 BI。
 
-### 主要风险
-
-- 在 M4/M5 不稳定时过早做后台，结果只能展示不可靠数据。
-- 把企业策略只做成 UI 配置，没有在 runtime 层强制执行。
-- 没有 eval 和 replay，prompt/provider 改动无法安全上线。
-
-## 跨阶段依赖图
+## 跨阶段依赖
 
 ```text
-M0 工具闭环
-  -> M1 Runtime 骨架
-    -> M2 权限与执行管道
-    -> M3 Context 生存能力
-      -> M4 Event Log 与恢复
-        -> M5 UI Protocol
-          -> M6 Provider 运营
-            -> M7 商业平台
+M0 Core Kernel
+  -> M1 Plugin Host + Hook Kernel
+    -> M2 Provider Plugins
+    -> M3 Tool Plugins + Permissions
+      -> M4 Context Policy Plugins
+        -> M5 Session Store + Replay
+          -> M6 Skills + MCP + Capability Discovery
+            -> M7 Host Adapters
+              -> M8 Production Operations
 ```
 
-注意：M2 和 M3 可以部分并行，但必须都建立在 M1 的 `AgentLoop`、`ConversationState`、`ToolRegistry` 之上。M5 必须等 M4 至少有可用 event store，否则 UI 只能消费临时状态，刷新和断线都会丢上下文。
+M2 和 M3 可以部分并行，但都必须建立在 M1 的 plugin host、capability registry 和 hook kernel 上。M3 必须先定义清楚 tool hook 的 fail-closed 语义，否则权限和审计会漂移。M4 必须等 M3 的 tool result contract 稳定，否则 compaction 无法安全处理工具输出。M7 必须等 M5 至少能恢复 session，否则多 host 只会复制临时状态。
 
-## 第一阶段任务拆解
+## 第一批工程任务
 
-如果现在开始实现，建议把第一批任务拆成下面 12 个 issue：
+如果现在开始实现，第一批 issue 应围绕 core/plugin 最小闭环，而不是直接做完整应用：
 
-1. 定义 core message、tool call、tool result、usage 类型。
-2. 实现 `LLMClient` 接口和一个 provider adapter。
-3. 实现最小 `read_file` 工具。
-4. 实现 `AgentLoop` 的 no-tool finish 和 tool-call continue。
-5. 实现 tool result 与 tool call id 配对测试。
-6. 实现 `ConversationState` 的 system/history/pending 分层。
-7. 实现 `ToolRegistry`，让 schema、description、execute 来自同一声明源。
-8. 实现 `PromptBuilder` 四层装配：base、environment、tools、context。
-9. 实现 max turns 和 abort。
-10. 实现基础 runtime events。
-11. 实现 CLI `run` 命令。
-12. 添加 M0/M1 e2e 测试：读取文件、工具失败、无工具结束、取消、max turns。
+1. 定义 core contracts：message、tool call、tool result、provider event、agent event。
+2. 实现 `AgentLoop` 最小状态机和 mock provider。
+3. 实现 `EventBus` 与内存事件记录。
+4. 实现 `CapabilityRegistry`，支持 provider/tool 注册。
+5. 实现 plugin manifest schema。
+6. 实现本地 plugin loader。
+7. 实现 `HookKernel`：phase、effect、priority、timeout、audit event。
+8. 实现 plugin runtime API：registerTool、registerProvider、registerHook、onEvent。
+9. 实现 namespace 和冲突检测。
+10. 实现 stale context guard。
+11. 写 `plugin-tool-echo` 示例。
+12. 写 `plugin-provider-mock` 示例。
+13. 写 `plugin-hook-policy-demo`：阻断危险 tool call、贡献 resource path、追加 model input patch。
+14. 添加 e2e：不改 core，仅通过插件完成一次 tool-calling run。
+15. 添加 e2e：hook 能阻断工具调用，并在 audit event 中记录 decision。
 
-## 排序规则
+## 暂缓事项
 
-- 先做一个可靠 agent，再做多 agent 编排。
-- 先做 event log，再做企业 dashboard。
-- 先做 session recovery，再做长期记忆。
-- 先做 provider adapter，再做 provider marketplace。
-- 先做 permission runtime，再做 permission UI polish。
-- 先做 artifact resource，再做复杂文件图库。
-- 先做 replay，再做 prompt experiment。
-- 先做 tool result budget，再做更强工具生态。
+- 多 agent 编排：等单 agent 的 tool/context/session/replay 稳定后再做。
+- 长期记忆：等 session store、compaction、skills 三者边界稳定后再做。
+- 插件市场：等 trust model、签名、capability permission 成熟后再做。
+- 企业后台：等 event log、audit projection、provider metrics 可靠后再做。
+- 远端 sandbox：等本地 permission runtime 和 tool execution pipeline 成熟后再做。
 
-## 判断一个阶段是否“足够商业级”
+## 判断是否偏离路线
 
-每个阶段结束时都问四个问题：
+每做一个新能力都问：
 
-- **可恢复吗？** 失败、取消、重启、超时后是否有明确状态。
-- **可审计吗？** 能否知道模型看到了什么、工具做了什么、谁批准了什么。
-- **可替换吗？** provider、tool、client 是否可以通过 adapter 替换，而不是改核心 loop。
-- **可测试吗？** 是否有覆盖关键边界的自动化测试，而不是只靠 demo。
+- 这必须在 core 里吗，还是可以作为 first-party plugin？
+- 这个能力是否有 manifest、namespace、enable/disable、reload 语义？
+- 这个能力需要 registry 还是 hook？如果需要 hook，它的 phase/effect/permission 是否明确？
+- 这个能力是否通过事件暴露事实，而不是让 UI 猜字符串？
+- 这个能力是否能被 session replay 重建？
+- 这个能力是否有权限和审计边界？
+- 替换 provider/tool/context/session store 时，agent loop 是否不用改？
 
-如果答案是否定的，不要进入更高层平台化。商业级 agent 的壁垒不是“功能多”，而是边界稳。
+如果答案是否定的，就先不要把它并进 core。Guga 的壁垒不是功能更多，而是 core 足够小、插件边界足够稳、恢复和审计足够可靠。

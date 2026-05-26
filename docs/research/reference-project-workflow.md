@@ -64,6 +64,7 @@ sed -n '1,220p' docs/research/intake/source-contract.md
 - `deer-flow`
 - `hermes-agent`
 - `opencode`
+- `pi`
 
 ### 2. 按主题路由到少量参考项目
 
@@ -77,12 +78,12 @@ sed -n '1,260p' docs/research/source-analysis/design-ideas-index.md
 
 | 主题 | 主参考 | 对比 / 边界样本 |
 | --- | --- | --- |
-| Agent loop / ReAct runtime | `claude-code`, `blade-agent-sdk`, `blade-code`, `opencode` | `deepagentsjs`, `hermes-agent` |
-| Tool registry / execution / permissions | `claude-code`, `blade-agent-sdk`, `blade-code`, `opencode` | `hermes-agent` |
-| Context / compaction / session recovery | `claude-code`, `blade-code`, `opencode`, `deepagentsjs` | `hermes-agent` |
-| LLM provider abstraction | `opencode`, `claude-code`, `blade-agent-sdk`, `deer-flow` | `hermes-agent` |
-| UI / protocol / remote clients | `claude-code`, `opencode`, `deer-flow`, `cc-haha`, `blade-code` | `hermes-agent` |
-| Core package / reusable SDK layout | `blade-agent-sdk`, `deepagentsjs` | `opencode`, `hermes-agent` |
+| Agent loop / ReAct runtime | `claude-code`, `pi`, `blade-agent-sdk`, `blade-code`, `opencode` | `deepagentsjs`, `hermes-agent` |
+| Tool registry / execution / permissions | `claude-code`, `pi`, `blade-agent-sdk`, `blade-code`, `opencode` | `hermes-agent` |
+| Context / compaction / session recovery | `claude-code`, `pi`, `blade-code`, `opencode`, `deepagentsjs` | `hermes-agent` |
+| LLM provider abstraction | `opencode`, `pi`, `claude-code`, `blade-agent-sdk`, `deer-flow` | `hermes-agent` |
+| UI / protocol / remote clients | `claude-code`, `pi`, `opencode`, `deer-flow`, `cc-haha`, `blade-code` | `hermes-agent` |
+| Core package / reusable SDK layout | `blade-agent-sdk`, `pi`, `deepagentsjs` | `opencode`, `hermes-agent` |
 | Multi-agent / delegation | `claude-code`, `deer-flow`, `opencode` | `hermes-agent` |
 | Sandbox / execution isolation | `claude-code`, `deer-flow`, `opencode` | `hermes-agent` |
 

@@ -33,7 +33,9 @@ L0 到 L5 是协议复杂度路线，不等于 Guga 要等到 L5 才有 Server/S
 
 `hermes-agent` 是新增参考里最强的多客户端样本。它不只支持一个 Web UI，而是把 CLI/IM/API/ACP 都看作 agent runtime 的外层 adapter：OpenAI-compatible API server 在 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/gateway/platforms/api_server.py:1` 到 `:21` 列出 `/v1/chat/completions`、`/v1/responses`、`/v1/runs`、`/v1/runs/{run_id}/events`、approval 和 stop endpoints；`GatewayStreamConsumer` 在 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/gateway/stream_consumer.py:77`，负责把同步 agent callbacks 桥接到异步平台消息编辑/草稿流；ACP session manager 在 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/acp_adapter/session.py:186` 管理 editor session 与 `AIAgent` 实例。这给 AG-UI 方向一个更商业化的判断：协议平台必须能适配不同客户端限制，而不是假设所有端都是浏览器 SSE。
 
-这四条线合起来，给我们一个更稳的判断：Agent UI 协议的主线不是“选 SSE 还是 WebSocket”，而是先定义清楚运行时事实，再决定如何传输、如何投影、如何控制。
+`pi agent` 的核心启发是“UI/客户端协议也可以通过 extension surface 开放，而不是只由内置 TUI 决定”。它的 extension 文档明确允许 extension 订阅 lifecycle events、注册 LLM-callable tools、添加 commands、通过 `ctx.ui` 弹 select/confirm/input/notify、注册 custom UI component 和自定义 message/tool renderer，见 `/Users/lienli/Documents/GitHub/guga-agent/docs/research/repomix/pi-focused-context.xml:32075` 到 `:32175`。更底层的类型文件把 `ExtensionUIContext`、`SessionEvent`、`AgentEvent`、`ModelEvent`、`ToolEvent` 分开，见同一 context 的 `packages/coding-agent/src/core/extensions/types.ts` 片段。这说明 Guga 的 `AgentUIEvent` 不应该只服务内置 Web/CLI，还应该给插件一个受控的 UI/事件扩展面。
+
+这些参考线索合起来，给我们一个更稳的判断：Agent UI 协议的主线不是“选 SSE 还是 WebSocket”，而是先定义清楚运行时事实，再决定如何传输、如何投影、如何控制。
 
 ## L0：CLI print，先让 agent 真的跑起来
 
@@ -319,8 +321,8 @@ L5 的推荐架构是三层：
 | L1 | 统一事件 | `AgentUIEvent`，message/tool 投影 | `opencode` SessionProcessor |
 | L2 | SSE streaming | `/runs/stream`，run resource，恢复查询 | `deer-flow` thread_runs.py |
 | L3 | 控制面 | permission/cancel/wait endpoint | `cc-haha` RemoteSessionManager，`deer-flow` cancel/wait |
-| L4 | 产品能力 | artifact、attachments、compact、usage | `deer-flow` artifacts/usage，`cc-haha` compact，`opencode` attachments |
-| L5 | 商业协议平台 | event store，多客户端 adapter，审计 | `deer-flow` runs API，`blade-code` ACP，`cc-haha` remote bridge，`hermes-agent` API server/gateway/ACP |
+| L4 | 产品能力 | artifact、attachments、compact、usage | `deer-flow` artifacts/usage，`cc-haha` compact，`opencode` attachments，`pi` custom renderers |
+| L5 | 商业协议平台 | event store，多客户端 adapter，审计 | `deer-flow` runs API，`blade-code` ACP，`cc-haha` remote bridge，`hermes-agent` API server/gateway/ACP，`pi` extension UI/events |
 
 如果面向 Guga 当前阶段，可以把这条路线压成更具体的优先级：
 

@@ -17,6 +17,7 @@ Start here for "what is the system trying to be?" and "where are the boundaries?
 - [Learn OpenCode system architecture](./learn-opencode/docs/architecture/README.md)
 - [Learn OpenCode package overview](./learn-opencode/docs/packages/opencode/README.md)
 - [Learn OpenCode docs index](./learn-opencode/docs/index.md)
+- Pi source pack: `docs/research/repomix/pi-token-tree.txt` + `docs/research/repomix/pi-focused-context.xml` for TypeScript agent harness, coding-agent CLI/TUI, and extension-first runtime patterns.
 
 ## Agent Loop And Orchestration
 
@@ -34,6 +35,7 @@ Use these for run-loop shape, turn lifecycle, graph/middleware flow, and how con
 - [Learn OpenCode agent internals](./learn-opencode/docs/internals/agent.md)
 - [Learn OpenCode agent lifecycle](./learn-opencode/docs/flow/agent_lifecycle.md)
 - [Learn OpenCode run flow](./learn-opencode/docs/packages/opencode/README.md)
+- Pi source pack: search `agentLoop`, `Agent`, `beforeToolCall`, `afterToolCall`, `tool_execution_*`, and `shouldStopAfterTurn` in `docs/research/repomix/pi-token-tree.txt` before opening focused context.
 
 ## Context, Compression, And Session Recovery
 
@@ -50,6 +52,7 @@ Use these for context budget policy, compaction, session splitting, resume, hist
 - [Hermes session search and SessionDB](./hermes-wiki/concepts/session-search-and-sessiondb.md)
 - [Learn OpenCode session internals](./learn-opencode/docs/internals/session.md)
 - [Learn OpenCode state sync flow](./learn-opencode/docs/flow/state_sync.md)
+- Pi source pack: search `jsonl`, `session`, `compact`, `transformContext`, and `convertToLlm` in `docs/research/repomix/pi-token-tree.txt` before opening focused context.
 
 ## Tools, MCP, Skills, And Extension Design
 
@@ -77,6 +80,7 @@ Use these for extension boundaries, progressive disclosure, tool registry shape,
 - [Learn OpenCode plugin package](./learn-opencode/docs/packages/plugin/README.md)
 - [Learn OpenCode plugin loading flow](./learn-opencode/docs/flow/plugin_loading.md)
 - [Learn OpenCode skill internals](./learn-opencode/docs/internals/skill.md)
+- Pi source pack: search `registerTool`, `ToolDefinition`, `beforeToolCall`, `afterToolCall`, `prepareArguments`, `renderResult`, and `skills` in `docs/research/repomix/pi-token-tree.txt` before opening focused context.
 
 ## Multi-Agent And Delegation
 

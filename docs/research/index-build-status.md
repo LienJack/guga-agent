@@ -12,6 +12,7 @@
 | deer-flow | done | done (full) | done | **done** (4410n/8454e/12L/12T) | done (850n/860e/225c) |
 | hermes-agent | done | done (focused) | done | **done** (303n/1025e/12L/15T) | done (1905n/3747e/116c) |
 | opencode | done | done (full) | done | **done** (742n/1101e/12L/14T) | done (8023n, no-viz) |
+| pi | done | done (focused, 460 files / 1,230,823 tokens) | done (21,565n/55,110e/812c/300f) | not run | not run |
 
 ## Understand-Anything POC 结果
 
@@ -60,9 +61,9 @@
 
 | 主题 | 状态 | 相关项目 |
 |---|---|---|
-| agent-loop | done | all |
-| tool-registry | done | blade-agent-sdk, claude-code, hermes-agent, opencode |
-| context-compression | done | claude-code, hermes-agent, opencode |
-| provider-abstraction | done | blade-agent-sdk, claude-code, opencode |
+| agent-loop | done | all pre-`pi` projects; `pi` pending refresh |
+| tool-registry | done | blade-agent-sdk, claude-code, hermes-agent, opencode; `pi` pending refresh |
+| context-compression | done | claude-code, hermes-agent, opencode; `pi` pending refresh |
+| provider-abstraction | done | blade-agent-sdk, claude-code, opencode; `pi` pending refresh |
 | ui-protocol | done | cc-haha, deepagentsjs, deer-flow |
 | multi-agent | done | hermes-agent, deepagentsjs, deer-flow |

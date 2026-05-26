@@ -41,4 +41,5 @@
 | `source-analysis/hermes-agent-anatomy` | Hermes 架构图解、agent loop、tool registry、provider routing、compression、gateway、memory/RL 对比。 |
 | `source-analysis/hermes-wiki` | 按子系统直接查询 Hermes 概念页，适合 LLM 快速定位。 |
 | `source-analysis/learn-opencode` | OpenCode 学习/源码分析文档，覆盖 monorepo 架构、internals、flows、packages、ACP/LSP/MCP、permissions、tools、SDK、UI 和 clients。 |
+| `repomix/pi-*` | `pi` 源码级验证，适合查 TypeScript coding agent harness、JSONL session、compaction、provider/OAuth、CLI/TUI、skills 和 extension 主链路。 |
 | `repomix` | 用于源码级实现规划的 packed source context 和 token tree。 |
