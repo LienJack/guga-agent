@@ -57,7 +57,8 @@ describe("AI SDK mappers", () => {
       }
     ]);
 
-    expect(tools.echo).toEqual({ description: "Echo input", inputSchema: { type: "object" } });
+    expect(tools.echo?.description).toBe("Echo input");
+    expect(tools.echo?.inputSchema).toMatchObject({ jsonSchema: { type: "object" } });
     expect("execute" in tools.echo!).toBe(false);
   });
 

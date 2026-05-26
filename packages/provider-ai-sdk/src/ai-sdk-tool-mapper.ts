@@ -1,4 +1,5 @@
 import type { ToolDefinition } from "@guga-agent/core";
+import { jsonSchema } from "ai";
 
 export type AiSdkToolSpec = {
   description: string;
@@ -11,7 +12,7 @@ export function mapToolsToAiSdk(tools: readonly ToolDefinition[]): Record<string
       tool.name,
       {
         description: tool.description,
-        inputSchema: tool.inputSchema
+        inputSchema: jsonSchema(tool.inputSchema as never)
       }
     ])
   );
