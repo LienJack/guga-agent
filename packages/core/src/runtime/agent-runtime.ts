@@ -16,12 +16,14 @@ import { HookKernel } from "../hooks/hook-kernel";
 import { AgentLoop } from "../loop/agent-loop";
 import { PluginHost } from "../plugin-host/plugin-host";
 import { CapabilityRegistry } from "../registry/capability-registry";
+import { ProviderRouter } from "../router/provider-router";
 
 export class AgentRuntime implements AgentRuntimeContract {
   private readonly registry = new CapabilityRegistry();
   private readonly eventBus = new EventBus();
   private readonly hookKernel: HookKernel;
   private readonly pluginHost: PluginHost;
+  private readonly router: ProviderRouter | undefined;
   private disposed = false;
 
   constructor(options: AgentRuntimeOptions = {}) {
@@ -32,6 +34,9 @@ export class AgentRuntime implements AgentRuntimeContract {
       hookKernel: this.hookKernel,
       eventBus: this.eventBus
     });
+    this.router = options.routerPolicy
+      ? new ProviderRouter({ registry: this.registry, policy: options.routerPolicy })
+      : undefined;
   }
 
   registerProvider(provider: Provider): void {
@@ -90,7 +95,8 @@ export class AgentRuntime implements AgentRuntimeContract {
       registry: this.registry,
       eventBus: this.eventBus,
       eventStartIndex,
-      hookKernel: this.hookKernel
+      hookKernel: this.hookKernel,
+      ...(this.router ? { router: this.router } : {})
     }).run({ ...options, runId });
   }
 

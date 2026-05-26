@@ -1,11 +1,15 @@
 import type { AgentEvent } from "./events";
 import type { LocalPlugin } from "./plugins";
 import type { ModelMetadata, Provider } from "./provider";
+import type { ModelPurpose } from "./provider";
+import type { ProviderRouterPolicy } from "./provider-router";
 import type { ToolDefinition } from "./tools";
 
 export type AgentRunOptions = {
   input: string;
   providerId: string;
+  modelId?: string;
+  purpose?: ModelPurpose;
   maxTurns?: number;
   signal?: AbortSignal;
   runId?: string;
@@ -33,6 +37,7 @@ export type AgentRunResult = AgentRunSuccess | AgentRunFailure;
 
 export type AgentRuntimeOptions = {
   plugins?: LocalPlugin[];
+  routerPolicy?: ProviderRouterPolicy;
 };
 
 export type AgentRuntimeShutdownResult = {

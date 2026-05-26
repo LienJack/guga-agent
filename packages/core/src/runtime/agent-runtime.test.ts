@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { AgentEventType } from "../contracts/events";
 import { HookEffect, HookPhase } from "../contracts/hooks";
+import { ModelEventType } from "../contracts/model-events";
+import { ProviderErrorCategory } from "../contracts/provider";
 import { createAgentRuntime } from "./create-agent-runtime";
 import { createExamplePlugin } from "../testing/example-plugin";
 import { createMockProvider } from "../testing/mock-provider";
@@ -315,5 +317,101 @@ describe("AgentRuntime", () => {
       error: { code: "HOOK_FAILED", message: "example hook broke" }
     });
     expect(result.events.map((event) => event.type)).toContain(AgentEventType.HookFailure);
+  });
+
+  it("routes through provider policy, falls back after rate-limit, and records model events", async () => {
+    const runtime = createAgentRuntime({
+      routerPolicy: {
+        primary: { providerId: "primary-provider", modelId: "primary-model" },
+        purposes: [
+          {
+            purpose: "primary",
+            candidates: [
+              { providerId: "primary-provider", modelId: "primary-model" },
+              { providerId: "fallback-provider", modelId: "fallback-model" }
+            ]
+          }
+        ]
+      }
+    });
+    runtime.registerProvider(
+      createMockProvider(
+        [
+          {
+            type: "failure",
+            error: {
+              category: ProviderErrorCategory.RateLimit,
+              code: "RATE_LIMITED",
+              message: "rate limited",
+              retryable: false
+            },
+            usage: { inputTokens: 1, cost: { status: "unknown" } }
+          }
+        ],
+        { id: "primary-provider" }
+      )
+    );
+    runtime.registerProvider(
+      createMockProvider(
+        [{ type: "final", content: "fallback final", usage: { totalTokens: 5, cost: { status: "unknown" } } }],
+        { id: "fallback-provider" }
+      )
+    );
+    runtime.registerModel({ providerId: "primary-provider", modelId: "primary-model", purposes: ["primary"] });
+    runtime.registerModel({ providerId: "fallback-provider", modelId: "fallback-model", purposes: ["primary"] });
+
+    const result = await runtime.run({
+      input: "hello",
+      providerId: "primary-provider",
+      purpose: "primary",
+      runId: "runtime-router-fallback"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "fallback final" });
+    const modelEvents = result.events
+      .filter((event) => event.type === AgentEventType.ModelEvent)
+      .map((event) => event.event.type);
+    expect(modelEvents).toContain(ModelEventType.ProviderError);
+    expect(modelEvents).toContain(ModelEventType.FallbackSelected);
+    expect(modelEvents).toContain(ModelEventType.Usage);
+  });
+
+  it("routes model tool intent through the Guga tool pipeline after pre-tool gate", async () => {
+    const runtime = createAgentRuntime({
+      routerPolicy: {
+        primary: { providerId: "tool-provider", modelId: "tool-model" }
+      }
+    });
+    runtime.registerProvider(
+      createMockProvider(
+        [
+          { type: "tool_calls", toolCalls: [{ id: "call-router", name: "echo", input: { value: "hello" } }] },
+          { type: "final", content: "tool complete" }
+        ],
+        { id: "tool-provider" }
+      )
+    );
+    runtime.registerModel({
+      providerId: "tool-provider",
+      modelId: "tool-model",
+      purposes: ["primary"],
+      capabilities: { toolCalling: true }
+    });
+    runtime.registerTool(createTestTool({ name: "echo", content: "hello" }));
+
+    const result = await runtime.run({
+      input: "use a tool",
+      providerId: "tool-provider",
+      runId: "runtime-router-tool"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "tool complete" });
+    expect(result.events).toContainEqual(
+      expect.objectContaining({
+        type: AgentEventType.ModelEvent,
+        event: expect.objectContaining({ type: ModelEventType.ToolIntent })
+      })
+    );
+    expect(result.events.map((event) => event.type)).toContain(AgentEventType.ToolResult);
   });
 });

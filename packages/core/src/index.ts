@@ -65,6 +65,15 @@ export type {
   AgentRuntimeShutdownResult
 } from "./contracts/runtime";
 export type {
+  ProviderRouterFailure,
+  ProviderRouterModelCandidate,
+  ProviderRouterPolicy,
+  ProviderRouterPurposePolicy,
+  ProviderRouterRequest,
+  ProviderRouterResult,
+  ProviderRouterSuccess
+} from "./contracts/provider-router";
+export type {
   LocalPlugin,
   PluginCapabilityKind,
   PluginContext,
@@ -89,6 +98,7 @@ export { PluginHost } from "./plugin-host/plugin-host";
 export { CapabilityRegistry } from "./registry/capability-registry";
 export { ConversationState } from "./state/conversation-state";
 export { AgentLoop } from "./loop/agent-loop";
+export { ProviderRouter } from "./router/provider-router";
 export { AgentRuntime as DefaultAgentRuntime } from "./runtime/agent-runtime";
 export { createAgentRuntime } from "./runtime/create-agent-runtime";
 export { createMockProvider } from "./testing/mock-provider";

@@ -30,10 +30,14 @@ describe("AgentLoop", () => {
     expect(eventBus.events.map((event) => event.type)).toEqual([
       AgentEventType.RunStarted,
       AgentEventType.ModelRequested,
+      AgentEventType.ModelEvent,
+      AgentEventType.ModelEvent,
       AgentEventType.ModelResponded,
       AgentEventType.ToolCalled,
       AgentEventType.ToolResult,
       AgentEventType.ModelRequested,
+      AgentEventType.ModelEvent,
+      AgentEventType.ModelEvent,
       AgentEventType.ModelResponded,
       AgentEventType.RunFinished
     ]);
