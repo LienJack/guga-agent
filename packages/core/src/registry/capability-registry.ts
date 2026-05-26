@@ -2,6 +2,13 @@ import { CoreError } from "../contracts/errors";
 import type { ModelMetadata, Provider } from "../contracts/provider";
 import type { ToolDefinition } from "../contracts/tools";
 
+export type ToolRegistryOptions = {
+  override?: false | {
+    replaces: string;
+    reason: string;
+  };
+};
+
 export class CapabilityRegistry {
   private readonly providers = new Map<string, Provider>();
   private readonly models = new Map<string, ModelMetadata>();
@@ -16,8 +23,12 @@ export class CapabilityRegistry {
     this.providers.set(provider.id, provider);
   }
 
-  registerTool(tool: ToolDefinition): void {
+  registerTool(tool: ToolDefinition, options: ToolRegistryOptions = {}): void {
     if (this.tools.has(tool.name)) {
+      if (options.override && options.override.replaces === tool.name) {
+        this.tools.set(tool.name, tool);
+        return;
+      }
       throw new CoreError("CAPABILITY_ALREADY_REGISTERED", `Tool already registered: ${tool.name}`, {
         toolName: tool.name
       });

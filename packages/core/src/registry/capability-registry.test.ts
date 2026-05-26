@@ -55,6 +55,17 @@ describe("CapabilityRegistry", () => {
     expect(() => registry.registerTool(tool)).toThrow("Tool already registered: echo");
   });
 
+  it("allows explicit tool override only when the replaced name matches", () => {
+    const registry = new CapabilityRegistry();
+    const replacement = { ...tool, description: "Replacement echo" };
+    registry.registerTool(tool);
+
+    expect(() => registry.registerTool(replacement, { override: { replaces: "other", reason: "test" } })).toThrow("Tool already registered: echo");
+    registry.registerTool(replacement, { override: { replaces: "echo", reason: "test" } });
+
+    expect(registry.requireTool("echo")).toBe(replacement);
+  });
+
   it("removes model metadata by provider and model id", () => {
     const registry = new CapabilityRegistry();
     registry.registerModel(model);

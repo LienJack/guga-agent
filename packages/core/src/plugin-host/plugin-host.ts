@@ -4,7 +4,8 @@ import type { HookRegistration } from "../contracts/hooks";
 import {
   type LocalPlugin,
   type PluginFailure,
-  type PluginShutdownResult
+  type PluginShutdownResult,
+  type ToolRegistrationOptions
 } from "../contracts/plugins";
 import type { ModelMetadata, Provider } from "../contracts/provider";
 import type { ToolDefinition } from "../contracts/tools";
@@ -40,9 +41,20 @@ type PluginContribution = {
   pluginId: string;
   providers: string[];
   models: Array<Pick<ModelMetadata, "providerId" | "modelId">>;
-  tools: string[];
+  tools: PluginToolContribution[];
   hooks: string[];
 };
+
+type PluginToolContribution =
+  | {
+      type: "registered";
+      name: string;
+    }
+  | {
+      type: "overrode";
+      name: string;
+      previous: ToolDefinition;
+    };
 
 export class PluginHost {
   private readonly plugins: LocalPlugin[];
@@ -80,7 +92,7 @@ export class PluginHost {
           pluginId: plugin.id,
           registerProvider: (provider) => this.registerProvider(options.runId, plugin.id, provider, contribution),
           registerModel: (model) => this.registerModel(options.runId, plugin.id, model, contribution),
-          registerTool: (tool) => this.registerTool(options.runId, plugin.id, tool, contribution),
+          registerTool: (tool, toolOptions) => this.registerTool(options.runId, plugin.id, tool, contribution, toolOptions),
           registerHook: (hook) =>
             this.registerHook(options.runId, plugin.id, pluginLoadIndex, hook, contribution)
         });
@@ -159,10 +171,16 @@ export class PluginHost {
     runId: string,
     pluginId: string,
     tool: ToolDefinition,
-    contribution: PluginContribution
+    contribution: PluginContribution,
+    options?: ToolRegistrationOptions
   ): void {
-    this.registry.registerTool(tool);
-    contribution.tools.push(tool.name);
+    const previousTool =
+      options?.override && options.override.replaces === tool.name ? this.registry.getTool(tool.name) : undefined;
+
+    this.registry.registerTool(tool, options);
+    contribution.tools.push(
+      previousTool ? { type: "overrode", name: tool.name, previous: previousTool } : { type: "registered", name: tool.name }
+    );
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
       runId,
@@ -245,15 +263,21 @@ export class PluginHost {
   }
 
   private cleanupContributions(): void {
-    for (const contribution of this.contributions) {
+    for (const contribution of [...this.contributions].reverse()) {
       for (const providerId of contribution.providers) {
         this.registry.removeProvider(providerId);
       }
       for (const model of contribution.models) {
         this.registry.removeModel(model.providerId, model.modelId);
       }
-      for (const toolName of contribution.tools) {
-        this.registry.removeTool(toolName);
+      for (const tool of [...contribution.tools].reverse()) {
+        if (tool.type === "overrode") {
+          this.registry.registerTool(tool.previous, {
+            override: { replaces: tool.name, reason: `restore plugin override from ${contribution.pluginId}` }
+          });
+        } else {
+          this.registry.removeTool(tool.name);
+        }
       }
     }
     this.contributions.length = 0;

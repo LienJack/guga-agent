@@ -13,6 +13,7 @@ The bridge performs one selected model call and maps the result back to Guga:
 - Token usage maps to Guga `Usage` with `cost.status: "unknown"` unless a later billing contract says otherwise.
 - Provider exceptions map to normalized Guga provider errors.
 - Tool specs passed to AI SDK omit `execute`, so tools return to the Guga registry and hook path.
+- Tool availability should be filtered by the runtime before projection; this bridge only maps already-visible tool definitions into AI SDK schema-only specs.
 
 ## Usage
 

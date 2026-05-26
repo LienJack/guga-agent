@@ -2,15 +2,15 @@
 
 Core kernel runtime for Guga Agent.
 
-This package proves the smallest runtime loop:
+This package owns the provider-neutral runtime loop:
 
 ```text
-user -> model -> tool -> model -> final
+provider tool intent -> core pipeline -> hooks -> permission -> tool -> result policy -> model observation
 ```
 
 ## What The Core Includes
 
-- Core message, provider, model metadata, tool result, usage, runtime, model event, router, and hook contracts.
+- Core message, provider, model metadata, tool runtime, permission, result budget, usage, runtime, model event, router, and hook contracts.
 - In-memory `CapabilityRegistry` for registering providers, model metadata, and tools.
 - In-memory `EventBus` for observing runtime facts during tests or host integration.
 - `ConversationState` for preserving assistant tool calls and matching tool results.
@@ -18,7 +18,8 @@ user -> model -> tool -> model -> final
 - `ProviderRouter` for Guga-owned model selection, retry, fallback, and observable model-call facts.
 - `createAgentRuntime()` as the host-facing public entry point.
 - Local trusted plugins mounted with `createAgentRuntime({ plugins })`.
-- Hook contracts for runtime start, pre-tool gate, runtime shutdown, and contract-first model request/response phases.
+- `ExecutionPipeline`, `PermissionKernel`, `ToolScheduler`, `ResultPolicy`, and lifecycle events for auditable tool execution.
+- Hook contracts for runtime start, pre-tool gate compatibility, tool call/execute/result phases, runtime shutdown, and contract-first model request/response phases.
 - Mock provider and test tool fixtures for core tests.
 
 ## What The Core Does Not Include
@@ -28,7 +29,7 @@ user -> model -> tool -> model -> final
 - Filesystem, shell, browser, git, MCP, or other real tools.
 - Provider marketplace, credential pools, provider health scoring, or pricing tables.
 - Plugin manifests, directory scanning, remote install, sandboxing, signing, namespaces, reload, or stale context guard.
-- Full model hook execution for `model.request.before` or `model.response.after`; M2 only defines their contract shapes.
+- Full host UI permission dialogs, durable result stores, enterprise policy engines, or remote sandbox backends.
 - Durable session store, replay, artifact store, or UI projection.
 - Context compaction, skills, long-term memory, multi-agent orchestration, or eval infrastructure.
 
@@ -44,9 +45,15 @@ Core owns provider-neutral runtime semantics. Providers can describe available m
 
 `ProviderRouter` owns model selection, retry, fallback, and final failure. A provider or bridge performs one selected model call at a time; it does not choose fallbacks internally.
 
-Tool calls from a model are only tool intent. They are converted into Guga `ToolCall` values and executed through the registry plus pre-tool gate path. Provider bridges must not execute tools on their own.
+Tool calls from a model are only tool intent. They are converted into Guga `ToolCall` values and executed through the core `ExecutionPipeline`. The pipeline performs lookup, schema checks, tool hooks, permission resolution, execution, result budgeting, and lifecycle events. Provider bridges must not execute tools on their own.
 
 Real SDK dependencies live in bridge packages such as `@guga-agent/provider-ai-sdk`, not in `@guga-agent/core`.
+
+## Tool Runtime Boundary
+
+Real tools live in plugin packages such as `@guga-agent/plugin-tools-filesystem`, `@guga-agent/plugin-tools-shell`, and `@guga-agent/plugin-tools-git`. Core owns the contracts and final execution authority; first-party and custom tools enter through the same registry and pipeline.
+
+Side-effecting tools declare permission metadata and are evaluated by `PermissionKernel` before execution. Denied, cancelled, timed-out, missing, schema-invalid, hook-blocked, and thrown tool calls become structured model-visible tool observations. Large outputs pass through `ResultPolicy` so model-visible content stays bounded while runtime metadata records budget facts.
 
 ## Local Plugin Shape
 

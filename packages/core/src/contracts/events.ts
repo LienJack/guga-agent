@@ -1,8 +1,10 @@
 import type { CoreMessage, ToolCall } from "./messages";
-import type { PreToolGateDecision } from "./hooks";
+import type { HookPhase, PreToolGateDecision, ToolHookDecision } from "./hooks";
 import type { ModelEvent } from "./model-events";
+import type { PermissionDecision, PermissionRequest } from "./permissions";
 import type { PluginCapabilityKind, PluginFailureKind } from "./plugins";
 import type { ProviderResponse, Usage } from "./provider";
+import type { BudgetedToolResult, ToolCallCorrelation, ToolVisibilityDecision } from "./tool-runtime";
 import type { ToolResult } from "./tools";
 
 export const AgentEventType = {
@@ -11,8 +13,19 @@ export const AgentEventType = {
   ModelRequested: "model.requested",
   ModelResponded: "model.responded",
   ModelEvent: "model.event",
+  ToolQueued: "tool.queued",
   ToolCalled: "tool.called",
+  ToolStarted: "tool.started",
   ToolResult: "tool.result",
+  ToolCompleted: "tool.completed",
+  ToolFailed: "tool.failed",
+  ToolDenied: "tool.denied",
+  ToolCancelled: "tool.cancelled",
+  ToolTimeout: "tool.timeout",
+  ToolResultBudgeted: "tool.result.budgeted",
+  ToolVisibilityFiltered: "tool.visibility.filtered",
+  PermissionRequested: "tool.permission.requested",
+  PermissionResolved: "tool.permission.resolved",
   UsageRecorded: "usage.recorded",
   PluginInitialized: "plugin.initialized",
   PluginShutdown: "plugin.shutdown",
@@ -56,9 +69,24 @@ export type AgentEvent =
       event: ModelEvent;
     }
   | {
+      type: typeof AgentEventType.ToolQueued;
+      runId: string;
+      turn: number;
+      correlation: ToolCallCorrelation;
+      call: ToolCall;
+    }
+  | {
       type: typeof AgentEventType.ToolCalled;
       runId: string;
       turn: number;
+      call: ToolCall;
+      correlation?: ToolCallCorrelation;
+    }
+  | {
+      type: typeof AgentEventType.ToolStarted;
+      runId: string;
+      turn: number;
+      correlation: ToolCallCorrelation;
       call: ToolCall;
     }
   | {
@@ -67,6 +95,74 @@ export type AgentEvent =
       turn: number;
       call: ToolCall;
       result: ToolResult;
+      correlation?: ToolCallCorrelation;
+    }
+  | {
+      type: typeof AgentEventType.ToolCompleted;
+      runId: string;
+      turn: number;
+      correlation: ToolCallCorrelation;
+      call: ToolCall;
+      result: ToolResult;
+    }
+  | {
+      type: typeof AgentEventType.ToolFailed;
+      runId: string;
+      turn: number;
+      correlation: ToolCallCorrelation;
+      call: ToolCall;
+      result: ToolResult;
+    }
+  | {
+      type: typeof AgentEventType.ToolDenied;
+      runId: string;
+      turn: number;
+      correlation: ToolCallCorrelation;
+      call: ToolCall;
+      result: ToolResult;
+    }
+  | {
+      type: typeof AgentEventType.ToolCancelled;
+      runId: string;
+      turn: number;
+      correlation: ToolCallCorrelation;
+      call: ToolCall;
+      result: ToolResult;
+    }
+  | {
+      type: typeof AgentEventType.ToolTimeout;
+      runId: string;
+      turn: number;
+      correlation: ToolCallCorrelation;
+      call: ToolCall;
+      result: ToolResult;
+    }
+  | {
+      type: typeof AgentEventType.ToolResultBudgeted;
+      runId: string;
+      turn: number;
+      correlation: ToolCallCorrelation;
+      call: ToolCall;
+      result: BudgetedToolResult;
+    }
+  | {
+      type: typeof AgentEventType.ToolVisibilityFiltered;
+      runId: string;
+      turn: number;
+      decision: ToolVisibilityDecision;
+    }
+  | {
+      type: typeof AgentEventType.PermissionRequested;
+      runId: string;
+      turn: number;
+      request: PermissionRequest;
+    }
+  | {
+      type: typeof AgentEventType.PermissionResolved;
+      runId: string;
+      turn: number;
+      request: PermissionRequest;
+      decision: PermissionDecision;
     }
   | {
       type: typeof AgentEventType.UsageRecorded;
@@ -96,11 +192,12 @@ export type AgentEvent =
   | {
       type: typeof AgentEventType.HookDecision;
       runId: string;
-      phase: "pre_tool.gate";
+      phase: HookPhase;
       pluginId: string;
       hookId: string;
       call: ToolCall;
-      decision: PreToolGateDecision;
+      correlation?: ToolCallCorrelation;
+      decision: PreToolGateDecision | ToolHookDecision;
     }
   | {
       type: typeof AgentEventType.HookFailure;

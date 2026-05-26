@@ -2,11 +2,18 @@ import type { HookRegistration } from "./hooks";
 import type { ModelIdentifier, ModelMetadata, Provider } from "./provider";
 import type { ToolDefinition } from "./tools";
 
+export type ToolRegistrationOptions = {
+  override?: false | {
+    replaces: string;
+    reason: string;
+  };
+};
+
 export type PluginContext = {
   pluginId: string;
   registerProvider(provider: Provider): void;
   registerModel?(model: ModelMetadata): void;
-  registerTool(tool: ToolDefinition): void;
+  registerTool(tool: ToolDefinition, options?: ToolRegistrationOptions): void;
   registerHook(hook: HookRegistration): void;
 };
 

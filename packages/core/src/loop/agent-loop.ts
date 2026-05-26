@@ -1,23 +1,31 @@
-import { CoreError } from "../contracts/errors";
+import { CoreError, type CoreErrorCode } from "../contracts/errors";
 import { AgentEventType, type AgentEvent } from "../contracts/events";
 import { ModelEventType } from "../contracts/model-events";
 import type { ToolCall } from "../contracts/messages";
 import type { LegacyProviderError, Provider, ProviderError, ProviderRequest, ProviderResponse } from "../contracts/provider";
 import { ProviderErrorCategory } from "../contracts/provider";
 import type { AgentRunFailure, AgentRunOptions, AgentRunResult } from "../contracts/runtime";
-import type { ToolExecutionContext, ToolResult } from "../contracts/tools";
+import type { ToolAvailabilityContext } from "../contracts/tool-runtime";
+import type { ToolDefinition } from "../contracts/tools";
 import { EventBus } from "../events/event-bus";
 import { HookKernel } from "../hooks/hook-kernel";
+import { PermissionKernel } from "../permissions/permission-kernel";
 import { CapabilityRegistry } from "../registry/capability-registry";
 import { ProviderRouter } from "../router/provider-router";
 import { ConversationState } from "../state/conversation-state";
+import { ExecutionPipeline, toolVisibilityDecision } from "../tools/execution-pipeline";
+import { ResultPolicy } from "../tools/result-policy";
+import { ToolScheduler } from "../tools/tool-scheduler";
 
 export type AgentLoopOptions = {
   registry: CapabilityRegistry;
   eventBus?: EventBus;
   eventStartIndex?: number;
   hookKernel?: HookKernel;
+  permissionKernel?: PermissionKernel;
+  resultPolicy?: ResultPolicy;
   router?: ProviderRouter;
+  availabilityContext?: ToolAvailabilityContext;
 };
 
 export class AgentLoop {
@@ -25,14 +33,20 @@ export class AgentLoop {
   private readonly eventBus: EventBus;
   private readonly eventStartIndex: number | undefined;
   private readonly hookKernel: HookKernel | undefined;
+  private readonly permissionKernel: PermissionKernel | undefined;
+  private readonly resultPolicy: ResultPolicy | undefined;
   private readonly router: ProviderRouter | undefined;
+  private readonly availabilityContext: ToolAvailabilityContext;
 
   constructor(options: AgentLoopOptions) {
     this.registry = options.registry;
     this.eventBus = options.eventBus ?? new EventBus();
     this.eventStartIndex = options.eventStartIndex;
     this.hookKernel = options.hookKernel;
+    this.permissionKernel = options.permissionKernel;
+    this.resultPolicy = options.resultPolicy;
     this.router = options.router;
+    this.availabilityContext = options.availabilityContext ?? {};
   }
 
   async run(options: AgentRunOptions): Promise<AgentRunResult> {
@@ -57,7 +71,7 @@ export class AgentLoop {
 
     for (let turn = 0; turn < maxTurns; turn += 1) {
       const messages = state.snapshot();
-      const tools = this.registry.listTools();
+      const tools = visibleTools(this.registry.listTools(), this.availabilityContext, this.eventBus, runId, turn);
       const routeResult = this.router
         ? await this.router.route({
             runId,
@@ -113,55 +127,46 @@ export class AgentLoop {
       }
 
       state.addAssistantToolCalls(response.toolCalls, response.content);
+      const pipeline = new ExecutionPipeline({
+        registry: this.registry,
+        eventBus: this.eventBus,
+        ...(this.hookKernel ? { hookKernel: this.hookKernel } : {}),
+        ...(this.permissionKernel ? { permissionKernel: this.permissionKernel } : {}),
+        ...(this.resultPolicy ? { resultPolicy: this.resultPolicy } : {}),
+        availabilityContext: this.availabilityContext
+      });
+      const scheduler = new ToolScheduler({ allowScopedParallelism: true });
 
-      for (const call of response.toolCalls) {
-        this.publish({ type: AgentEventType.ToolCalled, runId, turn, call });
-
-        if (this.hookKernel) {
-          const gateResult = await this.hookKernel.runPreToolGate({ runId, turn, call, tools });
-          if (!gateResult.ok) {
-            return this.fail(
-              runId,
-              eventStartIndex,
-              new CoreError("HOOK_FAILED", gateResult.error.message, {
-                hook: gateResult.failedHook,
-                error: gateResult.error
-              }),
-              "hook_failed"
-            );
-          }
-
-          if ("deniedBy" in gateResult) {
-            const blockedResult: ToolResult = {
-              ok: false,
-              error: {
-                code: "TOOL_CALL_BLOCKED",
-                message: gateResult.decision.reason,
-                details: {
-                  hookId: gateResult.deniedBy.id,
-                  pluginId: gateResult.deniedBy.pluginId
-                }
-              }
-            };
-            state.addToolResult(call, blockedResult);
-            this.publish({ type: AgentEventType.ToolResult, runId, turn, call, result: blockedResult });
-            continue;
-          }
+      const scheduledCalls = response.toolCalls.map((call) => ({
+        call,
+        tool: this.registry.getTool(call.name) ?? {
+          name: call.name,
+          effect: "external" as const,
+          runtime: { scheduler: { concurrency: "serial" as const } }
         }
+      }));
 
-        const tool = this.registry.getTool(call.name);
-        if (!tool) {
-          return this.fail(
-            runId,
-            eventStartIndex,
-            new CoreError("TOOL_NOT_FOUND", `Tool not registered: ${call.name}`, { toolCall: call }),
-            "tool_missing"
-          );
+      let batchIndex = 0;
+      for (const batch of scheduler.createBatches(scheduledCalls)) {
+        const batchId = `turn-${turn}-batch-${batchIndex}`;
+        batchIndex += 1;
+        const executions = batch.calls.map((scheduledCall) => () => pipeline.execute({
+          runId,
+          turn,
+          call: scheduledCall.call,
+          batchId,
+          ...(options.signal ? { signal: options.signal } : {})
+        }));
+        const settled = batch.parallel
+          ? await Promise.allSettled(executions.map((execute) => execute()))
+          : await settleSerially(executions);
+        for (const result of settled) {
+          if (result.status === "rejected") {
+            const coreError = toCoreError(result.reason, "HOOK_FAILED");
+            return this.fail(runId, eventStartIndex, coreError, coreError.code === "HOOK_FAILED" ? "hook_failed" : "tool_failed");
+          }
+          state.addToolResult(result.value.call, result.value.result);
         }
-
-        const result = await executeTool(call, (input, context) => tool.execute(input, context), options.signal);
-        state.addToolResult(call, result);
-        this.publish({ type: AgentEventType.ToolResult, runId, turn, call, result });
       }
     }
 
@@ -267,6 +272,18 @@ export class AgentLoop {
   }
 }
 
+async function settleSerially<T>(executions: Array<() => Promise<T>>): Promise<PromiseSettledResult<T>[]> {
+  const results: PromiseSettledResult<T>[] = [];
+  for (const execute of executions) {
+    try {
+      results.push({ status: "fulfilled", value: await execute() });
+    } catch (reason) {
+      results.push({ status: "rejected", reason });
+    }
+  }
+  return results;
+}
+
 function modelEventsFromDirectResponse(
   runId: string,
   turn: number,
@@ -337,31 +354,30 @@ function normalizeProviderError(
   };
 }
 
-async function executeTool(
-  call: ToolCall,
-  execute: (input: unknown, context: ToolExecutionContext) => Promise<ToolResult> | ToolResult,
-  signal?: AbortSignal
-): Promise<ToolResult> {
-  try {
-    const context: ToolExecutionContext = { call };
-    if (signal) {
-      context.signal = signal;
+function visibleTools(
+  tools: ToolDefinition[],
+  context: ToolAvailabilityContext,
+  eventBus: EventBus,
+  runId: string,
+  turn: number
+): ToolDefinition[] {
+  return tools.filter((tool) => {
+    const decision = toolVisibilityDecision(tool, context);
+    if (decision.visible) {
+      return true;
     }
-    return await execute(call.input, context);
-  } catch (error) {
-    return {
-      ok: false,
-      error: {
-        code: "TOOL_EXECUTION_FAILED",
-        message: error instanceof Error ? error.message : "Tool execution failed",
-        details: error
-      }
-    };
-  }
+    eventBus.publish({
+      type: AgentEventType.ToolVisibilityFiltered,
+      runId,
+      turn,
+      decision
+    });
+    return false;
+  });
 }
 
-function toCoreError(error: unknown): CoreError {
+function toCoreError(error: unknown, fallbackCode: CoreErrorCode = "PROVIDER_FAILED"): CoreError {
   return error instanceof CoreError
     ? error
-    : new CoreError("PROVIDER_FAILED", error instanceof Error ? error.message : "Unknown provider failure", error);
+    : new CoreError(fallbackCode, error instanceof Error ? error.message : "Unknown provider failure", error);
 }
