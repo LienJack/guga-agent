@@ -1,8 +1,0 @@
-{"file":".trellis/spec/backend/index.md","reason":"后续实现主要改 core/runtime 层，需要加载后端层通用开发入口与检查清单。"}
-{"file":".trellis/spec/backend/quality-guidelines.md","reason":"M1 需要保持核心 runtime 质量、测试覆盖和边界清晰。"}
-{"file":".trellis/spec/backend/error-handling.md","reason":"插件初始化、hook 执行和 shutdown failure 需要结构化暴露，不能静默吞掉。"}
-{"file":".trellis/spec/backend/logging-guidelines.md","reason":"M1 要求插件生命周期、注册和 hook decision 对测试/debug 可观察。"}
-{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"插件宿主会触及 runtime、registry、events、testing 多个边界，需要避免跨层耦合。"}
-{"file":"docs/research/context-packs/agent-loop.md","reason":"确认 M1 不能破坏 M0 agent loop、tool call/result 配对和运行状态机边界。"}
-{"file":"docs/research/context-packs/tool-registry.md","reason":"插件注册 provider/tool/hook 时需要沿用统一能力注册与工具治理思路。"}
-{"file":"docs/research/context-packs/provider-abstraction.md","reason":"M1 不做真实 provider transport，但必须不阻碍 M2 provider plugin 边界。"}

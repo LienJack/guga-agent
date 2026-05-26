@@ -1,8 +1,0 @@
-{"file":".trellis/spec/backend/index.md","reason":"检查阶段需要后端层质量检查入口。"}
-{"file":".trellis/spec/backend/quality-guidelines.md","reason":"验证实现是否有足够单元/集成测试覆盖 M1 验收路径。"}
-{"file":".trellis/spec/backend/error-handling.md","reason":"检查插件失败、hook 失败和 shutdown 失败是否结构化、可观察。"}
-{"file":".trellis/spec/backend/logging-guidelines.md","reason":"检查 runtime 事件或等价可观察输出是否满足调试与测试需求。"}
-{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"检查实现是否越界到 command、reload、namespace、真实 provider transport 等非 M1 范围。"}
-{"file":"docs/research/context-packs/agent-loop.md","reason":"检查插件接入后是否仍保持 agent loop 正确性。"}
-{"file":"docs/research/context-packs/tool-registry.md","reason":"检查插件提供的 tool/provider 能力是否进入统一 runtime 能力边界。"}
-{"file":"docs/research/context-packs/provider-abstraction.md","reason":"检查 M1 是否保持 provider SDK 类型不穿透 core，为 M2 留出 transport 边界。"}
