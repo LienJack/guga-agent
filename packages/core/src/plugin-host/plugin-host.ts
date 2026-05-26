@@ -6,7 +6,7 @@ import {
   type PluginFailure,
   type PluginShutdownResult
 } from "../contracts/plugins";
-import type { Provider } from "../contracts/provider";
+import type { ModelMetadata, Provider } from "../contracts/provider";
 import type { ToolDefinition } from "../contracts/tools";
 import { EventBus } from "../events/event-bus";
 import { HookKernel } from "../hooks/hook-kernel";
@@ -39,6 +39,7 @@ export type PluginHostShutdownOptions = {
 type PluginContribution = {
   pluginId: string;
   providers: string[];
+  models: Array<Pick<ModelMetadata, "providerId" | "modelId">>;
   tools: string[];
   hooks: string[];
 };
@@ -68,6 +69,7 @@ export class PluginHost {
       const contribution: PluginContribution = {
         pluginId: plugin.id,
         providers: [],
+        models: [],
         tools: [],
         hooks: []
       };
@@ -77,6 +79,7 @@ export class PluginHost {
         await plugin.init({
           pluginId: plugin.id,
           registerProvider: (provider) => this.registerProvider(options.runId, plugin.id, provider, contribution),
+          registerModel: (model) => this.registerModel(options.runId, plugin.id, model, contribution),
           registerTool: (tool) => this.registerTool(options.runId, plugin.id, tool, contribution),
           registerHook: (hook) =>
             this.registerHook(options.runId, plugin.id, pluginLoadIndex, hook, contribution)
@@ -169,6 +172,23 @@ export class PluginHost {
     });
   }
 
+  private registerModel(
+    runId: string,
+    pluginId: string,
+    model: ModelMetadata,
+    contribution: PluginContribution
+  ): void {
+    this.registry.registerModel(model);
+    contribution.models.push({ providerId: model.providerId, modelId: model.modelId });
+    this.eventBus.publish({
+      type: AgentEventType.PluginCapabilityRegistered,
+      runId,
+      pluginId,
+      capability: "model",
+      name: `${model.providerId}/${model.modelId}`
+    });
+  }
+
   private registerHook(
     runId: string,
     pluginId: string,
@@ -228,6 +248,9 @@ export class PluginHost {
     for (const contribution of this.contributions) {
       for (const providerId of contribution.providers) {
         this.registry.removeProvider(providerId);
+      }
+      for (const model of contribution.models) {
+        this.registry.removeModel(model.providerId, model.modelId);
       }
       for (const toolName of contribution.tools) {
         this.registry.removeTool(toolName);

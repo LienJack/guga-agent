@@ -1,6 +1,6 @@
 import type { AgentEvent } from "./events";
 import type { LocalPlugin } from "./plugins";
-import type { Provider } from "./provider";
+import type { ModelMetadata, Provider } from "./provider";
 import type { ToolDefinition } from "./tools";
 
 export type AgentRunOptions = {
@@ -44,6 +44,8 @@ export type AgentRuntimeShutdownResult = {
 
 export type AgentRuntime = {
   registerProvider(provider: Provider): void;
+  registerModel(model: ModelMetadata): void;
+  listModels(): ModelMetadata[];
   registerTool(tool: ToolDefinition): void;
   onEvent(listener: (event: AgentEvent) => void): () => void;
   run(options: AgentRunOptions): Promise<AgentRunResult>;

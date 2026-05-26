@@ -1,4 +1,4 @@
-import type { Provider, ProviderRequest, ProviderResponse } from "../contracts/provider";
+import { ProviderErrorCategory, type Provider, type ProviderRequest, type ProviderResponse } from "../contracts/provider";
 
 export type MockProviderStep =
   | ProviderResponse
@@ -21,9 +21,10 @@ export function createMockProvider(steps: MockProviderStep[], options: MockProvi
         return {
           type: "failure",
           error: {
+            category: ProviderErrorCategory.Fatal,
             code: "MOCK_PROVIDER_EXHAUSTED",
             message: "Mock provider has no response for this request",
-            details: { callIndex }
+            metadata: { callIndex }
           }
         };
       }

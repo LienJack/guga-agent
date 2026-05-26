@@ -1,7 +1,7 @@
 import { CoreError } from "../contracts/errors";
 import type { AgentEvent } from "../contracts/events";
 import { AgentEventType } from "../contracts/events";
-import type { Provider } from "../contracts/provider";
+import type { ModelMetadata, Provider } from "../contracts/provider";
 import type {
   AgentRunFailure,
   AgentRunOptions,
@@ -37,6 +37,15 @@ export class AgentRuntime implements AgentRuntimeContract {
   registerProvider(provider: Provider): void {
     this.assertNotDisposed();
     this.registry.registerProvider(provider);
+  }
+
+  registerModel(model: ModelMetadata): void {
+    this.assertNotDisposed();
+    this.registry.registerModel(model);
+  }
+
+  listModels(): ModelMetadata[] {
+    return this.registry.listModels();
   }
 
   registerTool(tool: ToolDefinition): void {

@@ -19,6 +19,12 @@ describe("AgentRuntime", () => {
       ])
     );
     runtime.registerTool(createTestTool({ name: "echo", content: "hello" }));
+    runtime.registerModel({
+      providerId: "mock",
+      modelId: "mock-primary",
+      purposes: ["primary"],
+      capabilities: { toolCalling: true, usage: "optional" }
+    });
 
     const result = await runtime.run({
       input: "hello",
@@ -29,6 +35,9 @@ describe("AgentRuntime", () => {
     expect(result).toMatchObject({ ok: true, finalAnswer: "final hello" });
     expect(eventTypes).toContain(AgentEventType.ToolResult);
     expect(eventTypes).toContain(AgentEventType.UsageRecorded);
+    expect(runtime.listModels()).toEqual([
+      expect.objectContaining({ providerId: "mock", modelId: "mock-primary" })
+    ]);
   });
 
   it("does not require real provider SDKs for runtime tests", async () => {
@@ -66,6 +75,12 @@ describe("AgentRuntime", () => {
           id: "runtime-plugin",
           init(context) {
             context.registerProvider(createMockProvider([{ type: "final", content: "plugin final" }], { id: "plugin-provider" }));
+            context.registerModel({
+              providerId: "plugin-provider",
+              modelId: "plugin-primary",
+              purposes: ["primary"],
+              capabilities: { usage: "optional" }
+            });
           }
         }
       ]
@@ -83,6 +98,9 @@ describe("AgentRuntime", () => {
     expect(eventTypes).toContain(AgentEventType.PluginCapabilityRegistered);
     expect(eventTypes).toContain(AgentEventType.PluginInitialized);
     expect(result.events.map((event) => event.type)).toContain(AgentEventType.PluginInitialized);
+    expect(runtime.listModels()).toEqual([
+      expect.objectContaining({ providerId: "plugin-provider", modelId: "plugin-primary" })
+    ]);
   });
 
   it("surfaces plugin initialization failures as structured run failures", async () => {

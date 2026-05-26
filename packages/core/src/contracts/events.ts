@@ -1,5 +1,6 @@
 import type { CoreMessage, ToolCall } from "./messages";
 import type { PreToolGateDecision } from "./hooks";
+import type { ModelEvent } from "./model-events";
 import type { PluginCapabilityKind, PluginFailureKind } from "./plugins";
 import type { ProviderResponse, Usage } from "./provider";
 import type { ToolResult } from "./tools";
@@ -9,6 +10,7 @@ export const AgentEventType = {
   RunFinished: "run.finished",
   ModelRequested: "model.requested",
   ModelResponded: "model.responded",
+  ModelEvent: "model.event",
   ToolCalled: "tool.called",
   ToolResult: "tool.result",
   UsageRecorded: "usage.recorded",
@@ -46,6 +48,12 @@ export type AgentEvent =
       runId: string;
       turn: number;
       response: ProviderResponse;
+    }
+  | {
+      type: typeof AgentEventType.ModelEvent;
+      runId: string;
+      turn: number;
+      event: ModelEvent;
     }
   | {
       type: typeof AgentEventType.ToolCalled;

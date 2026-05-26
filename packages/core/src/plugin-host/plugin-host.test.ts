@@ -19,6 +19,12 @@ describe("PluginHost", () => {
       id: "example",
       init(context) {
         context.registerProvider(createMockProvider([{ type: "final", content: "ok" }], { id: "from-plugin" }));
+        context.registerModel({
+          providerId: "from-plugin",
+          modelId: "from-plugin-model",
+          purposes: ["primary"],
+          capabilities: { toolCalling: true, usage: "optional" }
+        });
         context.registerTool(createTestTool({ name: "from-plugin-tool", content: "ok" }));
         context.registerHook({
           id: "allow-tool",
@@ -37,6 +43,10 @@ describe("PluginHost", () => {
 
     expect(result).toEqual({ ok: true });
     expect(registry.requireProvider("from-plugin").id).toBe("from-plugin");
+    expect(registry.getModel("from-plugin", "from-plugin-model")).toMatchObject({
+      providerId: "from-plugin",
+      modelId: "from-plugin-model"
+    });
     expect(registry.requireTool("from-plugin-tool").name).toBe("from-plugin-tool");
     expect(
       await hookKernel.runPreToolGate({
@@ -47,6 +57,7 @@ describe("PluginHost", () => {
       })
     ).toMatchObject({ ok: true, decision: { type: "allow" } });
     expect(eventBus.events.map((event) => event.type)).toEqual([
+      AgentEventType.PluginCapabilityRegistered,
       AgentEventType.PluginCapabilityRegistered,
       AgentEventType.PluginCapabilityRegistered,
       AgentEventType.PluginCapabilityRegistered,
@@ -87,6 +98,11 @@ describe("PluginHost", () => {
     const second: LocalPlugin = {
       id: "second",
       init(context) {
+        context.registerModel({
+          providerId: "first-provider",
+          modelId: "partial-model",
+          capabilities: { usage: "optional" }
+        });
         context.registerTool(createTestTool({ name: "partial-tool", content: "partial" }));
         throw new Error("init exploded");
       }
@@ -103,6 +119,7 @@ describe("PluginHost", () => {
     expect(shutdowns).toEqual(["first"]);
     expect(registry.getProvider("host")).toBeDefined();
     expect(registry.getProvider("first-provider")).toBeUndefined();
+    expect(registry.getModel("first-provider", "partial-model")).toBeUndefined();
     expect(registry.getTool("partial-tool")).toBeUndefined();
     expect(eventBus.events).toContainEqual(
       expect.objectContaining({
@@ -139,6 +156,36 @@ describe("PluginHost", () => {
       expect.objectContaining({
         type: AgentEventType.PluginFailure,
         pluginId: "duplicate-plugin",
+        code: "CAPABILITY_ALREADY_REGISTERED"
+      })
+    );
+  });
+
+  it("preserves duplicate model registration errors and marks the source plugin", async () => {
+    const registry = new CapabilityRegistry();
+    registry.registerModel({ providerId: "host-provider", modelId: "duplicate-model" });
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+
+    const plugin: LocalPlugin = {
+      id: "duplicate-model-plugin",
+      init(context) {
+        context.registerModel({ providerId: "host-provider", modelId: "duplicate-model" });
+      }
+    };
+
+    const result = await new PluginHost({ plugins: [plugin], registry, hookKernel, eventBus }).initialize({
+      runId: "run-duplicate-model"
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "CAPABILITY_ALREADY_REGISTERED" }
+    });
+    expect(eventBus.events).toContainEqual(
+      expect.objectContaining({
+        type: AgentEventType.PluginFailure,
+        pluginId: "duplicate-model-plugin",
         code: "CAPABILITY_ALREADY_REGISTERED"
       })
     );
