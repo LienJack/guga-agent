@@ -1,5 +1,5 @@
 import { CoreError } from "../contracts/errors";
-import type { AgentEvent } from "../contracts/events";
+import { AgentEventType, type AgentEvent } from "../contracts/events";
 import type { ToolCall } from "../contracts/messages";
 import type { ProviderRequest } from "../contracts/provider";
 import type { AgentRunFailure, AgentRunOptions, AgentRunResult } from "../contracts/runtime";
@@ -29,7 +29,7 @@ export class AgentLoop {
     const state = new ConversationState();
     state.addUserMessage(options.input);
 
-    this.publish({ type: "run.started", runId, input: options.input });
+    this.publish({ type: AgentEventType.RunStarted, runId, input: options.input });
 
     let provider;
     try {
@@ -42,7 +42,7 @@ export class AgentLoop {
       const messages = state.snapshot();
       const tools = this.registry.listTools();
       this.publish({
-        type: "model.requested",
+        type: AgentEventType.ModelRequested,
         runId,
         turn,
         providerId: provider.id,
@@ -69,9 +69,9 @@ export class AgentLoop {
           "provider_failed"
         );
       }
-      this.publish({ type: "model.responded", runId, turn, response });
+      this.publish({ type: AgentEventType.ModelResponded, runId, turn, response });
       if (response.usage) {
-        this.publish({ type: "usage.recorded", runId, turn, usage: response.usage });
+        this.publish({ type: AgentEventType.UsageRecorded, runId, turn, usage: response.usage });
       }
 
       if (response.type === "failure") {
@@ -85,7 +85,7 @@ export class AgentLoop {
 
       if (response.type === "final") {
         state.addAssistantFinal(response.content);
-        this.publish({ type: "run.finished", runId, status: "completed" });
+        this.publish({ type: AgentEventType.RunFinished, runId, status: "completed" });
         return {
           ok: true,
           runId,
@@ -97,7 +97,7 @@ export class AgentLoop {
       state.addAssistantToolCalls(response.toolCalls, response.content);
 
       for (const call of response.toolCalls) {
-        this.publish({ type: "tool.called", runId, turn, call });
+        this.publish({ type: AgentEventType.ToolCalled, runId, turn, call });
 
         const tool = this.registry.getTool(call.name);
         if (!tool) {
@@ -111,7 +111,7 @@ export class AgentLoop {
 
         const result = await executeTool(call, (input, context) => tool.execute(input, context), options.signal);
         state.addToolResult(call, result);
-        this.publish({ type: "tool.result", runId, turn, call, result });
+        this.publish({ type: AgentEventType.ToolResult, runId, turn, call, result });
       }
     }
 
@@ -124,8 +124,14 @@ export class AgentLoop {
   }
 
   private fail(runId: string, eventStartIndex: number, error: CoreError, reason: string): AgentRunFailure {
-    this.publish({ type: "error", runId, code: error.code, message: error.message, details: error.details });
-    this.publish({ type: "run.finished", runId, status: "failed", reason });
+    this.publish({
+      type: AgentEventType.Error,
+      runId,
+      code: error.code,
+      message: error.message,
+      details: error.details
+    });
+    this.publish({ type: AgentEventType.RunFinished, runId, status: "failed", reason });
     return {
       ok: false,
       runId,

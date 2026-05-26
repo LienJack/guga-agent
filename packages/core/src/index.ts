@@ -9,6 +9,7 @@ export type {
 } from "./contracts/messages";
 export type { Provider, ProviderRequest, ProviderResponse, Usage } from "./contracts/provider";
 export type { AgentEvent } from "./contracts/events";
+export { AgentEventType } from "./contracts/events";
 export type { AgentRunOptions, AgentRunResult, AgentRuntime } from "./contracts/runtime";
 export type { ToolDefinition, ToolEffect, ToolExecutionContext, ToolFailure, ToolResult, ToolSuccess } from "./contracts/tools";
 export { CoreError } from "./contracts/errors";

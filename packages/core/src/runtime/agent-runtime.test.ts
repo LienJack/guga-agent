@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { AgentEventType } from "../contracts/events";
 import { createAgentRuntime } from "./create-agent-runtime";
 import { createMockProvider } from "../testing/mock-provider";
 import { createTestTool } from "../testing/test-tool";
@@ -24,8 +25,8 @@ describe("AgentRuntime", () => {
     });
 
     expect(result).toMatchObject({ ok: true, finalAnswer: "final hello" });
-    expect(eventTypes).toContain("tool.result");
-    expect(eventTypes).toContain("usage.recorded");
+    expect(eventTypes).toContain(AgentEventType.ToolResult);
+    expect(eventTypes).toContain(AgentEventType.UsageRecorded);
   });
 
   it("does not require real provider SDKs for runtime tests", async () => {

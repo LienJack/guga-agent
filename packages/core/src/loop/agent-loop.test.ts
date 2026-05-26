@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AgentLoop } from "./agent-loop";
+import { AgentEventType } from "../contracts/events";
 import { EventBus } from "../events/event-bus";
 import { CapabilityRegistry } from "../registry/capability-registry";
 import { createMockProvider } from "../testing/mock-provider";
@@ -25,14 +26,14 @@ describe("AgentLoop", () => {
 
     expect(result).toMatchObject({ ok: true, finalAnswer: "The tool said hello" });
     expect(eventBus.events.map((event) => event.type)).toEqual([
-      "run.started",
-      "model.requested",
-      "model.responded",
-      "tool.called",
-      "tool.result",
-      "model.requested",
-      "model.responded",
-      "run.finished"
+      AgentEventType.RunStarted,
+      AgentEventType.ModelRequested,
+      AgentEventType.ModelResponded,
+      AgentEventType.ToolCalled,
+      AgentEventType.ToolResult,
+      AgentEventType.ModelRequested,
+      AgentEventType.ModelResponded,
+      AgentEventType.RunFinished
     ]);
   });
 
@@ -59,7 +60,7 @@ describe("AgentLoop", () => {
     });
 
     expect(result).toMatchObject({ ok: true, finalAnswer: "Recovered from tool failure" });
-    expect(result.events.some((event) => event.type === "tool.result")).toBe(true);
+    expect(result.events.some((event) => event.type === AgentEventType.ToolResult)).toBe(true);
   });
 
   it("normalizes thrown tool errors into model-visible observations", async () => {
@@ -105,7 +106,7 @@ describe("AgentLoop", () => {
       ok: false,
       error: { code: "TOOL_NOT_FOUND", message: "Tool not registered: missing" }
     });
-    expect(result.events.map((event) => event.type)).toContain("error");
+    expect(result.events.map((event) => event.type)).toContain(AgentEventType.Error);
   });
 
   it("fails explicitly when the provider is missing", async () => {
@@ -140,7 +141,7 @@ describe("AgentLoop", () => {
       ok: false,
       error: { code: "PROVIDER_FAILED", message: "Provider exploded" }
     });
-    expect(result.events.map((event) => event.type)).toContain("error");
+    expect(result.events.map((event) => event.type)).toContain(AgentEventType.Error);
   });
 
 
