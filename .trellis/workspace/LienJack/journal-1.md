@@ -42,3 +42,38 @@ Planned and implemented the M0 core runtime: TypeScript workspace, contracts, re
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: M1 plugin host and hook kernel
+
+**Date**: 2026-05-26
+**Task**: M1 plugin host and hook kernel
+**Branch**: `dev`
+
+### Summary
+
+Implemented the M1 local plugin host and hook kernel, added the M1 explanatory blog, merged the work into dev, and verified typecheck, tests, and build.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0ea8065` | (see git log) |
+| `04baf8e` | (see git log) |
+| `7cab5e5` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
