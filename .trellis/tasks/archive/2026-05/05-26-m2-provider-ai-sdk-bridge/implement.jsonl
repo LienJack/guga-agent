@@ -1,0 +1,9 @@
+{"file":"docs/brainstorms/2026-05-26-m2-provider-ai-sdk-bridge-requirements.md","reason":"Original M2 requirements source: provider runtime contract, AI SDK bridge boundary, model events, routing, usage/error normalization, tool intent, and model hooks."}
+{"file":"docs/research/context-packs/provider-abstraction.md","reason":"Cross-project provider abstraction evidence and Guga migration recommendations for SDK isolation, model registry, routing, usage/cost, and transport boundaries."}
+{"file":"docs/agent-llm-integration.md","reason":"Project LLM integration roadmap that frames contract-first provider boundary, streaming event adapter, capability adaptation, and error recovery stages."}
+{"file":"docs/roadmap.md","reason":"Product architecture direction: small core, plugin ecosystem, provider SDKs outside core, events as facts, runtime-owned permissions and hooks."}
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Backend package boundaries: keep real provider SDKs and real tools out of packages/core; plugin/provider packages belong outside core."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Core runtime quality bar, forbidden provider SDK leakage, required tests, and pnpm verification commands."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Structured observable runtime error patterns to extend for provider error taxonomy, retry/fallback, hook failures, and model call failures."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"M2 crosses core contracts, plugin bridge, router, events, hooks, and tests; implementers must map data flow and boundaries explicitly."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Use existing registry, event bus, hook kernel, plugin host, and test fixture patterns instead of duplicating runtime infrastructure."}

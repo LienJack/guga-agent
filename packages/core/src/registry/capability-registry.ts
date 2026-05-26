@@ -1,9 +1,10 @@
 import { CoreError } from "../contracts/errors";
-import type { Provider } from "../contracts/provider";
+import type { ModelMetadata, Provider } from "../contracts/provider";
 import type { ToolDefinition } from "../contracts/tools";
 
 export class CapabilityRegistry {
   private readonly providers = new Map<string, Provider>();
+  private readonly models = new Map<string, ModelMetadata>();
   private readonly tools = new Map<string, ToolDefinition>();
 
   registerProvider(provider: Provider): void {
@@ -22,6 +23,17 @@ export class CapabilityRegistry {
       });
     }
     this.tools.set(tool.name, tool);
+  }
+
+  registerModel(model: ModelMetadata): void {
+    const key = modelKey(model.providerId, model.modelId);
+    if (this.models.has(key)) {
+      throw new CoreError("CAPABILITY_ALREADY_REGISTERED", `Model already registered: ${key}`, {
+        providerId: model.providerId,
+        modelId: model.modelId
+      });
+    }
+    this.models.set(key, model);
   }
 
   getProvider(id: string): Provider | undefined {
@@ -44,6 +56,14 @@ export class CapabilityRegistry {
     return this.tools.get(name);
   }
 
+  getModel(providerId: string, modelId: string): ModelMetadata | undefined {
+    return this.models.get(modelKey(providerId, modelId));
+  }
+
+  removeModel(providerId: string, modelId: string): void {
+    this.models.delete(modelKey(providerId, modelId));
+  }
+
   removeTool(name: string): void {
     this.tools.delete(name);
   }
@@ -59,4 +79,12 @@ export class CapabilityRegistry {
   listTools(): ToolDefinition[] {
     return [...this.tools.values()];
   }
+
+  listModels(): ModelMetadata[] {
+    return [...this.models.values()];
+  }
+}
+
+function modelKey(providerId: string, modelId: string): string {
+  return `${providerId}/${modelId}`;
 }

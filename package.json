@@ -5,6 +5,8 @@
   "packageManager": "pnpm@10.33.2",
   "scripts": {
     "build": "pnpm -r build",
+    "demo:ai-sdk-bridge": "vitest run scripts/ai-sdk-bridge-demo.test.ts --reporter=verbose",
+    "demo:ai-sdk-bridge:real": "vitest run scripts/ai-sdk-bridge-real-demo.test.ts --reporter=verbose",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },

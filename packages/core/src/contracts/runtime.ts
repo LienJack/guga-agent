@@ -1,11 +1,15 @@
 import type { AgentEvent } from "./events";
-import type { LocalPlugin } from "./plugins";
-import type { Provider } from "./provider";
+import type { LocalModelPlugin, LocalPlugin } from "./plugins";
+import type { ModelMetadata, Provider } from "./provider";
+import type { ModelPurpose } from "./provider";
+import type { ProviderRouterPolicy } from "./provider-router";
 import type { ToolDefinition } from "./tools";
 
 export type AgentRunOptions = {
   input: string;
-  providerId: string;
+  providerId?: string;
+  modelId?: string;
+  purpose?: ModelPurpose;
   maxTurns?: number;
   signal?: AbortSignal;
   runId?: string;
@@ -32,7 +36,9 @@ export type AgentRunFailure = {
 export type AgentRunResult = AgentRunSuccess | AgentRunFailure;
 
 export type AgentRuntimeOptions = {
+  model?: LocalModelPlugin;
   plugins?: LocalPlugin[];
+  routerPolicy?: ProviderRouterPolicy;
 };
 
 export type AgentRuntimeShutdownResult = {
@@ -44,6 +50,8 @@ export type AgentRuntimeShutdownResult = {
 
 export type AgentRuntime = {
   registerProvider(provider: Provider): void;
+  registerModel?(model: ModelMetadata): void;
+  listModels?(): ModelMetadata[];
   registerTool(tool: ToolDefinition): void;
   onEvent(listener: (event: AgentEvent) => void): () => void;
   run(options: AgentRunOptions): Promise<AgentRunResult>;

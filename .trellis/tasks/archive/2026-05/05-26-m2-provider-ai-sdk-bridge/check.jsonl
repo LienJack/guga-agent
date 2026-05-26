@@ -1,0 +1,8 @@
+{"file":"docs/brainstorms/2026-05-26-m2-provider-ai-sdk-bridge-requirements.md","reason":"Check implementation against the original M2 requirements and acceptance examples, especially SDK isolation and tool execution boundary."}
+{"file":".trellis/tasks/05-26-m2-provider-ai-sdk-bridge/prd.md","reason":"Task-specific contract for requirements, acceptance criteria, out-of-scope items, and technical approach."}
+{"file":"docs/research/context-packs/provider-abstraction.md","reason":"Verify provider/router/event design remains aligned with researched cross-project provider abstraction patterns."}
+{"file":"docs/agent-llm-integration.md","reason":"Verify M2 does not skip required LLM boundary stages or prematurely implement provider platform complexity."}
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Check package placement and ensure real provider SDKs stay outside packages/core."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Check public exports, tests, and forbidden patterns for provider SDK leakage and unstructured failures."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Check provider errors, router fallback/retry failures, hook failures, and runtime errors are structured and observable."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check model call data survives core/bridge/router/event/hook boundaries without leaky abstractions or implicit format assumptions."}

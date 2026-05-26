@@ -7,7 +7,27 @@ export type {
   ToolMessage,
   UserMessage
 } from "./contracts/messages";
-export type { Provider, ProviderRequest, ProviderResponse, Usage } from "./contracts/provider";
+export {
+  ModelPurpose,
+  ProviderErrorCategory
+} from "./contracts/provider";
+export type {
+  ModelCapability,
+  ModelFinishReason,
+  ModelIdentifier,
+  ModelMetadata,
+  ModelPurpose as ModelPurposeValue,
+  Provider,
+  ProviderError,
+  ProviderErrorCategory as ProviderErrorCategoryValue,
+  ProviderRawReference,
+  ProviderRequest,
+  ProviderResponse,
+  Usage,
+  UsageCost
+} from "./contracts/provider";
+export { ModelEventType } from "./contracts/model-events";
+export type { ModelEvent, ModelEventType as ModelEventTypeValue } from "./contracts/model-events";
 export type { AgentEvent } from "./contracts/events";
 export { AgentEventType } from "./contracts/events";
 export {
@@ -20,6 +40,14 @@ export type {
   HookGateResult,
   HookRegistration,
   HookShutdownResult,
+  ModelRequestBeforeHook,
+  ModelRequestBeforeHookContext,
+  ModelRequestBeforeHookRegistration,
+  ModelRequestPatch,
+  ModelResponseAfterHook,
+  ModelResponseAfterHookContext,
+  ModelResponseAfterHookRegistration,
+  ModelResponseAnnotation,
   PreToolGateDecision,
   PreToolGateHook,
   PreToolGateHookContext,
@@ -37,7 +65,17 @@ export type {
   AgentRuntimeShutdownResult
 } from "./contracts/runtime";
 export type {
+  ProviderRouterFailure,
+  ProviderRouterModelCandidate,
+  ProviderRouterPolicy,
+  ProviderRouterPurposePolicy,
+  ProviderRouterRequest,
+  ProviderRouterResult,
+  ProviderRouterSuccess
+} from "./contracts/provider-router";
+export type {
   LocalPlugin,
+  LocalModelPlugin,
   PluginCapabilityKind,
   PluginContext,
   PluginFailure,
@@ -46,7 +84,14 @@ export type {
   PluginShutdownContext,
   PluginShutdownResult
 } from "./contracts/plugins";
-export type { ToolDefinition, ToolEffect, ToolExecutionContext, ToolFailure, ToolResult, ToolSuccess } from "./contracts/tools";
+export type {
+  ToolDefinition,
+  ToolEffect,
+  ToolExecutionContext,
+  ToolFailure,
+  ToolResult,
+  ToolSuccess
+} from "./contracts/tools";
 export { CoreError } from "./contracts/errors";
 export { EventBus } from "./events/event-bus";
 export { HookKernel } from "./hooks/hook-kernel";
@@ -54,6 +99,7 @@ export { PluginHost } from "./plugin-host/plugin-host";
 export { CapabilityRegistry } from "./registry/capability-registry";
 export { ConversationState } from "./state/conversation-state";
 export { AgentLoop } from "./loop/agent-loop";
+export { ProviderRouter } from "./router/provider-router";
 export { AgentRuntime as DefaultAgentRuntime } from "./runtime/agent-runtime";
 export { createAgentRuntime } from "./runtime/create-agent-runtime";
 export { createMockProvider } from "./testing/mock-provider";

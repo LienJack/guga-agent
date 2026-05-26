@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { AgentEventType } from "../contracts/events";
 import { HookEffect, HookPhase } from "../contracts/hooks";
+import { ModelEventType } from "../contracts/model-events";
+import { ProviderErrorCategory } from "../contracts/provider";
 import { createAgentRuntime } from "./create-agent-runtime";
 import { createExamplePlugin } from "../testing/example-plugin";
 import { createMockProvider } from "../testing/mock-provider";
@@ -19,6 +21,12 @@ describe("AgentRuntime", () => {
       ])
     );
     runtime.registerTool(createTestTool({ name: "echo", content: "hello" }));
+    runtime.registerModel({
+      providerId: "mock",
+      modelId: "mock-primary",
+      purposes: ["primary"],
+      capabilities: { toolCalling: true, usage: "optional" }
+    });
 
     const result = await runtime.run({
       input: "hello",
@@ -29,6 +37,9 @@ describe("AgentRuntime", () => {
     expect(result).toMatchObject({ ok: true, finalAnswer: "final hello" });
     expect(eventTypes).toContain(AgentEventType.ToolResult);
     expect(eventTypes).toContain(AgentEventType.UsageRecorded);
+    expect(runtime.listModels()).toEqual([
+      expect.objectContaining({ providerId: "mock", modelId: "mock-primary" })
+    ]);
   });
 
   it("does not require real provider SDKs for runtime tests", async () => {
@@ -59,6 +70,23 @@ describe("AgentRuntime", () => {
     });
   });
 
+  it("requires providerId only when no provider router is configured", async () => {
+    const runtime = createAgentRuntime();
+
+    const result = await runtime.run({
+      input: "hello",
+      runId: "runtime-missing-provider-id"
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "PROVIDER_NOT_FOUND",
+        message: "Provider id is required when no provider router is configured"
+      }
+    });
+  });
+
   it("lets hosts mount plugins before the first run and observe lazy initialization", async () => {
     const runtime = createAgentRuntime({
       plugins: [
@@ -66,6 +94,12 @@ describe("AgentRuntime", () => {
           id: "runtime-plugin",
           init(context) {
             context.registerProvider(createMockProvider([{ type: "final", content: "plugin final" }], { id: "plugin-provider" }));
+            context.registerModel({
+              providerId: "plugin-provider",
+              modelId: "plugin-primary",
+              purposes: ["primary"],
+              capabilities: { usage: "optional" }
+            });
           }
         }
       ]
@@ -83,6 +117,9 @@ describe("AgentRuntime", () => {
     expect(eventTypes).toContain(AgentEventType.PluginCapabilityRegistered);
     expect(eventTypes).toContain(AgentEventType.PluginInitialized);
     expect(result.events.map((event) => event.type)).toContain(AgentEventType.PluginInitialized);
+    expect(runtime.listModels()).toEqual([
+      expect.objectContaining({ providerId: "plugin-provider", modelId: "plugin-primary" })
+    ]);
   });
 
   it("surfaces plugin initialization failures as structured run failures", async () => {
@@ -297,5 +334,176 @@ describe("AgentRuntime", () => {
       error: { code: "HOOK_FAILED", message: "example hook broke" }
     });
     expect(result.events.map((event) => event.type)).toContain(AgentEventType.HookFailure);
+  });
+
+  it("routes through provider policy, falls back after rate-limit, and records model events", async () => {
+    const runtime = createAgentRuntime({
+      routerPolicy: {
+        primary: { providerId: "primary-provider", modelId: "primary-model" },
+        purposes: [
+          {
+            purpose: "primary",
+            candidates: [
+              { providerId: "primary-provider", modelId: "primary-model" },
+              { providerId: "fallback-provider", modelId: "fallback-model" }
+            ]
+          }
+        ]
+      }
+    });
+    runtime.registerProvider(
+      createMockProvider(
+        [
+          {
+            type: "failure",
+            error: {
+              category: ProviderErrorCategory.RateLimit,
+              code: "RATE_LIMITED",
+              message: "rate limited",
+              retryable: false
+            },
+            usage: { inputTokens: 1, cost: { status: "unknown" } }
+          }
+        ],
+        { id: "primary-provider" }
+      )
+    );
+    runtime.registerProvider(
+      createMockProvider(
+        [{ type: "final", content: "fallback final", usage: { totalTokens: 5, cost: { status: "unknown" } } }],
+        { id: "fallback-provider" }
+      )
+    );
+    runtime.registerModel({ providerId: "primary-provider", modelId: "primary-model", purposes: ["primary"] });
+    runtime.registerModel({ providerId: "fallback-provider", modelId: "fallback-model", purposes: ["primary"] });
+
+    const result = await runtime.run({
+      input: "hello",
+      providerId: "primary-provider",
+      purpose: "primary",
+      runId: "runtime-router-fallback"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "fallback final" });
+    const modelEvents = result.events
+      .filter((event) => event.type === AgentEventType.ModelEvent)
+      .map((event) => event.event.type);
+    expect(modelEvents).toContain(ModelEventType.ProviderError);
+    expect(modelEvents).toContain(ModelEventType.FallbackSelected);
+    expect(modelEvents).toContain(ModelEventType.Usage);
+  });
+
+  it("routes model tool intent through the Guga tool pipeline after pre-tool gate", async () => {
+    const runtime = createAgentRuntime({
+      routerPolicy: {
+        primary: { providerId: "tool-provider", modelId: "tool-model" }
+      }
+    });
+    runtime.registerProvider(
+      createMockProvider(
+        [
+          { type: "tool_calls", toolCalls: [{ id: "call-router", name: "echo", input: { value: "hello" } }] },
+          { type: "final", content: "tool complete" }
+        ],
+        { id: "tool-provider" }
+      )
+    );
+    runtime.registerModel({
+      providerId: "tool-provider",
+      modelId: "tool-model",
+      purposes: ["primary"],
+      capabilities: { toolCalling: true }
+    });
+    runtime.registerTool(createTestTool({ name: "echo", content: "hello" }));
+
+    const result = await runtime.run({
+      input: "use a tool",
+      providerId: "tool-provider",
+      runId: "runtime-router-tool"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "tool complete" });
+    expect(result.events).toContainEqual(
+      expect.objectContaining({
+        type: AgentEventType.ModelEvent,
+        event: expect.objectContaining({ type: ModelEventType.ToolIntent })
+      })
+    );
+    expect(result.events.map((event) => event.type)).toContain(AgentEventType.ToolResult);
+  });
+
+  it("uses a model plugin as the primary routed model", async () => {
+    const runtime = createAgentRuntime({
+      model: {
+        id: "model-plugin",
+        model: { providerId: "model-plugin-provider", modelId: "model-plugin-primary" },
+        init(context) {
+          context.registerProvider(
+            createMockProvider([{ type: "final", content: "model plugin final" }], {
+              id: "model-plugin-provider"
+            })
+          );
+          context.registerModel({
+            providerId: "model-plugin-provider",
+            modelId: "model-plugin-primary",
+            purposes: ["primary"],
+            capabilities: { usage: "optional" }
+          });
+        }
+      }
+    });
+
+    const result = await runtime.run({
+      input: "hello",
+      runId: "runtime-model-plugin"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "model plugin final" });
+    const modelEvents = result.events
+      .filter((event) => event.type === AgentEventType.ModelEvent)
+      .map((event) => event.event.type);
+    expect(modelEvents).toContain(ModelEventType.Selected);
+  });
+
+  it("returns structured run failures for router provider failures", async () => {
+    const runtime = createAgentRuntime({
+      routerPolicy: {
+        primary: { providerId: "fatal-provider", modelId: "fatal-model" }
+      }
+    });
+    runtime.registerProvider(
+      createMockProvider(
+        [
+          {
+            type: "failure",
+            error: {
+              category: ProviderErrorCategory.Fatal,
+              code: "FATAL_PROVIDER",
+              message: "fatal provider failure"
+            }
+          }
+        ],
+        { id: "fatal-provider" }
+      )
+    );
+    runtime.registerModel({ providerId: "fatal-provider", modelId: "fatal-model", purposes: ["primary"] });
+
+    const result = await runtime.run({
+      input: "hello",
+      providerId: "fatal-provider",
+      runId: "runtime-router-fatal"
+    });
+
+    expect(result).toMatchObject({ ok: false, error: { code: "PROVIDER_FAILED", message: "All provider router candidates failed" } });
+    expect(result.events).toContainEqual(
+      expect.objectContaining({
+        type: AgentEventType.ModelEvent,
+        event: expect.objectContaining({ type: ModelEventType.ProviderError })
+      })
+    );
+    expect(result.events).toContainEqual(expect.objectContaining({ type: AgentEventType.Error }));
+    expect(result.events).toContainEqual(
+      expect.objectContaining({ type: AgentEventType.RunFinished, status: "failed" })
+    );
   });
 });

@@ -1,7 +1,7 @@
 import { CoreError } from "../contracts/errors";
 import type { AgentEvent } from "../contracts/events";
 import { AgentEventType } from "../contracts/events";
-import type { Provider } from "../contracts/provider";
+import type { ModelMetadata, Provider } from "../contracts/provider";
 import type {
   AgentRunFailure,
   AgentRunOptions,
@@ -16,27 +16,44 @@ import { HookKernel } from "../hooks/hook-kernel";
 import { AgentLoop } from "../loop/agent-loop";
 import { PluginHost } from "../plugin-host/plugin-host";
 import { CapabilityRegistry } from "../registry/capability-registry";
+import { ProviderRouter } from "../router/provider-router";
 
 export class AgentRuntime implements AgentRuntimeContract {
   private readonly registry = new CapabilityRegistry();
   private readonly eventBus = new EventBus();
   private readonly hookKernel: HookKernel;
   private readonly pluginHost: PluginHost;
+  private readonly router: ProviderRouter | undefined;
   private disposed = false;
 
   constructor(options: AgentRuntimeOptions = {}) {
+    const plugins = options.model ? [options.model, ...(options.plugins ?? [])] : (options.plugins ?? []);
+    const routerPolicy = options.routerPolicy ?? (options.model ? { primary: options.model.model } : undefined);
+
     this.hookKernel = new HookKernel({ eventBus: this.eventBus });
     this.pluginHost = new PluginHost({
-      plugins: options.plugins ?? [],
+      plugins,
       registry: this.registry,
       hookKernel: this.hookKernel,
       eventBus: this.eventBus
     });
+    this.router = routerPolicy
+      ? new ProviderRouter({ registry: this.registry, policy: routerPolicy })
+      : undefined;
   }
 
   registerProvider(provider: Provider): void {
     this.assertNotDisposed();
     this.registry.registerProvider(provider);
+  }
+
+  registerModel(model: ModelMetadata): void {
+    this.assertNotDisposed();
+    this.registry.registerModel(model);
+  }
+
+  listModels(): ModelMetadata[] {
+    return this.registry.listModels();
   }
 
   registerTool(tool: ToolDefinition): void {
@@ -81,7 +98,8 @@ export class AgentRuntime implements AgentRuntimeContract {
       registry: this.registry,
       eventBus: this.eventBus,
       eventStartIndex,
-      hookKernel: this.hookKernel
+      hookKernel: this.hookKernel,
+      ...(this.router ? { router: this.router } : {})
     }).run({ ...options, runId });
   }
 
