@@ -1,7 +1,0 @@
-{"file":"docs/roadmap.md","reason":"Verify the implementation stays within M0 and does not include M1+ scope."}
-{"file":"STRATEGY.md","reason":"Check that the core runtime supports the broader platform direction without overbuilding."}
-{"file":"docs/research/context-packs/agent-loop.md","reason":"Review loop behavior, tool result pairing, and state lifecycle against reference patterns."}
-{"file":"docs/research/context-packs/tool-registry.md","reason":"Review capability registration and tool failure handling against reference patterns."}
-{"file":"docs/research/context-packs/provider-abstraction.md","reason":"Review provider abstraction boundaries and absence of concrete SDK leakage."}
-{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Apply backend quality expectations during review, noting that the guideline is currently sparse."}
-{"file":".trellis/spec/guides/agent-reference-projects-guide.md","reason":"Ensure any additional research follows the project evidence funnel."}
