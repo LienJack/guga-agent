@@ -77,3 +77,42 @@ Implemented the M1 local plugin host and hook kernel, added the M1 explanatory b
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: M2 provider bridge demo and write-up
+
+**Date**: 2026-05-26
+**Task**: M2 provider bridge demo and write-up
+**Branch**: `codex/feat-provider-ai-sdk-bridge`
+
+### Summary
+
+Completed the M2 provider AI SDK bridge branch: core provider/model contracts, router integration, AI SDK bridge package, real OpenAI-compatible demo coverage, JSON Schema bridge fix, and a problem-driven M2 architecture article. Verified local bridge demo, real .env-backed DeepSeek-compatible run, provider package tests, typecheck, and build.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `07677c3` | (see git log) |
+| `1314faf` | (see git log) |
+| `e21f0c4` | (see git log) |
+| `3886cc5` | (see git log) |
+| `b2dcf50` | (see git log) |
+| `e57b307` | (see git log) |
+| `e152d3b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
