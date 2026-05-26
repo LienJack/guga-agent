@@ -3,54 +3,27 @@
 
 No custom config found at repomix.config.ts, repomix.config.mts, repomix.config.cts, repomix.config.js, repomix.config.mjs, repomix.config.cjs, repomix.config.json5, repomix.config.jsonc, repomix.config.json or global config at /Users/lienli/.config/repomix/repomix.config.ts, /Users/lienli/.config/repomix/repomix.config.mts, /Users/lienli/.config/repomix/repomix.config.cts, /Users/lienli/.config/repomix/repomix.config.js, /Users/lienli/.config/repomix/repomix.config.mjs, /Users/lienli/.config/repomix/repomix.config.cjs, /Users/lienli/.config/repomix/repomix.config.json5, /Users/lienli/.config/repomix/repomix.config.jsonc, /Users/lienli/.config/repomix/repomix.config.json.
 You can add a config file for additional settings. Please check https://github.com/yamadashy/repomix for more information.
-[K[?25l⠋ Initializing...
-[K[1A[K[?25l⠙ Searching for files...
-[K[1A[K[?25l⠹ Collect file... (350/1053) backend/tests/test_docker_sandbox_mode_detection.py
-[K[1A[K[?25l⠸ Collect file... (748/1053) frontend/src/content/en/tutorials/first-conversation.mdx
-[K[1A[K[?25l⠼ Processing file... (1051/1051) SECURITY.md
-[K[1A[K[?25l⠴ Processing file... (1051/1051) SECURITY.md
-[K[1A[K[?25l⠦ Running security check... (250/1051) backend/packages/harness/deerflow/runtime/converters.py
-[K[1A[K[?25l⠧ Running security check... (800/1051) frontend/src/core/artifacts/hooks.ts
-[K[1A[K[?25l⠇ Calculating metrics... (30/1051) backend/app/channels/__init__.py
-[K[1A[K[?25l⠏ Calculating metrics... (100/1051) backend/packages/harness/deerflow/mcp/oauth.py
-[K[1A[K[?25l⠋ Calculating metrics... (340/1051) backend/app/channels/store.py
-[K[1A[K[?25l⠙ Calculating metrics... (560/1051) frontend/src/components/ui/spotlight-card.css
-[K[1A[K[?25l⠹ Calculating metrics... (910/1051) frontend/public/demo/threads/90040b36-7eba-4b97-ba89-02c3ad47a8b9/thread.json
-[K[1A[K[?25l⠸ Calculating metrics... (1041/1051) frontend/public/demo/threads/5aa47db1-d0cb-4eb9-aea5-3dac1b371c5a/user-data/outputs/jiangsu-football/js/main.js
-[K[1A[K[?25l✔ Packing completed successfully!
-[?25h
-📈 Top 30 Files by Token Count:
-───────────────────────────────
-1.  frontend/public/demo/threads/fe3f7974-1bcb-4a01-a950-79673baafefd/thread.json (72,696 tokens, 275,086 chars, 3.6%)
-2.  frontend/public/demo/threads/ad76c455-5bf9-4335-8517-fc03834ab828/thread.json (45,375 tokens, 113,840 chars, 2.2%)
-3.  frontend/public/demo/threads/7cfa5f8f-a2f8-47ad-acbd-da7137baf990/thread.json (39,673 tokens, 163,791 chars, 1.9%)
-4.  frontend/public/demo/threads/5aa47db1-d0cb-4eb9-aea5-3dac1b371c5a/thread.json (39,055 tokens, 130,813 chars, 1.9%)
-5.  frontend/public/demo/threads/3823e443-4e2b-4679-b496-a9506eae462b/thread.json (33,451 tokens, 124,388 chars, 1.6%)
-6.  frontend/public/demo/threads/d3e5adaf-084c-4dd5-9d29-94f1d6bccd98/thread.json (30,084 tokens, 127,337 chars, 1.5%)
-7.  frontend/public/demo/threads/ad76c455-5bf9-4335-8517-fc03834ab828/user-data/uploads/titanic.csv (29,824 tokens, 60,301 chars, 1.5%)
-8.  backend/tests/test_client.py (29,297 tokens, 137,079 chars, 1.4%)
-9.  frontend/public/demo/threads/7f9dc56c-e49c-4671-a3d2-c492ff4dce0c/thread.json (22,147 tokens, 88,599 chars, 1.1%)
-10. backend/tests/test_channels.py (21,377 tokens, 106,546 chars, 1%)
-11. frontend/public/demo/threads/c02bb4d5-4202-490e-ae8f-ff4864fc0d2e/thread.json (21,121 tokens, 78,793 chars, 1%)
-12. frontend/public/demo/threads/4f3e55ee-f853-43db-bfb3-7d1a411f03cb/thread.json (19,713 tokens, 77,534 chars, 1%)
-13. frontend/public/demo/threads/b83fbb2a-4e36-4d82-9de0-7b2a02c2092a/thread.json (19,195 tokens, 78,028 chars, 0.9%)
-14. backend/docs/AUTH_TEST_PLAN.md (17,182 tokens, 44,109 chars, 0.8%)
-15. backend/packages/harness/deerflow/sandbox/tools.py (13,854 tokens, 62,303 chars, 0.7%)
-16. frontend/public/demo/threads/21cfea46-34bd-4aa6-9e1f-3009452fbeb9/thread.json (13,251 tokens, 49,368 chars, 0.6%)
-17. backend/tests/test_subagent_executor.py (12,591 tokens, 61,557 chars, 0.6%)
-18. frontend/public/demo/threads/f4125791-0128-402a-8ca9-50e0947557e4/thread.json (12,231 tokens, 45,972 chars, 0.6%)
-19. backend/app/channels/wechat.py (11,652 tokens, 53,441 chars, 0.6%)
-20. skills/public/skill-creator/eval-viewer/viewer.html (11,529 tokens, 44,974 chars, 0.6%)
-21. frontend/public/demo/threads/90040b36-7eba-4b97-ba89-02c3ad47a8b9/thread.json (11,192 tokens, 44,456 chars, 0.5%)
-22. backend/tests/test_sandbox_tools_security.py (11,049 tokens, 49,008 chars, 0.5%)
-23. config.example.yaml (10,998 tokens, 43,608 chars, 0.5%)
-24. backend/tests/test_dingtalk_channel.py (10,788 tokens, 53,333 chars, 0.5%)
-25. frontend/public/demo/threads/5aa47db1-d0cb-4eb9-aea5-3dac1b371c5a/user-data/outputs/jiangsu-football/css/style.css (10,701 tokens, 33,783 chars, 0.5%)
-26. backend/packages/harness/deerflow/client.py (10,529 tokens, 53,203 chars, 0.5%)
-27. backend/tests/test_wechat_channel.py (9,847 tokens, 43,816 chars, 0.5%)
-28. backend/tests/test_task_tool_core_logic.py (9,753 tokens, 43,320 chars, 0.5%)
-29. backend/CLAUDE.md (9,456 tokens, 39,025 chars, 0.5%)
-30. README.md (9,390 tokens, 38,763 chars, 0.5%)
+⠋ Initializing...
+⠙ Searching for files...
+⠹ Collect file... (300/1082) backend/packages/harness/deerflow/tools/sync.py
+⠸ Collect file... (764/1082) frontend/src/content/en/posts/weekly/2026-04-06.mdx
+⠼ Generating output...
+⠴ Generating output...
+⠦ Writing output file...
+⠧ Calculating metrics... (120/1052) backend/packages/harness/deerflow/config/tool_config.py
+⠇ Calculating metrics... (360/1052) backend/tests/test_stream_bridge.py
+⠏ Calculating metrics... (670/1052) frontend/src/content/en/harness/subagents.mdx
+⠋ Calculating metrics... (910/1052) skills/public/code-documentation/SKILL.md
+⠙ Calculating metrics... (1052/1052) README_zh.md
+✔ Packing completed successfully!
+
+📈 Top 5 Files by Token Count:
+──────────────────────────────
+1.  frontend/public/demo/threads/fe3f7974-1bcb-4a01-a950-79673baafefd/thread.json (72,696 tokens, 275,086 chars, 945.8%)
+2.  frontend/public/demo/threads/ad76c455-5bf9-4335-8517-fc03834ab828/thread.json (45,375 tokens, 113,840 chars, 590.4%)
+3.  frontend/public/demo/threads/7cfa5f8f-a2f8-47ad-acbd-da7137baf990/thread.json (39,673 tokens, 163,791 chars, 516.2%)
+4.  frontend/public/demo/threads/5aa47db1-d0cb-4eb9-aea5-3dac1b371c5a/thread.json (39,055 tokens, 130,813 chars, 508.1%)
+5.  frontend/public/demo/threads/3823e443-4e2b-4679-b496-a9506eae462b/thread.json (33,451 tokens, 124,388 chars, 435.2%)
 
 🔢 Token Count Tree:
 ────────────────────
@@ -652,7 +625,7 @@ You can add a config file for additional settings. Please check https://github.c
 │       └── specs/ (6,090 tokens)
 │           ├── 2026-04-11-runjournal-history-evaluation.md (3,175 tokens)
 │           └── 2026-04-11-summarize-marker-design.md (2,915 tokens)
-├── frontend/ (794,387 tokens)
+├── frontend/ (803,525 tokens)
 │   ├── .env.example (263 tokens)
 │   ├── .gitignore (179 tokens)
 │   ├── .npmrc (18 tokens)
@@ -672,79 +645,81 @@ You can add a config file for additional settings. Please check https://github.c
 │   ├── README.md (1,197 tokens)
 │   ├── tsconfig.json (287 tokens)
 │   ├── vitest.config.ts (63 tokens)
-│   ├── public/ (488,491 tokens)
-│   │   └── demo/ (488,491 tokens)
-│   │       └── threads/ (488,491 tokens)
-│   │           ├── 21cfea46-34bd-4aa6-9e1f-3009452fbeb9/ (13,251 tokens)
-│   │           │   └── thread.json (13,251 tokens)
-│   │           ├── 3823e443-4e2b-4679-b496-a9506eae462b/ (35,479 tokens)
-│   │           │   ├── thread.json (33,451 tokens)
-│   │           │   └── user-data/ (2,028 tokens)
-│   │           │       └── outputs/ (2,028 tokens)
-│   │           │           └── fei-fei-li-podcast-timeline.md (2,028 tokens)
-│   │           ├── 4f3e55ee-f853-43db-bfb3-7d1a411f03cb/ (19,713 tokens)
-│   │           │   └── thread.json (19,713 tokens)
-│   │           ├── 5aa47db1-d0cb-4eb9-aea5-3dac1b371c5a/ (63,152 tokens)
-│   │           │   ├── thread.json (39,055 tokens)
-│   │           │   └── user-data/ (24,097 tokens)
-│   │           │       └── outputs/ (24,097 tokens)
-│   │           │           └── jiangsu-football/ (24,097 tokens)
-│   │           │               ├── favicon.html (70 tokens)
-│   │           │               ├── index.html (3,255 tokens)
-│   │           │               ├── css/ (10,701 tokens)
-│   │           │               │   └── style.css (10,701 tokens)
-│   │           │               └── js/ (10,071 tokens)
-│   │           │                   ├── data.js (5,309 tokens)
-│   │           │                   └── main.js (4,762 tokens)
-│   │           ├── 7cfa5f8f-a2f8-47ad-acbd-da7137baf990/ (51,143 tokens)
-│   │           │   ├── thread.json (39,673 tokens)
-│   │           │   └── user-data/ (11,470 tokens)
-│   │           │       └── outputs/ (11,470 tokens)
-│   │           │           ├── index.html (4,330 tokens)
-│   │           │           ├── script.js (1,198 tokens)
-│   │           │           └── style.css (5,942 tokens)
-│   │           ├── 7f9dc56c-e49c-4671-a3d2-c492ff4dce0c/ (23,685 tokens)
-│   │           │   ├── thread.json (22,147 tokens)
-│   │           │   └── user-data/ (1,538 tokens)
-│   │           │       └── outputs/ (1,538 tokens)
-│   │           │           └── leica-master-photography-article.md (1,538 tokens)
-│   │           ├── 90040b36-7eba-4b97-ba89-02c3ad47a8b9/ (11,192 tokens)
-│   │           │   └── thread.json (11,192 tokens)
-│   │           ├── ad76c455-5bf9-4335-8517-fc03834ab828/ (75,545 tokens)
-│   │           │   ├── thread.json (45,375 tokens)
-│   │           │   └── user-data/ (30,170 tokens)
-│   │           │       ├── outputs/ (346 tokens)
-│   │           │       │   └── titanic_summary.txt (346 tokens)
-│   │           │       └── uploads/ (29,824 tokens)
-│   │           │           └── titanic.csv (29,824 tokens)
-│   │           ├── b83fbb2a-4e36-4d82-9de0-7b2a02c2092a/ (26,235 tokens)
-│   │           │   ├── thread.json (19,195 tokens)
-│   │           │   └── user-data/ (7,040 tokens)
-│   │           │       └── outputs/ (7,040 tokens)
-│   │           │           └── index.html (7,040 tokens)
-│   │           ├── c02bb4d5-4202-490e-ae8f-ff4864fc0d2e/ (31,261 tokens)
-│   │           │   ├── thread.json (21,121 tokens)
-│   │           │   └── user-data/ (10,140 tokens)
-│   │           │       └── outputs/ (10,140 tokens)
-│   │           │           ├── index.html (3,190 tokens)
-│   │           │           ├── script.js (1,120 tokens)
-│   │           │           └── styles.css (5,830 tokens)
-│   │           ├── d3e5adaf-084c-4dd5-9d29-94f1d6bccd98/ (32,875 tokens)
-│   │           │   ├── thread.json (30,084 tokens)
-│   │           │   └── user-data/ (2,791 tokens)
-│   │           │       └── outputs/ (2,791 tokens)
-│   │           │           └── diana_hu_research.md (2,791 tokens)
-│   │           ├── f4125791-0128-402a-8ca9-50e0947557e4/ (19,637 tokens)
-│   │           │   ├── thread.json (12,231 tokens)
-│   │           │   └── user-data/ (7,406 tokens)
-│   │           │       └── outputs/ (7,406 tokens)
-│   │           │           └── index.html (7,406 tokens)
-│   │           └── fe3f7974-1bcb-4a01-a950-79673baafefd/ (85,323 tokens)
-│   │               ├── thread.json (72,696 tokens)
-│   │               └── user-data/ (12,627 tokens)
-│   │                   └── outputs/ (12,627 tokens)
-│   │                       ├── index.html (8,905 tokens)
-│   │                       └── research_deerflow_20260201.md (3,722 tokens)
+│   ├── public/ (497,629 tokens)
+│   │   ├── demo/ (488,491 tokens)
+│   │   │   └── threads/ (488,491 tokens)
+│   │   │       ├── 21cfea46-34bd-4aa6-9e1f-3009452fbeb9/ (13,251 tokens)
+│   │   │       │   └── thread.json (13,251 tokens)
+│   │   │       ├── 3823e443-4e2b-4679-b496-a9506eae462b/ (35,479 tokens)
+│   │   │       │   ├── thread.json (33,451 tokens)
+│   │   │       │   └── user-data/ (2,028 tokens)
+│   │   │       │       └── outputs/ (2,028 tokens)
+│   │   │       │           └── fei-fei-li-podcast-timeline.md (2,028 tokens)
+│   │   │       ├── 4f3e55ee-f853-43db-bfb3-7d1a411f03cb/ (19,713 tokens)
+│   │   │       │   └── thread.json (19,713 tokens)
+│   │   │       ├── 5aa47db1-d0cb-4eb9-aea5-3dac1b371c5a/ (63,152 tokens)
+│   │   │       │   ├── thread.json (39,055 tokens)
+│   │   │       │   └── user-data/ (24,097 tokens)
+│   │   │       │       └── outputs/ (24,097 tokens)
+│   │   │       │           └── jiangsu-football/ (24,097 tokens)
+│   │   │       │               ├── favicon.html (70 tokens)
+│   │   │       │               ├── index.html (3,255 tokens)
+│   │   │       │               ├── css/ (10,701 tokens)
+│   │   │       │               │   └── style.css (10,701 tokens)
+│   │   │       │               └── js/ (10,071 tokens)
+│   │   │       │                   ├── data.js (5,309 tokens)
+│   │   │       │                   └── main.js (4,762 tokens)
+│   │   │       ├── 7cfa5f8f-a2f8-47ad-acbd-da7137baf990/ (51,143 tokens)
+│   │   │       │   ├── thread.json (39,673 tokens)
+│   │   │       │   └── user-data/ (11,470 tokens)
+│   │   │       │       └── outputs/ (11,470 tokens)
+│   │   │       │           ├── index.html (4,330 tokens)
+│   │   │       │           ├── script.js (1,198 tokens)
+│   │   │       │           └── style.css (5,942 tokens)
+│   │   │       ├── 7f9dc56c-e49c-4671-a3d2-c492ff4dce0c/ (23,685 tokens)
+│   │   │       │   ├── thread.json (22,147 tokens)
+│   │   │       │   └── user-data/ (1,538 tokens)
+│   │   │       │       └── outputs/ (1,538 tokens)
+│   │   │       │           └── leica-master-photography-article.md (1,538 tokens)
+│   │   │       ├── 90040b36-7eba-4b97-ba89-02c3ad47a8b9/ (11,192 tokens)
+│   │   │       │   └── thread.json (11,192 tokens)
+│   │   │       ├── ad76c455-5bf9-4335-8517-fc03834ab828/ (75,545 tokens)
+│   │   │       │   ├── thread.json (45,375 tokens)
+│   │   │       │   └── user-data/ (30,170 tokens)
+│   │   │       │       ├── outputs/ (346 tokens)
+│   │   │       │       │   └── titanic_summary.txt (346 tokens)
+│   │   │       │       └── uploads/ (29,824 tokens)
+│   │   │       │           └── titanic.csv (29,824 tokens)
+│   │   │       ├── b83fbb2a-4e36-4d82-9de0-7b2a02c2092a/ (26,235 tokens)
+│   │   │       │   ├── thread.json (19,195 tokens)
+│   │   │       │   └── user-data/ (7,040 tokens)
+│   │   │       │       └── outputs/ (7,040 tokens)
+│   │   │       │           └── index.html (7,040 tokens)
+│   │   │       ├── c02bb4d5-4202-490e-ae8f-ff4864fc0d2e/ (31,261 tokens)
+│   │   │       │   ├── thread.json (21,121 tokens)
+│   │   │       │   └── user-data/ (10,140 tokens)
+│   │   │       │       └── outputs/ (10,140 tokens)
+│   │   │       │           ├── index.html (3,190 tokens)
+│   │   │       │           ├── script.js (1,120 tokens)
+│   │   │       │           └── styles.css (5,830 tokens)
+│   │   │       ├── d3e5adaf-084c-4dd5-9d29-94f1d6bccd98/ (32,875 tokens)
+│   │   │       │   ├── thread.json (30,084 tokens)
+│   │   │       │   └── user-data/ (2,791 tokens)
+│   │   │       │       └── outputs/ (2,791 tokens)
+│   │   │       │           └── diana_hu_research.md (2,791 tokens)
+│   │   │       ├── f4125791-0128-402a-8ca9-50e0947557e4/ (19,637 tokens)
+│   │   │       │   ├── thread.json (12,231 tokens)
+│   │   │       │   └── user-data/ (7,406 tokens)
+│   │   │       │       └── outputs/ (7,406 tokens)
+│   │   │       │           └── index.html (7,406 tokens)
+│   │   │       └── fe3f7974-1bcb-4a01-a950-79673baafefd/ (85,323 tokens)
+│   │   │           ├── thread.json (72,696 tokens)
+│   │   │           └── user-data/ (12,627 tokens)
+│   │   │               └── outputs/ (12,627 tokens)
+│   │   │                   ├── index.html (8,905 tokens)
+│   │   │                   └── research_deerflow_20260201.md (3,722 tokens)
+│   │   └── images/ (9,138 tokens)
+│   │       └── deer.svg (9,138 tokens)
 │   ├── scripts/ (407 tokens)
 │   │   └── save-demo.js (407 tokens)
 │   ├── src/ (284,981 tokens)
@@ -1382,18 +1357,15 @@ You can add a config file for additional settings. Please check https://github.c
         └── web-design-guidelines/ (268 tokens)
             └── SKILL.md (268 tokens)
 
-🔎 Security Check:
-──────────────────
-✔ No suspicious files detected.
 
 
 📊 Pack Summary:
 ────────────────
-  Total Files: 1,051 files
- Total Tokens: 2,044,793 tokens
-  Total Chars: 8,389,707 chars
-       Output: repomix-output.xml
-     Security: ✔ No suspicious files detected
+  Total Files: 1,052 files
+ Total Tokens: 7,686 tokens
+  Total Chars: 32,203 chars
+       Output: /tmp/deer-flow-token-tree-pack.xml
+     Security: Security check disabled
 
 🎉 All Done!
 Your repository has been successfully packed.

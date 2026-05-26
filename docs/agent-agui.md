@@ -6,6 +6,17 @@
 
 本文沿用 Deep Dive 的写法，但目标不是评价某个仓库，而是给出一条“从最小可运行一路演进到商业级复刻”的路线：L0 先能跑，L1 统一事件，L2 支持流式，L3 加控制面，L4 补齐 artifact、附件、压缩和 usage，L5 再做多客户端商业级协议。
 
+## Guga 的取舍校准：先定 canonical event，再选生态协议
+
+L0 到 L5 是协议复杂度路线，不等于 Guga 要等到 L5 才有 Server/SSE。结合 `ui-protocol.md` 和 `agent-react-pattern.md`，Guga 应该把 UI/客户端协议拆成三层：core runtime event、canonical `AgentUIEvent`、传输/客户端 adapter。这样 Web SSE、CLI stream、IDE ACP、IM wait/stream 都是投影，不会反过来污染 agent loop。
+
+- **Server/SSE 进入 P0，但只承载最小事件**：`ui-protocol.md` 建议 Guga Phase 1 采用 HTTP Server + SSE。这里的 P0 不是完整多客户端平台，而是 `run.started / message.delta / tool.started / tool.completed / run.completed / run.failed` 这种最小可观察事实。
+- **控制面进入 P1，而不是等商业化后再补**：权限批准、拒绝、取消、等待是 agent 可控性的基础。它们可以先用 HTTP endpoint 实现，远端 WebSocket、ACP 和 IM adapter 后置。
+- **artifact/usage/compact 是 P1/P2 的产品能力**：文件产物、token/cost、compact boundary 要在 runtime event 里有位置，但第一版可以只做结构化元数据，不做完整权限矩阵。
+- **AG-UI / LangGraph / ACP 都先当 adapter**：不要把某个外部协议当 canonical schema。Guga 自己的事件合同应更小、更稳定，再映射到生态协议。
+
+证据强度：`run/resource + SSE` 是 `deer-flow`、`opencode`、`ui-protocol.md` 的 `Fact`；Guga 采用 canonical event + adapter 是 `Inference`；具体事件字段和版本策略是 `Pending Verification`，需要等第一版 Web/CLI 客户端落地后收敛。
+
 ## 读源码前的定位：AG-UI 不是聊天框，而是运行时事实的投影
 
 一个可用的 agent UI 不只是把最终回答 append 到聊天列表。它必须回答更难的问题：模型是否正在输出？工具是否已经开始？工具输入有没有形成？权限请求卡在哪里？用户取消后后台是否真的停了？文件生成后能否离开聊天框？上下文压缩后客户端如何恢复历史？
@@ -22,7 +33,9 @@
 
 `hermes-agent` 是新增参考里最强的多客户端样本。它不只支持一个 Web UI，而是把 CLI/IM/API/ACP 都看作 agent runtime 的外层 adapter：OpenAI-compatible API server 在 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/gateway/platforms/api_server.py:1` 到 `:21` 列出 `/v1/chat/completions`、`/v1/responses`、`/v1/runs`、`/v1/runs/{run_id}/events`、approval 和 stop endpoints；`GatewayStreamConsumer` 在 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/gateway/stream_consumer.py:77`，负责把同步 agent callbacks 桥接到异步平台消息编辑/草稿流；ACP session manager 在 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/acp_adapter/session.py:186` 管理 editor session 与 `AIAgent` 实例。这给 AG-UI 方向一个更商业化的判断：协议平台必须能适配不同客户端限制，而不是假设所有端都是浏览器 SSE。
 
-这四条线合起来，给我们一个更稳的判断：Agent UI 协议的主线不是“选 SSE 还是 WebSocket”，而是先定义清楚运行时事实，再决定如何传输、如何投影、如何控制。
+`pi agent` 的核心启发是“UI/客户端协议也可以通过 extension surface 开放，而不是只由内置 TUI 决定”。它的 extension 文档明确允许 extension 订阅 lifecycle events、注册 LLM-callable tools、添加 commands、通过 `ctx.ui` 弹 select/confirm/input/notify、注册 custom UI component 和自定义 message/tool renderer，见 `/Users/lienli/Documents/GitHub/guga-agent/docs/research/repomix/pi-focused-context.xml:32075` 到 `:32175`。更底层的类型文件把 `ExtensionUIContext`、`SessionEvent`、`AgentEvent`、`ModelEvent`、`ToolEvent` 分开，见同一 context 的 `packages/coding-agent/src/core/extensions/types.ts` 片段。这说明 Guga 的 `AgentUIEvent` 不应该只服务内置 Web/CLI，还应该给插件一个受控的 UI/事件扩展面。
+
+这些参考线索合起来，给我们一个更稳的判断：Agent UI 协议的主线不是“选 SSE 还是 WebSocket”，而是先定义清楚运行时事实，再决定如何传输、如何投影、如何控制。
 
 ## L0：CLI print，先让 agent 真的跑起来
 
@@ -308,8 +321,16 @@ L5 的推荐架构是三层：
 | L1 | 统一事件 | `AgentUIEvent`，message/tool 投影 | `opencode` SessionProcessor |
 | L2 | SSE streaming | `/runs/stream`，run resource，恢复查询 | `deer-flow` thread_runs.py |
 | L3 | 控制面 | permission/cancel/wait endpoint | `cc-haha` RemoteSessionManager，`deer-flow` cancel/wait |
-| L4 | 产品能力 | artifact、attachments、compact、usage | `deer-flow` artifacts/usage，`cc-haha` compact，`opencode` attachments |
-| L5 | 商业协议平台 | event store，多客户端 adapter，审计 | `deer-flow` runs API，`blade-code` ACP，`cc-haha` remote bridge，`hermes-agent` API server/gateway/ACP |
+| L4 | 产品能力 | artifact、attachments、compact、usage | `deer-flow` artifacts/usage，`cc-haha` compact，`opencode` attachments，`pi` custom renderers |
+| L5 | 商业协议平台 | event store，多客户端 adapter，审计 | `deer-flow` runs API，`blade-code` ACP，`cc-haha` remote bridge，`hermes-agent` API server/gateway/ACP，`pi` extension UI/events |
+
+如果面向 Guga 当前阶段，可以把这条路线压成更具体的优先级：
+
+| 优先级 | 先做什么 | 暂时不做什么 |
+| --- | --- | --- |
+| P0 | HTTP Server、最小 SSE、`runId/seq`、message/tool/run 事件、run 状态查询 | WebSocket 全双工、完整 AG-UI 标准兼容、多租户事件库 |
+| P1 | permission/cancel/wait endpoint、compact boundary、artifact metadata、usage summary、断线后状态恢复 | 完整 artifact 权限、IM streaming edit、ACP/LSP |
+| P2 | canonical event versioning、多客户端 adapter、event store/replay、Webhook/IM/IDE 映射、协议观测指标 | Hermes 式全平台 gateway、复杂租户策略 |
 
 最容易走错的是把 L5 的形态搬到 L1：一开始就做多端、多租户、完整事件库、完整 artifact 权限。更稳的方式是让每层只解决一个主要风险。L0 验证 agent 能跑；L1 验证 UI 不靠猜；L2 验证实时输出；L3 验证人能介入；L4 验证交付物和成本可见；L5 才验证多客户端、协议版本和商业运维。
 

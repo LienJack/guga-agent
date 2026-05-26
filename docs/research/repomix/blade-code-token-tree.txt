@@ -3,52 +3,26 @@
 
 No custom config found at repomix.config.ts, repomix.config.mts, repomix.config.cts, repomix.config.js, repomix.config.mjs, repomix.config.cjs, repomix.config.json5, repomix.config.jsonc, repomix.config.json or global config at /Users/lienli/.config/repomix/repomix.config.ts, /Users/lienli/.config/repomix/repomix.config.mts, /Users/lienli/.config/repomix/repomix.config.cts, /Users/lienli/.config/repomix/repomix.config.js, /Users/lienli/.config/repomix/repomix.config.mjs, /Users/lienli/.config/repomix/repomix.config.cjs, /Users/lienli/.config/repomix/repomix.config.json5, /Users/lienli/.config/repomix/repomix.config.jsonc, /Users/lienli/.config/repomix/repomix.config.json.
 You can add a config file for additional settings. Please check https://github.com/yamadashy/repomix for more information.
-[K[?25l⠋ Initializing...
-[K[1A[K[?25l⠙ Searching for files...
-[K[1A[K[?25l⠹ Collect file... (276/784) packages/cli/src/logging/Logger.ts
-[K[1A[K[?25l⠸ Processing file... (783/783) tsconfig.json
-[K[1A[K[?25l⠼ Processing file... (783/783) tsconfig.json
-[K[1A[K[?25l⠴ Processing file... (783/783) tsconfig.json
-[K[1A[K[?25l⠦ Running security check... (450/783) packages/cli/src/tools/execution/ExecutionPipeline.ts
-[K[1A[K[?25l⠧ Writing output file...
-[K[1A[K[?25l⠇ Calculating metrics... (90/783) .claude/agents/LICENSE
-[K[1A[K[?25l⠏ Calculating metrics... (120/783) .trae/deepwiki/交互界面与命令系统指南/Web UI 与 Hono 服务端/Hono 服务端架构与 API 设计.md
-[K[1A[K[?25l⠋ Calculating metrics... (280/783) packages/cli/src/server/routes/suggestions.ts
-[K[1A[K[?25l⠙ Calculating metrics... (580/783) packages/cli/tests/support/setup.ts
-[K[1A[K[?25l✔ Packing completed successfully!
-[?25h
-📈 Top 30 Files by Token Count:
-───────────────────────────────
-1.  .trae/deepwiki/meta.json (16,510 tokens, 41,024 chars, 1.2%)
-2.  packages/cli/src/utils/shell/readOnlyValidation.ts (13,270 tokens, 46,643 chars, 1%)
-3.  packages/cli/src/agent/loop/executeLoopGenerator.ts (9,624 tokens, 41,680 chars, 0.7%)
-4.  docs/changelog.md (9,250 tokens, 17,915 chars, 0.7%)
-5.  packages/cli/src/agent/Agent.ts (9,145 tokens, 35,440 chars, 0.7%)
-6.  packages/cli/src/ui/themes/presets.ts (8,981 tokens, 22,292 chars, 0.7%)
-7.  packages/cli/web/src/components/preview/FilePreview.tsx (8,394 tokens, 34,091 chars, 0.6%)
-8.  packages/cli/web/src/components/mcp/McpModal.tsx (8,382 tokens, 34,584 chars, 0.6%)
-9.  packages/cli/src/hooks/HookExecutor.ts (7,982 tokens, 33,285 chars, 0.6%)
-10. packages/cli/tests/unit/agent-runtime/agent/execute-loop-generator.test.ts (7,429 tokens, 32,532 chars, 0.6%)
-11. packages/cli/web/src/store/session/handlers/eventHandlers.ts (7,372 tokens, 30,292 chars, 0.6%)
-12. packages/cli/scripts/release.js (6,802 tokens, 23,599 chars, 0.5%)
-13. packages/cli/web/src/components/skills/SkillsModal.tsx (6,697 tokens, 26,932 chars, 0.5%)
-14. .claude/agents/README.md (6,619 tokens, 28,689 chars, 0.5%)
-15. packages/cli/web/src/components/chat/ChatMessage.tsx (6,475 tokens, 24,320 chars, 0.5%)
-16. packages/cli/src/hooks/HookManager.ts (6,349 tokens, 25,996 chars, 0.5%)
-17. packages/cli/src/ui/components/MessageRenderer.tsx (6,345 tokens, 25,339 chars, 0.5%)
-18. packages/cli/src/tools/builtin/search/grep.ts (6,046 tokens, 22,842 chars, 0.5%)
-19. packages/cli/src/ui/components/AgentCreationWizard.tsx (5,972 tokens, 20,529 chars, 0.5%)
-20. packages/cli/src/services/VercelAIChatService.ts (5,942 tokens, 28,344 chars, 0.4%)
-21. packages/cli/src/acp/Session.ts (5,939 tokens, 22,830 chars, 0.4%)
-22. packages/cli/web/src/components/settings/SettingsModal.tsx (5,924 tokens, 25,869 chars, 0.4%)
-23. packages/cli/src/tools/builtin/file/edit.ts (5,896 tokens, 21,528 chars, 0.4%)
-24. packages/cli/src/ui/components/BladeInterface.tsx (5,740 tokens, 23,251 chars, 0.4%)
-25. packages/cli/src/config/ConfigService.ts (5,715 tokens, 21,199 chars, 0.4%)
-26. packages/cli/src/commands/headless.ts (5,552 tokens, 24,316 chars, 0.4%)
-27. .trae/deepwiki/交互界面与命令系统指南/TUI 终端界面架构/终端交互 Hooks.md (5,303 tokens, 13,356 chars, 0.4%)
-28. .trae/deepwiki/内置工具与 AI 核心能力.md (5,246 tokens, 13,033 chars, 0.4%)
-29. .trae/deepwiki/扩展性开发与自定义插件/MCP 协议集成与配置.md (5,194 tokens, 12,693 chars, 0.4%)
-30. .trae/deepwiki/内置工具与 AI 核心能力/自动记忆管理与上下文优化.md (5,191 tokens, 12,644 chars, 0.4%)
+⠋ Initializing...
+⠙ Searching for files...
+⠹ Collect file... (401/787) packages/cli/src/tools/builtin/memory/MemoryReadTool.ts
+⠸ Generating output...
+⠼ Generating output...
+⠴ Generating output...
+⠦ Calculating metrics... (90/784) .claude/agents/seo-snippet-hunter.md
+⠧ Calculating metrics... (100/784) .github/ISSUE_TEMPLATE/config.yml
+⠇ Calculating metrics... (220/784) .trae/deepwiki/参考手册、常见问题与故障排除.md
+⠏ Calculating metrics... (510/784) packages/cli/src/ui/hooks/useTerminalWidth.ts
+⠋ Calculating metrics... (784/784) README.en.md
+✔ Packing completed successfully!
+
+📈 Top 5 Files by Token Count:
+──────────────────────────────
+1.  .trae/deepwiki/meta.json (16,510 tokens, 41,024 chars, 310%)
+2.  packages/cli/src/utils/shell/readOnlyValidation.ts (13,270 tokens, 46,643 chars, 249.2%)
+3.  packages/cli/src/agent/loop/executeLoopGenerator.ts (9,624 tokens, 41,680 chars, 180.7%)
+4.  docs/changelog.md (9,250 tokens, 17,915 chars, 173.7%)
+5.  packages/cli/src/agent/Agent.ts (9,145 tokens, 35,440 chars, 171.7%)
 
 🔢 Token Count Tree:
 ────────────────────
@@ -292,8 +266,8 @@ You can add a config file for additional settings. Please check https://github.c
 │   └── reference/ (5,855 tokens)
 │       ├── cli-commands.md (2,068 tokens)
 │       └── tool-list.md (3,787 tokens)
-└── packages/ (931,920 tokens)
-    ├── cli/ (925,608 tokens)
+└── packages/ (932,002 tokens)
+    ├── cli/ (925,690 tokens)
     │   ├── package.json (1,441 tokens)
     │   ├── README.md (1,175 tokens)
     │   ├── release.config.js (665 tokens)
@@ -926,7 +900,7 @@ You can add a config file for additional settings. Please check https://github.c
     │   │   └── ripgrep/ (525 tokens)
     │   │       ├── .gitignore (76 tokens)
     │   │       └── README.md (449 tokens)
-    │   └── web/ (97,393 tokens)
+    │   └── web/ (97,475 tokens)
     │       ├── components.json (107 tokens)
     │       ├── index.html (112 tokens)
     │       ├── package.json (547 tokens)
@@ -936,6 +910,8 @@ You can add a config file for additional settings. Please check https://github.c
     │       ├── tsconfig.node.json (60 tokens)
     │       ├── vite.config.ts (638 tokens)
     │       ├── vitest.config.ts (139 tokens)
+    │       ├── public/ (82 tokens)
+    │       │   └── favicon.svg (82 tokens)
     │       ├── src/ (85,918 tokens)
     │       │   ├── App.tsx (49 tokens)
     │       │   ├── index.css (1,009 tokens)
@@ -1027,18 +1003,15 @@ You can add a config file for additional settings. Please check https://github.c
         └── src/ (2,944 tokens)
             └── extension.ts (2,944 tokens)
 
-🔎 Security Check:
-──────────────────
-✔ No suspicious files detected.
 
 
 📊 Pack Summary:
 ────────────────
-  Total Files: 783 files
- Total Tokens: 1,321,342 tokens
-  Total Chars: 4,687,136 chars
-       Output: repomix-output.xml
-     Security: ✔ No suspicious files detected
+  Total Files: 784 files
+ Total Tokens: 5,326 tokens
+  Total Chars: 22,883 chars
+       Output: /tmp/blade-code-token-tree-pack.xml
+     Security: Security check disabled
 
 🎉 All Done!
 Your repository has been successfully packed.

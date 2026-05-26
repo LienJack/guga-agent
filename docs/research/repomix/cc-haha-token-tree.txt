@@ -3,74 +3,47 @@
 
 No custom config found at repomix.config.ts, repomix.config.mts, repomix.config.cts, repomix.config.js, repomix.config.mjs, repomix.config.cjs, repomix.config.json5, repomix.config.jsonc, repomix.config.json or global config at /Users/lienli/.config/repomix/repomix.config.ts, /Users/lienli/.config/repomix/repomix.config.mts, /Users/lienli/.config/repomix/repomix.config.cts, /Users/lienli/.config/repomix/repomix.config.js, /Users/lienli/.config/repomix/repomix.config.mjs, /Users/lienli/.config/repomix/repomix.config.cjs, /Users/lienli/.config/repomix/repomix.config.json5, /Users/lienli/.config/repomix/repomix.config.jsonc, /Users/lienli/.config/repomix/repomix.config.json.
 You can add a config file for additional settings. Please check https://github.com/yamadashy/repomix for more information.
-[K[?25l⠋ Initializing...
-[K[1A[K[?25l⠙ Searching for files...
-[K[1A[K[?25l⠹ Searching for files...
-[K[1A[K[?25l⠸ Collect file... (309/2814) desktop/src/stores/tabStore.ts
-[K[1A[K[?25l⠼ Collect file... (618/2814) src/commands/clear/index.ts
-[K[1A[K[?25l⠴ Collect file... (1076/2814) src/components/Spinner/ShimmerChar.tsx
-[K[1A[K[?25l⠦ Collect file... (1535/2814) src/query/config.ts
-[K[1A[K[?25l⠧ Collect file... (1748/2814) src/services/MagicDocs/prompts.ts
-[K[1A[K[?25l⠇ Collect file... (2188/2814) src/utils/bash/shellPrefix.ts
-[K[1A[K[?25l⠏ Processing file... (2805/2805) tsconfig.json
-[K[1A[K[?25l⠋ Running security check... (750/2805) src/commands/proactive.ts
-[K[1A[K[?25l⠙ Running security check... (1550/2805) src/server/api/providers.ts
-[K[1A[K[?25l⠹ Running security check... (2550/2805) src/utils/fileOperationAnalytics.ts
-[K[1A[K[?25l⠸ Writing output file...
-[K[1A[K[?25l⠼ Calculating metrics... (180/2804) desktop/src/components/layout/StatusBar.tsx
-[K[1A[K[?25l⠴ Calculating metrics... (350/2804) desktop/src/lib/__tests__/providerSettingsJson.test.ts
-[K[1A[K[?25l⠦ Calculating metrics... (540/2804) docs/reference/project-structure.md
-[K[1A[K[?25l⠧ Calculating metrics... (740/2804) src/commands/tasks/tasks.tsx
-[K[1A[K[?25l⠇ Calculating metrics... (830/2804) src/components/agents/new-agent-creation/wizard-steps/ConfirmStepWrapper.tsx
-[K[1A[K[?25l⠏ Calculating metrics... (910/2804) src/components/LogoV2/Opus1mMergeNotice.tsx
-[K[1A[K[?25l⠋ Calculating metrics... (1020/2804) src/components/PromptInput/useSwarmBanner.ts
-[K[1A[K[?25l⠙ Calculating metrics... (1070/2804) src/components/BridgeDialog.tsx
-[K[1A[K[?25l⠹ Calculating metrics... (1150/2804) src/components/FullscreenLayout.tsx
-[K[1A[K[?25l⠸ Calculating metrics... (1300/2804) src/hooks/useTeammateViewAutoExit.ts
-[K[1A[K[?25l⠼ Calculating metrics... (1500/2804) src/server/__tests__/h5-access-policy.test.ts
-[K[1A[K[?25l⠴ Calculating metrics... (1730/2804) src/services/skillSearch/telemetry.ts
-[K[1A[K[?25l⠦ Calculating metrics... (1920/2804) src/tools/ListPeersTool/ListPeersTool.ts
-[K[1A[K[?25l⠧ Calculating metrics... (2150/2804) src/utils/computerUse/gates.ts
-[K[1A[K[?25l⠇ Calculating metrics... (2320/2804) src/utils/plugins/pluginInstallationHelpers.ts
-[K[1A[K[?25l⠏ Calculating metrics... (2500/2804) src/utils/githubRepoPathMapping.ts
-[K[1A[K[?25l⠋ Calculating metrics... (2700/2804) src/utils/toolSearch.ts
-[K[1A[K[?25l⠙ Calculating metrics... (2784/2804) src/utils/theme.ts
-[K[1A[K[?25l⠹ Calculating metrics... (2794/2804) src/utils/ansiToSvg.ts
-[K[1A[K[?25l⠸ Calculating metrics... (2804/2804) src/tools.ts
-[K[1A[K[?25l✔ Packing completed successfully!
-[?25h
-📈 Top 30 Files by Token Count:
-───────────────────────────────
-1.  src/screens/REPL.tsx (453,253 tokens, 895,335 chars, 3.3%)
-2.  src/main.tsx (408,271 tokens, 807,050 chars, 3%)
-3.  src/components/PromptInput/PromptInput.tsx (185,479 tokens, 354,682 chars, 1.3%)
-4.  src/commands/plugin/ManagePlugins.tsx (165,450 tokens, 321,690 chars, 1.2%)
-5.  src/components/Settings/Config.tsx (136,999 tokens, 271,344 chars, 1%)
-6.  src/ink/ink.tsx (129,364 tokens, 251,955 chars, 0.9%)
-7.  src/tools/AgentTool/AgentTool.tsx (114,903 tokens, 233,675 chars, 0.8%)
-8.  src/hooks/useTypeahead.tsx (108,477 tokens, 212,593 chars, 0.8%)
-9.  src/components/LogSelector.tsx (106,779 tokens, 200,467 chars, 0.8%)
-10. src/components/mcp/ElicitationDialog.tsx (92,543 tokens, 179,605 chars, 0.7%)
-11. src/utils/teleport.tsx (90,835 tokens, 175,725 chars, 0.7%)
-12. src/components/Stats.tsx (83,386 tokens, 152,763 chars, 0.6%)
-13. src/tools/BashTool/BashTool.tsx (83,049 tokens, 160,474 chars, 0.6%)
-14. src/components/VirtualMessageList.tsx (77,885 tokens, 148,331 chars, 0.6%)
-15. src/components/ScrollKeybindingHandler.tsx (77,447 tokens, 148,910 chars, 0.6%)
-16. src/components/Messages.tsx (76,657 tokens, 147,358 chars, 0.6%)
-17. src/tools/PowerShellTool/PowerShellTool.tsx (74,258 tokens, 144,570 chars, 0.5%)
-18. src/utils/processUserInput/processSlashCommand.tsx (72,846 tokens, 144,773 chars, 0.5%)
-19. src/commands/plugin/PluginSettings.tsx (68,799 tokens, 128,660 chars, 0.5%)
-20. src/tools/AgentTool/UI.tsx (66,298 tokens, 125,337 chars, 0.5%)
-21. src/tasks/RemoteAgentTask/RemoteAgentTask.tsx (65,471 tokens, 126,343 chars, 0.5%)
-22. src/components/permissions/rules/PermissionRuleList.tsx (63,796 tokens, 118,891 chars, 0.5%)
-23. src/components/permissions/ExitPlanModePermissionRequest/ExitPlanModePermissionRequest.tsx (62,479 tokens, 121,584 chars, 0.5%)
-24. src/commands/plugin/ManageMarketplaces.tsx (61,097 tokens, 118,880 chars, 0.4%)
-25. src/commands/plugin/BrowseMarketplace.tsx (61,043 tokens, 119,532 chars, 0.4%)
-26. src/components/tasks/BackgroundTasksDialog.tsx (61,028 tokens, 116,380 chars, 0.4%)
-27. src/components/MessageSelector.tsx (60,774 tokens, 115,609 chars, 0.4%)
-28. src/components/CustomSelect/select.tsx (59,594 tokens, 115,185 chars, 0.4%)
-29. src/commands/plugin/DiscoverPlugins.tsx (55,306 tokens, 106,650 chars, 0.4%)
-30. src/hooks/useReplBridge.tsx (54,760 tokens, 115,704 chars, 0.4%)
+⠋ Initializing...
+⠙ Searching for files...
+⠹ Searching for files...
+⠸ Collect file... (284/3033) desktop/src/pages/ScheduledTasksList.tsx
+⠼ Collect file... (894/3033) src/commands/install-github-app/install-github-app.tsx
+⠴ Collect file... (1277/3033) src/components/scheduled-tasks/steps/TaskConfirmStep.tsx
+⠦ Collect file... (1801/3033) src/server/__tests__/provider-presets.test.ts
+⠧ Collect file... (1991/3033) src/services/oauth/auth-code-listener.ts
+⠇ Collect file... (2685/3033) src/utils/asciicast.ts
+⠏ Calculating metrics... (80/2820) desktop/src/__tests__/generalSettings.test.tsx
+⠋ Calculating metrics... (210/2820) desktop/src/lib/providerSettingsJson.ts
+⠙ Calculating metrics... (330/2820) docs/agent/01-usage-guide.md
+⠹ Calculating metrics... (480/2820) src/assistant/gate.ts
+⠸ Calculating metrics... (490/2820) runtime/requirements-win.txt
+⠼ Calculating metrics... (590/2820) src/commands/ctx_viz/index.js
+⠴ Calculating metrics... (760/2820) src/commands/session/index.ts
+⠦ Calculating metrics... (850/2820) src/components/CustomSelect/use-select-navigation.ts
+⠧ Calculating metrics... (930/2820) src/components/messages/ShutdownMessage.tsx
+⠇ Calculating metrics... (1000/2820) src/components/sandbox/SandboxDoctorSection.tsx
+⠏ Calculating metrics... (1060/2820) src/components/AutoUpdater.tsx
+⠋ Calculating metrics... (1140/2820) src/components/Feedback.tsx
+⠙ Calculating metrics... (1190/2820) src/components/TeleportStash.tsx
+⠹ Calculating metrics... (1400/2820) src/components/OutputStylePicker.tsx
+⠸ Calculating metrics... (1620/2820) src/server/ws/events.ts
+⠼ Calculating metrics... (1850/2820) src/services/awaySummary.ts
+⠴ Calculating metrics... (1970/2820) src/tools/ScheduleCronTool/CronListTool.ts
+⠦ Calculating metrics... (2190/2820) src/tools/AgentTool/resumeAgent.ts
+⠧ Calculating metrics... (2420/2820) src/utils/claudeDesktop.ts
+⠇ Calculating metrics... (2690/2820) src/utils/windowsPaths.ts
+⠏ Calculating metrics... (2790/2820) src/utils/tokenBudget.ts
+⠋ Calculating metrics... (2810/2820) src/utils/argumentSubstitution.ts
+⠙ Calculating metrics... (2820/2820) src/QueryEngine.ts
+✔ Packing completed successfully!
+
+📈 Top 5 Files by Token Count:
+──────────────────────────────
+1.  src/screens/REPL.tsx (453,253 tokens, 895,335 chars, 2299.4%)
+2.  src/main.tsx (408,271 tokens, 807,050 chars, 2071.2%)
+3.  src/components/PromptInput/PromptInput.tsx (185,479 tokens, 354,682 chars, 940.9%)
+4.  src/commands/plugin/ManagePlugins.tsx (165,450 tokens, 321,690 chars, 839.3%)
+5.  src/components/Settings/Config.tsx (136,999 tokens, 271,344 chars, 695%)
 
 🔢 Token Count Tree:
 ────────────────────
@@ -145,7 +118,7 @@ You can add a config file for additional settings. Please check https://github.c
 │       └── typing.ts (267 tokens)
 ├── bin/ (311 tokens)
 │   └── claude-haha (311 tokens)
-├── desktop/ (543,671 tokens)
+├── desktop/ (548,918 tokens)
 │   ├── bunfig.toml (9 tokens)
 │   ├── index.html (146 tokens)
 │   ├── package.json (696 tokens)
@@ -153,6 +126,13 @@ You can add a config file for additional settings. Please check https://github.c
 │   ├── tsconfig.json (185 tokens)
 │   ├── vite.config.ts (224 tokens)
 │   ├── vitest.config.ts (152 tokens)
+│   ├── public/ (3,994 tokens)
+│   │   ├── app-icon.svg (301 tokens)
+│   │   └── icons/ (3,693 tokens)
+│   │       ├── bilibili.svg (766 tokens)
+│   │       ├── douyin.svg (484 tokens)
+│   │       ├── github.svg (454 tokens)
+│   │       └── xiaohongshu.svg (1,989 tokens)
 │   ├── scripts/ (28,821 tokens)
 │   │   ├── build-macos-arm64.sh (3,961 tokens)
 │   │   ├── build-sidecars.ts (1,736 tokens)
@@ -422,7 +402,9 @@ You can add a config file for additional settings. Please check https://github.c
 │   │       ├── skill.ts (204 tokens)
 │   │       ├── task.ts (323 tokens)
 │   │       └── team.ts (266 tokens)
-│   └── src-tauri/ (17,526 tokens)
+│   └── src-tauri/ (18,779 tokens)
+│       ├── app-icon-macos.svg (952 tokens)
+│       ├── app-icon.svg (301 tokens)
 │       ├── build.rs (371 tokens)
 │       ├── Cargo.toml (218 tokens)
 │       ├── Info.plist (87 tokens)
@@ -443,7 +425,7 @@ You can add a config file for additional settings. Please check https://github.c
 │           ├── lib.rs (12,791 tokens)
 │           ├── macos_notifications.m (1,938 tokens)
 │           └── main.rs (43 tokens)
-├── docs/ (220,727 tokens)
+├── docs/ (307,438 tokens)
 │   ├── index.md (552 tokens)
 │   ├── .vitepress/ (2,595 tokens)
 │   │   ├── config.mts (2,226 tokens)
@@ -514,6 +496,16 @@ You can add a config file for additional settings. Please check https://github.c
 │   │   ├── index.md (1,625 tokens)
 │   │   ├── telegram.md (1,015 tokens)
 │   │   └── wechat.md (1,623 tokens)
+│   ├── images/ (86,711 tokens)
+│   │   ├── app-icon-dark.svg (520 tokens)
+│   │   ├── app-icon-light.svg (301 tokens)
+│   │   ├── app-icon.svg (301 tokens)
+│   │   ├── banner.svg (1,808 tokens)
+│   │   ├── logo-horizontal.svg (1,354 tokens)
+│   │   └── sponsors/ (82,427 tokens)
+│   │       ├── jiekou-logo.svg (160 tokens)
+│   │       ├── legionproxy-logo.svg (3,202 tokens)
+│   │       └── shengsuanyun-logo.svg (79,065 tokens)
 │   ├── memory/ (11,630 tokens)
 │   │   ├── 01-usage-guide.md (2,428 tokens)
 │   │   ├── 02-implementation.md (4,357 tokens)
@@ -666,7 +658,7 @@ You can add a config file for additional settings. Please check https://github.c
 │       └── provider-smoke/ (2,301 tokens)
 │           ├── execute.test.ts (377 tokens)
 │           └── execute.ts (1,924 tokens)
-├── src/ (12,532,617 tokens)
+├── src/ (12,553,732 tokens)
 │   ├── commands.ts (5,867 tokens)
 │   ├── context.ts (1,589 tokens)
 │   ├── cost-tracker.ts (3,067 tokens)
@@ -2605,7 +2597,7 @@ You can add a config file for additional settings. Please check https://github.c
 │   ├── upstreamproxy/ (6,514 tokens)
 │   │   ├── relay.ts (3,897 tokens)
 │   │   └── upstreamproxy.ts (2,617 tokens)
-│   ├── utils/ (1,771,328 tokens)
+│   ├── utils/ (1,792,443 tokens)
 │   │   ├── abortController.ts (745 tokens)
 │   │   ├── activityManager.ts (1,116 tokens)
 │   │   ├── advisor.ts (1,272 tokens)
@@ -3080,7 +3072,7 @@ You can add a config file for additional settings. Please check https://github.c
 │   │   │       ├── auto_mode_system_prompt.txt (340 tokens)
 │   │   │       ├── permissions_anthropic.txt (340 tokens)
 │   │   │       └── permissions_external.txt (340 tokens)
-│   │   ├── plugins/ (141,555 tokens)
+│   │   ├── plugins/ (162,670 tokens)
 │   │   │   ├── addDirPluginSettings.ts (508 tokens)
 │   │   │   ├── cacheUtils.ts (1,666 tokens)
 │   │   │   ├── dependencyResolver.ts (2,769 tokens)
@@ -3098,6 +3090,7 @@ You can add a config file for additional settings. Please check https://github.c
 │   │   │   ├── lspRecommendation.ts (2,477 tokens)
 │   │   │   ├── managedPlugins.ts (209 tokens)
 │   │   │   ├── marketplaceHelpers.ts (4,234 tokens)
+│   │   │   ├── marketplaceManager.ts (21,115 tokens)
 │   │   │   ├── mcpbHandler.ts (7,402 tokens)
 │   │   │   ├── mcpPluginIntegration.ts (4,649 tokens)
 │   │   │   ├── officialMarketplace.ts (172 tokens)
@@ -3266,23 +3259,15 @@ You can add a config file for additional settings. Please check https://github.c
 └── tests/ (1,150 tokens)
     └── azureOpenAI.test.ts (1,150 tokens)
 
-🔎 Security Check:
-──────────────────
-1 suspicious file(s) detected and excluded from the output:
-1. src/utils/plugins/marketplaceManager.ts
-   - 2 security issues detected
-
-These files have been excluded from the output for security reasons.
-Please review these files for potential sensitive information.
 
 
 📊 Pack Summary:
 ────────────────
-  Total Files: 2,804 files
- Total Tokens: 13,798,945 tokens
-  Total Chars: 36,460,463 chars
-       Output: repomix-output.xml
-     Security: 1 suspicious file(s) detected and excluded
+  Total Files: 2,820 files
+ Total Tokens: 19,712 tokens
+  Total Chars: 77,541 chars
+       Output: /tmp/cc-haha-token-tree-pack.xml
+     Security: Security check disabled
 
 🎉 All Done!
 Your repository has been successfully packed.

@@ -3,48 +3,21 @@
 
 No custom config found at repomix.config.ts, repomix.config.mts, repomix.config.cts, repomix.config.js, repomix.config.mjs, repomix.config.cjs, repomix.config.json5, repomix.config.jsonc, repomix.config.json or global config at /Users/lienli/.config/repomix/repomix.config.ts, /Users/lienli/.config/repomix/repomix.config.mts, /Users/lienli/.config/repomix/repomix.config.cts, /Users/lienli/.config/repomix/repomix.config.js, /Users/lienli/.config/repomix/repomix.config.mjs, /Users/lienli/.config/repomix/repomix.config.cjs, /Users/lienli/.config/repomix/repomix.config.json5, /Users/lienli/.config/repomix/repomix.config.jsonc, /Users/lienli/.config/repomix/repomix.config.json.
 You can add a config file for additional settings. Please check https://github.com/yamadashy/repomix for more information.
-[K[?25l⠋ Initializing...
-[K[1A[K[?25l⠙ Collecting files...
-[K[1A[K[?25l⠹ Processing file... (351/351) vitest.config.ts
-[K[1A[K[?25l⠸ Processing file... (351/351) vitest.config.ts
-[K[1A[K[?25l⠼ Generating output...
-[K[1A[K[?25l⠴ Generating output...
-[K[1A[K[?25l⠦ Calculating metrics... (60/351) src/agent/subagents/__tests__/SubagentRegistry.test.ts
-[K[1A[K[?25l⠧ Calculating metrics... (351/351) tsup.config.ts
-[K[1A[K[?25l✔ Packing completed successfully!
-[?25h
-📈 Top 30 Files by Token Count:
-───────────────────────────────
-1.  src/agent/__tests__/LoopRunner.test.ts (17,718 tokens, 79,353 chars, 3.4%)
-2.  docs/session.md (12,197 tokens, 40,858 chars, 2.4%)
-3.  src/hooks/HookManager.ts (9,886 tokens, 42,114 chars, 1.9%)
-4.  src/__tests__/integration.test.ts (9,459 tokens, 37,705 chars, 1.8%)
-5.  src/tools/execution/ExecutionPipeline.ts (8,855 tokens, 40,298 chars, 1.7%)
-6.  src/agent/__tests__/AgentLoop.test.ts (7,761 tokens, 33,456 chars, 1.5%)
-7.  src/hooks/HookExecutor.ts (7,391 tokens, 32,100 chars, 1.4%)
-8.  src/tools/execution/__tests__/ExecutionPipeline.test.ts (6,411 tokens, 28,778 chars, 1.2%)
-9.  src/skills/__tests__/SkillLoader.test.ts (6,168 tokens, 26,834 chars, 1.2%)
-10. src/tools/builtin/search/grep.ts (6,158 tokens, 23,555 chars, 1.2%)
-11. src/tools/builtin/file/edit.ts (5,953 tokens, 21,965 chars, 1.2%)
-12. src/hooks/types/HookTypes.ts (5,532 tokens, 20,644 chars, 1.1%)
-13. src/context/storage/PersistentStore.ts (5,522 tokens, 22,574 chars, 1.1%)
-14. src/session/Session.ts (5,323 tokens, 24,301 chars, 1%)
-15. src/agent/__tests__/StreamingToolExecutor.test.ts (5,278 tokens, 23,684 chars, 1%)
-16. src/agent/Agent.ts (5,119 tokens, 22,039 chars, 1%)
-17. src/services/VercelAIChatService.ts (5,075 tokens, 22,355 chars, 1%)
-18. src/hooks/HookRuntime.ts (4,683 tokens, 21,036 chars, 0.9%)
-19. src/hooks/schemas/HookSchemas.ts (4,539 tokens, 19,658 chars, 0.9%)
-20. src/tools/builtin/task/task.ts (4,467 tokens, 19,887 chars, 0.9%)
-21. src/tools/builtin/shell/bash.ts (4,455 tokens, 18,927 chars, 0.9%)
-22. src/agent/AgentLoop.ts (4,410 tokens, 18,513 chars, 0.9%)
-23. src/context/ContextManager.ts (4,344 tokens, 18,424 chars, 0.8%)
-24. src/agent/StreamingToolExecutor.ts (4,298 tokens, 19,009 chars, 0.8%)
-25. src/session/SessionStore.ts (4,228 tokens, 18,851 chars, 0.8%)
-26. src/mcp/McpClient.ts (4,167 tokens, 15,797 chars, 0.8%)
-27. src/services/RetryPolicy.ts (4,139 tokens, 17,571 chars, 0.8%)
-28. src/context/CompactionService.ts (4,055 tokens, 16,785 chars, 0.8%)
-29. src/skills/SkillLoader.ts (4,037 tokens, 15,925 chars, 0.8%)
-30. src/tools/execution/__tests__/FileLockManager.test.ts (3,938 tokens, 16,608 chars, 0.8%)
+⠋ Initializing...
+⠙ Collect file... (100/351) src/agent/PlanExecutor.ts
+⠹ Generating output...
+⠸ Generating output...
+⠼ Writing output file...
+⠴ Calculating metrics... (240/351) src/tools/builtin/system/index.ts
+✔ Packing completed successfully!
+
+📈 Top 5 Files by Token Count:
+──────────────────────────────
+1.  src/agent/__tests__/LoopRunner.test.ts (17,718 tokens, 79,353 chars, 777.8%)
+2.  docs/session.md (12,197 tokens, 40,858 chars, 535.4%)
+3.  src/hooks/HookManager.ts (9,886 tokens, 42,114 chars, 434%)
+4.  src/__tests__/integration.test.ts (9,459 tokens, 37,705 chars, 415.2%)
+5.  src/tools/execution/ExecutionPipeline.ts (8,855 tokens, 40,298 chars, 388.7%)
 
 🔢 Token Count Tree:
 ────────────────────
@@ -348,18 +321,15 @@ You can add a config file for additional settings. Please check https://github.c
         ├── pathHelpers.ts (244 tokens)
         └── pathSecurity.ts (744 tokens)
 
-🔎 Security Check:
-──────────────────
-✔ No suspicious files detected.
 
 
 📊 Pack Summary:
 ────────────────
   Total Files: 351 files
- Total Tokens: 516,502 tokens
-  Total Chars: 2,093,908 chars
-       Output: repomix-output.xml
-     Security: ✔ No suspicious files detected
+ Total Tokens: 2,278 tokens
+  Total Chars: 9,426 chars
+       Output: /tmp/blade-agent-sdk-token-tree-pack.xml
+     Security: Security check disabled
 
 🎉 All Done!
 Your repository has been successfully packed.
