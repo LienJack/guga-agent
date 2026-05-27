@@ -1,0 +1,10 @@
+{"file":"docs/brainstorms/2026-05-26-m3-tool-plugins-permission-runtime-requirements.md","reason":"Check implementation against confirmed M3 requirements and acceptance examples."}
+{"file":"docs/brainstorms/2026-05-26-m1-plugin-host-hook-kernel-requirements.md","reason":"Verify M3 preserves M1 plugin and hook behavior."}
+{"file":"docs/brainstorms/2026-05-26-m2-provider-ai-sdk-bridge-requirements.md","reason":"Verify provider bridge boundary remains intact and tools are not executed by provider code."}
+{"file":"docs/research/context-packs/tool-registry.md","reason":"Review safety, permission, hook, and result-handling choices against reference project patterns."}
+{"file":"docs/research/context-packs/agent-loop.md","reason":"Review loop behavior, tool result pairing, concurrency, and failure return semantics."}
+{"file":".trellis/spec/backend/index.md","reason":"Entry point for backend/core quality checks."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Check structured errors, denials, timeouts, and hook failures follow project guidance."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Check maintainability and test coverage of backend/core changes."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check contract changes across runtime, plugins, provider bridge, and tests."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Check new pipeline/permission abstractions avoid duplicating existing registry, hook, and event patterns."}

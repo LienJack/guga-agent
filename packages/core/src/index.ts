@@ -38,6 +38,24 @@ export type {
   HookAllowDecision,
   HookDenyDecision,
   HookGateResult,
+  ToolCallBeforeHook,
+  ToolCallBeforeHookContext,
+  ToolCallBeforeHookRegistration,
+  ToolExecuteAfterHook,
+  ToolExecuteAfterHookContext,
+  ToolExecuteAfterHookRegistration,
+  ToolExecuteBeforeHook,
+  ToolExecuteBeforeHookContext,
+  ToolExecuteBeforeHookRegistration,
+  ToolHookAnnotationDecision,
+  ToolHookBlockDecision,
+  ToolHookControl,
+  ToolHookDecision,
+  ToolHookPatchDecision,
+  ToolHookSafety,
+  ToolResultBeforeHook,
+  ToolResultBeforeHookContext,
+  ToolResultBeforeHookRegistration,
   HookRegistration,
   HookShutdownResult,
   ModelRequestBeforeHook,
@@ -57,6 +75,24 @@ export type {
   RuntimeShutdownHook,
   RuntimeShutdownHookContext
 } from "./contracts/hooks";
+export type {
+  PermissionAction,
+  PermissionAllowDecision,
+  PermissionAskDecision,
+  PermissionDecision,
+  PermissionDecisionSource,
+  PermissionDeniedToolResult,
+  PermissionDenyDecision,
+  PermissionPolicy,
+  PermissionProfile,
+  PermissionRemember,
+  PermissionRequest,
+  PermissionResolution,
+  PermissionResolver,
+  PermissionSubject,
+  PermissionUnavailableToolResult,
+  ToolPermissionMetadata
+} from "./contracts/permissions";
 export type {
   AgentRunOptions,
   AgentRunResult,
@@ -82,7 +118,8 @@ export type {
   PluginFailureKind,
   PluginHostOptions,
   PluginShutdownContext,
-  PluginShutdownResult
+  PluginShutdownResult,
+  ToolRegistrationOptions
 } from "./contracts/plugins";
 export type {
   ToolDefinition,
@@ -90,16 +127,47 @@ export type {
   ToolExecutionContext,
   ToolFailure,
   ToolResult,
+  ToolRuntimeMetadata,
   ToolSuccess
 } from "./contracts/tools";
+export type {
+  BudgetedToolResult,
+  ToolAvailability,
+  ToolAvailabilityContext,
+  ToolAvailabilityResolver,
+  ToolBackendRequirement,
+  ToolCallCorrelation,
+  ToolConcurrencyMode,
+  ToolExecutionMode,
+  ToolProjection,
+  ToolRendererCategory,
+  ToolRendererMetadata,
+  ToolResourceAccess,
+  ToolResourceMetadata,
+  ToolResourceScope,
+  ToolResourceScopeExtractor,
+  ToolResultBudget,
+  ToolResultReference,
+  ToolRuntimeFailureReason,
+  ToolRuntimeResult,
+  ToolSchedulerMetadata,
+  ToolSourceKind,
+  ToolSourceMetadata,
+  ToolVisibility,
+  ToolVisibilityDecision
+} from "./contracts/tool-runtime";
 export { CoreError } from "./contracts/errors";
 export { EventBus } from "./events/event-bus";
 export { HookKernel } from "./hooks/hook-kernel";
+export { PermissionKernel } from "./permissions/permission-kernel";
 export { PluginHost } from "./plugin-host/plugin-host";
 export { CapabilityRegistry } from "./registry/capability-registry";
 export { ConversationState } from "./state/conversation-state";
 export { AgentLoop } from "./loop/agent-loop";
 export { ProviderRouter } from "./router/provider-router";
+export { ExecutionPipeline } from "./tools/execution-pipeline";
+export { ToolScheduler } from "./tools/tool-scheduler";
+export { ResultPolicy } from "./tools/result-policy";
 export { AgentRuntime as DefaultAgentRuntime } from "./runtime/agent-runtime";
 export { createAgentRuntime } from "./runtime/create-agent-runtime";
 export { createMockProvider } from "./testing/mock-provider";

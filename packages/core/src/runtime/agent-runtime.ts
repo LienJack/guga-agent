@@ -13,24 +13,33 @@ import type {
 import type { ToolDefinition } from "../contracts/tools";
 import { EventBus } from "../events/event-bus";
 import { HookKernel } from "../hooks/hook-kernel";
+import { PermissionKernel } from "../permissions/permission-kernel";
 import { AgentLoop } from "../loop/agent-loop";
 import { PluginHost } from "../plugin-host/plugin-host";
 import { CapabilityRegistry } from "../registry/capability-registry";
 import { ProviderRouter } from "../router/provider-router";
+import { ResultPolicy } from "../tools/result-policy";
+import type { ToolAvailabilityContext } from "../contracts/tool-runtime";
 
 export class AgentRuntime implements AgentRuntimeContract {
   private readonly registry = new CapabilityRegistry();
   private readonly eventBus = new EventBus();
   private readonly hookKernel: HookKernel;
+  private readonly permissionKernel: PermissionKernel;
+  private readonly resultPolicy: ResultPolicy;
   private readonly pluginHost: PluginHost;
   private readonly router: ProviderRouter | undefined;
+  private readonly availabilityContext: ToolAvailabilityContext;
   private disposed = false;
 
   constructor(options: AgentRuntimeOptions = {}) {
     const plugins = options.model ? [options.model, ...(options.plugins ?? [])] : (options.plugins ?? []);
     const routerPolicy = options.routerPolicy ?? (options.model ? { primary: options.model.model } : undefined);
+    this.availabilityContext = options.permissions?.profile ? { profile: options.permissions.profile } : {};
 
     this.hookKernel = new HookKernel({ eventBus: this.eventBus });
+    this.permissionKernel = new PermissionKernel({ ...options.permissions, eventBus: this.eventBus });
+    this.resultPolicy = new ResultPolicy({ eventBus: this.eventBus });
     this.pluginHost = new PluginHost({
       plugins,
       registry: this.registry,
@@ -99,6 +108,9 @@ export class AgentRuntime implements AgentRuntimeContract {
       eventBus: this.eventBus,
       eventStartIndex,
       hookKernel: this.hookKernel,
+      permissionKernel: this.permissionKernel,
+      resultPolicy: this.resultPolicy,
+      availabilityContext: this.availabilityContext,
       ...(this.router ? { router: this.router } : {})
     }).run({ ...options, runId });
   }

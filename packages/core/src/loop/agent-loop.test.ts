@@ -33,8 +33,11 @@ describe("AgentLoop", () => {
       AgentEventType.ModelEvent,
       AgentEventType.ModelEvent,
       AgentEventType.ModelResponded,
-      AgentEventType.ToolCalled,
+      AgentEventType.ToolQueued,
+      AgentEventType.PermissionResolved,
+      AgentEventType.ToolStarted,
       AgentEventType.ToolResult,
+      AgentEventType.ToolCompleted,
       AgentEventType.ModelRequested,
       AgentEventType.ModelEvent,
       AgentEventType.ModelEvent,
@@ -94,11 +97,18 @@ describe("AgentLoop", () => {
     expect(result).toMatchObject({ ok: true, finalAnswer: "TOOL_EXECUTION_FAILED: Kaboom" });
   });
 
-  it("fails explicitly when a provider asks for an unregistered tool", async () => {
+  it("returns unregistered tool intents as model-visible observations", async () => {
     const registry = new CapabilityRegistry();
     registry.registerProvider(
       createMockProvider([
-        { type: "tool_calls", toolCalls: [{ id: "call-1", name: "missing", input: {} }] }
+        { type: "tool_calls", toolCalls: [{ id: "call-1", name: "missing", input: {} }] },
+        (request) => {
+          const last = request.messages.at(-1);
+          return {
+            type: "final",
+            content: last?.role === "tool" && last.isError ? last.content : "missing tool observation"
+          };
+        }
       ])
     );
 
@@ -108,11 +118,170 @@ describe("AgentLoop", () => {
       runId: "run-3"
     });
 
-    expect(result).toMatchObject({
-      ok: false,
-      error: { code: "TOOL_NOT_FOUND", message: "Tool not registered: missing" }
+    expect(result).toMatchObject({ ok: true, finalAnswer: "TOOL_NOT_FOUND: Tool not registered: missing" });
+    expect(result.events.map((event) => event.type)).toContain(AgentEventType.ToolResult);
+  });
+
+  it("filters hidden and unavailable tools before provider projection", async () => {
+    const registry = new CapabilityRegistry();
+    registry.registerProvider(
+      createMockProvider([
+        (request) => ({
+          type: "final",
+          content: request.tools.map((tool) => tool.name).join(",")
+        })
+      ])
+    );
+    registry.registerTool(createTestTool({ name: "visible", content: "ok" }));
+    registry.registerTool({
+      ...createTestTool({ name: "hidden", content: "no" }),
+      runtime: { visibility: "hidden" }
     });
-    expect(result.events.map((event) => event.type)).toContain(AgentEventType.Error);
+    registry.registerTool({
+      ...createTestTool({ name: "missing-backend", content: "no" }),
+      runtime: { availability: { status: "missing-backend", reason: "not configured" } }
+    });
+    registry.registerTool({
+      ...createTestTool({ name: "dynamic-denied", content: "no" }),
+      runtime: { availability: () => ({ status: "denied-by-policy", reason: "policy disabled" }) }
+    });
+    registry.registerTool({
+      ...createTestTool({ name: "headless-denied", content: "no" }),
+      effect: "execute",
+      runtime: { permission: { defaultAction: "ask" } }
+    });
+
+    const result = await new AgentLoop({ registry, availabilityContext: { profile: "headless" } }).run({
+      input: "hello",
+      providerId: "mock",
+      runId: "run-visible-tools"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "visible" });
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ToolVisibilityFiltered,
+      decision: expect.objectContaining({ toolName: "dynamic-denied", reason: "policy-denied" })
+    }));
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ToolVisibilityFiltered,
+      decision: expect.objectContaining({ toolName: "headless-denied", reason: "policy-denied" })
+    }));
+  });
+
+  it("uses scheduler metadata to serialize conflicting path writes", async () => {
+    const registry = new CapabilityRegistry();
+    const executed: string[] = [];
+    registry.registerProvider(
+      createMockProvider([
+        {
+          type: "tool_calls",
+          toolCalls: [
+            { id: "call-a", name: "write_file", input: { path: "/workspace/src" } },
+            { id: "call-b", name: "write_file", input: { path: "/workspace/src/file.ts" } }
+          ]
+        },
+        { type: "final", content: "done" }
+      ])
+    );
+    registry.registerTool({
+      name: "write_file",
+      description: "Write",
+      inputSchema: { type: "object", required: ["path"] },
+      effect: "write",
+      runtime: {
+        permission: { defaultAction: "allow" },
+        scheduler: {
+          concurrency: "resource-scoped",
+          resources: {
+            mode: "extractor",
+            extract(input) {
+              return [{ kind: "path", access: "write", value: String((input as { path: string }).path) }];
+            }
+          }
+        }
+      },
+      execute(input) {
+        executed.push(String((input as { path: string }).path));
+        return { ok: true, content: "ok" };
+      }
+    });
+
+    const result = await new AgentLoop({ registry }).run({
+      input: "write",
+      providerId: "mock",
+      runId: "run-scheduler"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(executed).toEqual(["/workspace/src", "/workspace/src/file.ts"]);
+  });
+
+  it("adds batch correlation to tool lifecycle events", async () => {
+    const registry = new CapabilityRegistry();
+    registry.registerProvider(
+      createMockProvider([
+        {
+          type: "tool_calls",
+          toolCalls: [
+            { id: "call-a", name: "read_a", input: {} },
+            { id: "call-b", name: "read_b", input: {} }
+          ]
+        },
+        { type: "final", content: "done" }
+      ])
+    );
+    registry.registerTool(createTestTool({ name: "read_a", content: "a" }));
+    registry.registerTool(createTestTool({ name: "read_b", content: "b" }));
+
+    const result = await new AgentLoop({ registry }).run({
+      input: "read",
+      providerId: "mock",
+      runId: "run-batches"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ToolCompleted,
+      correlation: expect.objectContaining({ batchId: "turn-0-batch-0" })
+    }));
+  });
+
+  it("returns synthetic tool results for accepted calls when the run is already aborted", async () => {
+    const registry = new CapabilityRegistry();
+    const controller = new AbortController();
+    controller.abort();
+    registry.registerProvider(
+      createMockProvider([
+        {
+          type: "tool_calls",
+          toolCalls: [
+            { id: "call-a", name: "read_a", input: {} },
+            { id: "call-b", name: "read_b", input: {} }
+          ]
+        },
+        (request) => ({
+          type: "final",
+          content: request.messages
+            .filter((message) => message.role === "tool")
+            .map((message) => message.content)
+            .join(" | ")
+        })
+      ])
+    );
+    registry.registerTool(createTestTool({ name: "read_a", content: "a" }));
+    registry.registerTool(createTestTool({ name: "read_b", content: "b" }));
+
+    const result = await new AgentLoop({ registry }).run({
+      input: "read",
+      providerId: "mock",
+      runId: "run-aborted-tools",
+      signal: controller.signal
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      finalAnswer: "TOOL_CANCELLED: Tool call was cancelled before execution | TOOL_CANCELLED: Tool call was cancelled before execution"
+    });
   });
 
   it("fails explicitly when the provider is missing", async () => {
@@ -371,7 +540,16 @@ describe("AgentLoop", () => {
       }
     });
     registry.registerProvider(
-      createMockProvider([{ type: "tool_calls", toolCalls: [{ id: "call-missing", name: "missing", input: {} }] }])
+      createMockProvider([
+        { type: "tool_calls", toolCalls: [{ id: "call-missing", name: "missing", input: {} }] },
+        (request) => {
+          const last = request.messages.at(-1);
+          return {
+            type: "final",
+            content: last?.role === "tool" && last.isError ? last.content : "missing tool observation"
+          };
+        }
+      ])
     );
 
     const result = await new AgentLoop({ registry, eventBus, hookKernel }).run({
@@ -380,10 +558,7 @@ describe("AgentLoop", () => {
       runId: "run-gate-missing"
     });
 
-    expect(result).toMatchObject({
-      ok: false,
-      error: { code: "TOOL_NOT_FOUND" }
-    });
+    expect(result).toMatchObject({ ok: true, finalAnswer: "TOOL_NOT_FOUND: Tool not registered: missing" });
     expect(result.events.map((event) => event.type)).toContain(AgentEventType.HookDecision);
   });
 });

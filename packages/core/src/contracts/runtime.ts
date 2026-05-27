@@ -1,4 +1,5 @@
 import type { AgentEvent } from "./events";
+import type { PermissionPolicy } from "./permissions";
 import type { LocalModelPlugin, LocalPlugin } from "./plugins";
 import type { ModelMetadata, Provider } from "./provider";
 import type { ModelPurpose } from "./provider";
@@ -38,6 +39,7 @@ export type AgentRunResult = AgentRunSuccess | AgentRunFailure;
 export type AgentRuntimeOptions = {
   model?: LocalModelPlugin;
   plugins?: LocalPlugin[];
+  permissions?: PermissionPolicy;
   routerPolicy?: ProviderRouterPolicy;
 };
 

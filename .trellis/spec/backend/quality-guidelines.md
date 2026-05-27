@@ -14,6 +14,8 @@ Runtime work is TypeScript-first and test-first around behavior-bearing units. T
 
 - Do not import real provider SDK types into `packages/core/src/loop`, `state`, `registry`, `runtime`, or `contracts`.
 - Do not add real tools such as filesystem, shell, browser, git, or MCP to `packages/core`.
+- Do not bypass `ExecutionPipeline` for model-produced tool intents.
+- Do not execute side-effecting tools before `PermissionKernel` resolves allow/deny.
 - Do not let provider exceptions or tool exceptions escape without structured runtime handling.
 - Do not expose internal helpers from `packages/core/src/index.ts` unless they are part of the intended host-facing API.
 - Do not commit generated `packages/*/dist/` output.
@@ -47,7 +49,7 @@ Required coverage points for the M0 core loop:
 - Successful tool-calling run.
 - Tool failure returned as model-visible observation.
 - Tool exception normalized to structured tool failure.
-- Missing provider/tool returns explicit run failure.
+- Missing provider returns an explicit run failure; missing model tool intents become structured model-visible tool observations so tool_call/tool_result pairing is preserved.
 - Provider exception normalized to structured provider failure.
 - Max-turns stop path.
 - Run result event list contains only the current run's events.

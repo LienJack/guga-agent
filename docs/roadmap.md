@@ -311,6 +311,14 @@ first-party 插件：
 - 支持工具 partial update 和 structured result。
 - pre-tool hooks 可 patch/block；post-tool hooks 可 annotate/truncate/store artifact，但不能吞掉真实工具错误。
 
+补充任务（参考 pi、Claude Code、deepagentsjs 后加入）：
+
+- 实现 tool availability / visibility filter：模型看到工具前，runtime 根据 workspace、permission policy、tool health/check 和 host config 投影可用工具池；不可用工具不应默认暴露给模型。
+- 为 filesystem、shell、git 插件定义可替换 execution backend 边界：M3 只实现 local/workspace backend，但 contract 不应把工具长期绑定到单一本地执行环境。
+- 定义 interrupt / cancel 后的 tool result 配对策略：一轮响应中 queued、running、cancelled、skipped 的每个 tool call 都必须有对应真实或 synthetic tool result，避免 orphan tool_call/tool_result。
+- 定义最小 permission mode/profile：例如 default、deny-all/background、ask-on-write、trusted-session，用于 headless/background agent 和宿主默认策略，不进入企业 policy engine。
+- 明确 tool event correlation invariants：每个 tool lifecycle / permission / hook / result event 必须携带足够关联字段，例如 runId、turn、toolCallId、attempt、batchId，支撑后续 audit 和 replay。
+
 first-party 插件：
 
 - `plugin-tools-filesystem`：read、write、edit、grep、find、ls。
@@ -325,6 +333,10 @@ first-party 插件：
 - post-tool hook 失败不会掩盖工具原始失败，只能追加 hook failure annotation。
 - 文件工具只能访问声明 workspace/sandbox。
 - 并发执行不会并行写同一路径。
+- Provider bridge 投影给模型的工具池已经过 visibility filter；被禁用、缺少 backend、越权或 host policy 不允许的工具不可见或有明确不可用原因。
+- 中断、取消或批次降级后，conversation state 中不存在 orphan tool_call/tool_result。
+- Background/headless permission mode 不会卡在 ask；必须 auto-deny、auto-allow 受限范围，或返回结构化 not-executed result。
+- Tool lifecycle events 可以通过 correlation fields 串起 queued、permission、started、progress、completed/failed/denied/cancelled、budgeted 的完整链路。
 
 不做：
 

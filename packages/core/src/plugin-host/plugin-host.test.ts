@@ -191,6 +191,60 @@ describe("PluginHost", () => {
     );
   });
 
+  it("restores the previous tool when cleaning up an explicit tool override", async () => {
+    const registry = new CapabilityRegistry();
+    registry.registerTool(createTestTool({ name: "override-me", content: "old" }));
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+
+    const plugin: LocalPlugin = {
+      id: "override-plugin",
+      init(context) {
+        context.registerTool(createTestTool({ name: "override-me", content: "new" }), {
+          override: { replaces: "override-me", reason: "test override" }
+        });
+      }
+    };
+
+    const host = new PluginHost({ plugins: [plugin], registry, hookKernel, eventBus });
+    const result = await host.initialize({
+      runId: "run-override"
+    });
+
+    expect(result.ok).toBe(true);
+    await expect(Promise.resolve(registry.requireTool("override-me").execute({}, { call: { id: "call", name: "override-me", input: {} } }))).resolves.toEqual({
+      ok: true,
+      content: "new"
+    });
+
+    await host.shutdown({ runId: "run-cleanup-override" });
+
+    await expect(Promise.resolve(registry.requireTool("override-me").execute({}, { call: { id: "call", name: "override-me", input: {} } }))).resolves.toEqual({
+      ok: true,
+      content: "old"
+    });
+  });
+
+  it("removes ordinary plugin tool contributions during cleanup", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    const plugin: LocalPlugin = {
+      id: "tool-plugin",
+      init(context) {
+        context.registerTool(createTestTool({ name: "plugin-only", content: "plugin" }));
+      }
+    };
+    const host = new PluginHost({ plugins: [plugin], registry, hookKernel, eventBus });
+    await host.initialize({ runId: "run-plugin-tool" });
+
+    expect(registry.getTool("plugin-only")).toBeDefined();
+
+    await host.shutdown({ runId: "run-cleanup-plugin-tool" });
+
+    expect(registry.getTool("plugin-only")).toBeUndefined();
+  });
+
   it("runs shutdown hooks and plugin shutdown even when failures occur", async () => {
     const registry = new CapabilityRegistry();
     const eventBus = new EventBus();

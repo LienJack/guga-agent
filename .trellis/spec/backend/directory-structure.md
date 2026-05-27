@@ -6,7 +6,7 @@
 
 ## Overview
 
-Guga Agent backend/runtime code currently starts as a TypeScript workspace with a single core package. Keep the core package small: it owns contracts, in-memory runtime primitives, and test fixtures for M0. Do not add CLI, Web, provider plugins, real tools, persistence, or UI projection inside `packages/core`.
+Guga Agent backend/runtime code is a TypeScript workspace with a small core package plus provider/tool plugin packages. Keep the core package small: it owns contracts, in-memory runtime primitives, execution pipeline, permission kernel, scheduler, result policy, and test fixtures. Do not add CLI, Web, real provider SDKs, real tools, persistence, or UI projection inside `packages/core`.
 
 ---
 
@@ -31,7 +31,12 @@ packages/
       registry/
       runtime/
       state/
+      tools/
       testing/
+  provider-ai-sdk/
+  plugin-tools-filesystem/
+  plugin-tools-shell/
+  plugin-tools-git/
 ```
 
 ---
@@ -46,9 +51,10 @@ packages/
 - `loop/`: the minimal agent loop state machine.
 - `plugin-host/`: local trusted plugin initialization, restricted plugin context, capability registration, and runtime-scoped cleanup.
 - `runtime/`: host-facing runtime facade and factory.
+- `tools/`: core-owned control-plane utilities such as execution pipeline, scheduler, resource scopes, and result policy. Real tool implementations do not belong here.
 - `testing/`: mock provider and test tool fixtures for core tests only; these are not default runtime capabilities.
 
-Do not put real provider SDKs or real tools in `packages/core`. The core plugin host may accept local trusted plugin objects, but real provider transports and real tools belong to later plugin/provider/tool packages.
+Do not put real provider SDKs or real tools in `packages/core`. The core plugin host may accept local trusted plugin objects, but real provider transports and real tools belong to plugin/provider/tool packages.
 
 ---
 

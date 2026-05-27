@@ -34,13 +34,15 @@ Current core error codes:
 ## Error Handling Patterns
 
 - Missing provider: fail the run, emit an `error` event, and return `AgentRunFailure`.
-- Missing tool: fail the run, emit an `error` event, and return `AgentRunFailure`.
+- Missing tool intent: return a structured model-visible tool observation through the execution pipeline and continue the loop, preserving tool_call/tool_result pairing.
 - Provider throws or returns failure: normalize to `PROVIDER_FAILED`, emit an `error` event, and return `AgentRunFailure`.
 - Tool returns failure or throws: convert to `ToolFailure`, append it to conversation state as a model-visible observation, emit `tool.result`, and continue the loop.
 - Max turns exceeded: fail the run with `MAX_TURNS_EXCEEDED` and emit an `error` event.
 - Plugin init fails: publish `plugin.failure`, return `AgentRunFailure`, and clean up any plugin capabilities already registered for that runtime.
 - Pre-tool gate hook denies: do not execute the tool; append a model-visible `TOOL_CALL_BLOCKED` tool observation and emit hook decision/tool result events.
 - Pre-tool gate hook throws: return `AgentRunFailure` with `HOOK_FAILED`; do not disguise this as a tool execution failure.
+- Permission denial, cancellation, timeout, schema validation failure, and ordinary tool exceptions become model-visible tool observations, not unhandled loop failures.
+- Dangerous hook phase failures remain control-plane failures or fail-closed blocked tool observations according to phase semantics; they must be observable through hook/lifecycle events.
 - Plugin shutdown or shutdown hook fails: return the failure through `AgentRuntimeShutdownResult` and publish observable failure events before clearing event listeners.
 - Disposed runtime is terminal: later `run()` calls return `RUNTIME_DISPOSED`, and later manual capability registration throws `RUNTIME_DISPOSED`.
 
