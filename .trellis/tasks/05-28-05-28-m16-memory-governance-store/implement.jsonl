@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Keep runtime work in plugin packages and avoid adding real memory behavior to core."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "TypeScript strictness, plugin capability descriptor rules, and validation expectations."}
+{"file": "docs/research/memory-candidate-ledger.md", "reason": "M15 boundary and safety/provenance decisions this task builds on."}
+{"file": "docs/research/agent-memo.md", "reason": "Long-term memory architecture split: decide/store before retrieval/injection."}
+{"file": "docs/research/context-packs/memory-systems.md", "reason": "Reference-project evidence for governed curated memory and scope filters."}
