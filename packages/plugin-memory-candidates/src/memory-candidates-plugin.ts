@@ -39,3 +39,21 @@ export function createMemoryGovernancePlugin(options: MemoryCandidatesPluginOpti
     }
   };
 }
+
+export function createMemoryReviewPlugin(options: MemoryCandidatesPluginOptions = {}): LocalPlugin {
+  const pluginId = options.pluginId ?? "memory-review";
+  return {
+    id: pluginId,
+    name: "Memory Review",
+    init(context) {
+      context.registerOperation?.("memory.review", {
+        source: "plugin",
+        ownerPluginId: pluginId,
+        trust: {
+          level: "first-party",
+          scopes: [{ kind: "memory", access: "read" }]
+        }
+      });
+    }
+  };
+}

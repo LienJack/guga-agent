@@ -64,7 +64,8 @@ export type {
 } from "./memory-review-report";
 export {
   createMemoryCandidatesPlugin,
-  createMemoryGovernancePlugin
+  createMemoryGovernancePlugin,
+  createMemoryReviewPlugin
 } from "./memory-candidates-plugin";
 export type {
   MemoryCandidatesPluginOptions

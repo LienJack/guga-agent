@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { createAgentRuntime, type CapabilityDescriptor } from "@guga-agent/core";
 import {
   createMemoryGovernanceLedger,
+  createMemoryReviewPlugin,
   createMemoryReviewReport,
   renderMemoryReviewReport,
   type MemoryCandidate,
@@ -163,5 +165,27 @@ describe("memory review report", () => {
     expect(rendered).not.toContain("candidate-2");
     expect(rendered).toContain("No unsafe candidates.");
     expect(rendered).toContain("No diagnostics.");
+  });
+
+  it("registers a read-only memory review operation descriptor", async () => {
+    const runtime = createAgentRuntime({
+      plugins: [createMemoryReviewPlugin({ pluginId: "memory-review-test" })]
+    });
+
+    await runtime.run({ input: "missing provider", providerId: "missing", runId: "run-memory-review" });
+    const descriptors = runtime.listCapabilityDescriptors?.() as CapabilityDescriptor[] | undefined;
+    expect(descriptors).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "operation",
+        name: "memory.review",
+        source: "plugin",
+        ownerPluginId: "memory-review-test",
+        trust: expect.objectContaining({
+          level: "first-party",
+          scopes: [{ kind: "memory", access: "read" }]
+        })
+      })
+    ]));
+    await runtime.dispose();
   });
 });
