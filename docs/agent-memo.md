@@ -37,7 +37,7 @@ Guga 不应该把“长期记忆”做成一个单一 Memory 模块。参考 `pi
 | `mem0` | Memory facade + vector store + history DB + entity store | 快速应用侧 memory API、scope filter、向量检索 | facade 容易隐藏 policy、trace 和可观测性 |
 | `zep` | User graph / thread context / lifecycle injection | turn-time context injection hook、user/thread 分离 | 托管产品形态不应整体内嵌 |
 | Claude Code | memory files + append-only JSONL transcript/resume | 文件化记忆层、session resume、压缩边界 | 产品态复杂度高 |
-| Hermes | `MEMORY.md` / `USER.md`、MemoryManager、SessionDB/FTS5 | 内置记忆文件、provider 生命周期、历史搜索 | 自改进/RL 能力不适合早期照搬 |
+| Hermes | `MEMORY.md` / `USER.md`、MemoryManager、SessionDB/FTS5、memory provider hooks | 内置记忆文件、provider 生命周期、压缩前抢救、历史搜索 | 自改进/RL 和多外部插件能力不适合早期照搬 |
 | DeerFlow | `memory.json`、异步队列、confidence threshold | 结构化小记忆、异步写入、过滤工具噪声 | LangGraph/middleware 绑定较强 |
 | OpenCode | server-side session/state sync | server source of truth、SSE/JSON Patch 投影 | 语义长期记忆较弱 |
 | Blade / DeepAgentsJS | 文件/工具式 memory | 最小可解释实现 | 更像基础能力，不足以覆盖复杂长期记忆 |
@@ -101,11 +101,39 @@ CrewAI adapter 进一步显示 Zep 把 user/thread 和 generic graph 分开：`Z
 
 `Inference`: Guga 的 memory retrieval 不应只暴露成 `search_memory` 工具。模型当然可以主动查，但 runtime 更应该在每轮模型调用前按 policy 组装 memory context，否则最关键的记忆使用时机被交给模型自觉。
 
+## Hermes：产品态 Agent 的三层记忆架构
+
+Hermes 比 `pi`、`mem0`、`zep` 更像一个已经长大的 agent 产品。它的 memory 体系不是单点能力，而是三层组合：底层 `MemoryStore` 管 `MEMORY.md` / `USER.md` 文件，中层 `MemoryManager` 编排内置 provider 和外部 provider，上层通过生命周期 hook 接入 turn loop、压缩、委派和会话切换。这个设计对 Guga 很有参考价值，因为它把“人可编辑的稳定记忆”“外部服务型记忆”“可搜索历史会话”同时放进一个 runtime。
+
+第一层是文件化的 curated memory。`MemoryStore` 维护两个文件：`MEMORY.md` 用于 agent 的个人笔记，`USER.md` 用于用户画像。源码注释明确说它有两套状态：`_system_prompt_snapshot` 在 `load_from_disk()` 时冻结，用于系统提示；`memory_entries` / `user_entries` 是运行中可变的 live state，工具写入会更新磁盘，但不会改变当前会话已经注入的系统提示。证据见 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:107`、`/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:126` 和 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:361`。
+
+这个“冻结快照”设计很关键。它牺牲了“当前 turn 立刻看到自己刚写入的 memory”的直觉，换来两个收益：系统提示在会话内稳定，prompt/cache 行为更可预测；memory 写入对模型行为的影响延迟到下次会话，避免 agent 在同一会话里被自己刚写下的内容反复放大。对 Guga 来说，这比“每次写 memory 立刻重拼 system prompt”更稳。
+
+第二层是安全和一致性。Hermes 在 memory 内容进入系统提示前做威胁扫描，拦截 prompt injection、role hijack、秘密读取、curl/wget 外传、SSH 后门等模式，也检查不可见 Unicode 字符。证据见 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:67` 和 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:92`。写入时则用独立 `.lock` 文件保护 read-modify-write，并用 temp file + fsync + atomic replace 写回，避免读者看到半截文件。证据见 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:146`、`/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:224` 和 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:434`。
+
+第三层是 provider 编排。`MemoryManager` 的构造非常克制：providers 列表、tool name 到 provider 的路由表、以及 `_has_external`。它允许 builtin provider 永远存在，但外部 provider 最多一个；注册时会把 provider 暴露的 tool schema 建立成 O(1) 路由，名字冲突时先注册者获胜。证据见 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:190` 和 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:204`。
+
+这个限制看似保守，其实很工程化。memory provider 会影响 prompt、工具 schema、写入副作用和隐私边界。如果同时启用多个外部 provider，很容易出现“同一条事实写入多个后端、多个 tool 名冲突、多个召回块互相打架”的问题。Hermes 选择 builtin + one external，把复杂度压在配置边界外。Guga 早期也应该采用类似约束：先支持一个外部 memory backend，不要急着做多 provider mesh。
+
+Hermes 的 provider 生命周期也值得借鉴。`MemoryManager.build_system_prompt()` 收集 provider 的静态系统提示块，`prefetch_all()` 在每轮前收集召回上下文，`sync_all()` 在一轮完成后同步 user/assistant 内容，`get_all_tool_schemas()` 合并 memory tools，`handle_tool_call()` 按 tool name 路由。证据见 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:264`、`/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:285`、`/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:317`、`/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:330` 和 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:356`。
+
+更重要的是压缩前 hook。`on_pre_compress()` 会在上下文压缩前广播给所有 provider，收集它们从即将被压缩消息中提取出的文本，并把这些文本交给压缩摘要流程。证据见 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:438`。这解决了一个常见问题：context compression 是为了丢 token，但不能把有长期价值的信息一起丢掉。对 Guga 来说，memory extraction 的最佳时机之一正是压缩前，因为系统已经知道哪些上下文即将离开工作窗口。
+
+Hermes 还显式处理 session id 中途变化。`on_session_switch()` 会在 `/resume`、`/branch`、`/reset`、`/new` 和 context compression 这类重分配 session id 的路径中通知所有 provider，避免后续写入落到旧 session。证据见 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:403`。这点对 Guga 很实用：如果 session、branch、compaction 会改变运行时身份，memory provider 不能只在初始化时拿一次 session id。
+
+第四层是历史会话搜索。Hermes 的 `SessionDB` 是 SQLite backed session storage，并使用 FTS5 搜索历史消息。它的实现还考虑了多进程写竞争：WAL、短 SQLite timeout、应用层随机 jitter retry。证据见 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/hermes_state.py:309`。全文搜索部分支持普通关键词、短语、布尔、前缀；对 CJK 查询还专门走 trigram FTS5 或 LIKE fallback，避免默认 tokenizer 把中文拆成不可靠的单字匹配。证据见 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/hermes_state.py:1890` 和 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/hermes_state.py:1950`。
+
+这说明 Hermes 把“长期记忆”和“历史回忆”分得很清楚。`MEMORY.md` / `USER.md` 是小而稳定的行为指导；SessionDB 是大而完整的历史检索。用户说“我们之前做过什么”时，不应该把所有旧对话都塞进长期 memory，而应该走 session search。Guga 也应该保留这个边界：curated memory 只存稳定事实，完整历史交给 SessionLog/SessionDB 检索。
+
+维护策略也成熟。`SessionDB.vacuum()` 用于大规模删除后回收空间，`maybe_auto_prune_and_vacuum()` 在启动时做幂等自动维护，记录上次运行时间，失败只记 warning 不阻塞启动。证据见 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/hermes_state.py:2771` 和 `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/hermes_state.py:2794`。这类细节对早期设计容易被忽略，但 memory/session 数据一旦持续增长，就会成为真实运维问题。
+
+`Fact`: Hermes 的 memory 不是单一 store，而是 `MemoryStore` + `MemoryManager` + `MemoryProvider` + `SessionDB` 的组合。
+
+`Inference`: Guga 可以强借鉴 Hermes 的生命周期：`system_prompt_block`、`prefetch`、`sync_turn`、`on_pre_compress`、`on_session_switch`。但不应照搬它的完整插件生态、自改进/RL 训练链路和 8 个 provider 支持；这些是产品态扩展，不是 Guga memory MVP 的第一优先级。
+
 ## 其他项目的可借鉴点
 
 Claude Code 的 memory 价值在两端：一端是文件化 memory 层，适合人和 agent 共同编辑；另一端是 append-only transcript/session resume，适合恢复运行时状态。既有分析材料 `docs/research/source-analysis/claude-code-analysis/analysis/04-agent-memory.md` 和 `docs/research/source-analysis/claude-code-analysis/analysis/04i-session-storage-resume.md` 可作为后续细读入口。
-
-Hermes 是更完整的产品态参考。它有内置 `MEMORY.md` / `USER.md`、`MemoryManager`、provider 生命周期、外部 provider 限制、prefetch/sync/on_pre_compress 等 hook，还用 SQLite FTS5 做 `session_search`。这说明成熟 agent 往往同时需要“可编辑记忆文件”和“可搜索历史数据库”。入口见 `docs/research/source-analysis/hermes-wiki/concepts/memory-system-architecture.md` 与 `docs/research/source-analysis/hermes-wiki/concepts/session-search-and-sessiondb.md`。
 
 DeerFlow 的可借鉴点是小而明确的 memory pipeline：结构化 `memory.json`、按 user/agent 分层、confidence threshold、异步队列、防抖、MemoryMiddleware 过滤工具与上传噪声、原子文件写。它适合 Guga 借鉴为早期 curated memory store 的实现方式。入口见 `docs/research/source-analysis/deerflow-book/chapters/11-memory-architecture.md` 与 `docs/research/source-analysis/deerflow-book/chapters/12-memory-pipeline.md`。
 
@@ -119,7 +147,11 @@ P0 应先做 durable session substrate。采用 append-only session log 或 tree
 
 P0/P1 做 curated memory store。先用结构化文件或轻量 SQLite 表，不急着上图数据库。memory item 至少包含 `id`、`scope(user/project/agent/run)`、`kind(preference/fact/decision/procedure)`、`content`、`source_event_ids`、`confidence`、`created_at`、`updated_at`、`expires_at?`、`status(active/deleted/superseded)`。写入应经过 policy gate：自动抽取可以建议，最终写入要能解释为什么。
 
+P0/P1 的文件式 memory 可以借鉴 Hermes：用 `PROJECT_MEMORY.md` / `USER_MEMORY.md` 这类可编辑文件承载小而稳定的事实，启动时冻结成 system prompt snapshot；会话中写入落盘但不改当前 system prompt。这样可读、可审计，也能避免 prompt 频繁变化。
+
 P1 做 turn-time retrieval/injection。借鉴 Zep，把 memory retrieval 放在 LLM request 前的 runtime hook。hook 输入当前 user message、session state、active project、context budget；输出受预算控制的 `<MEMORY_CONTEXT>`，并记录检索 query、命中项、注入长度和被丢弃原因。
+
+P1 增加 memory lifecycle hooks。借鉴 Hermes，最少需要 `prefetch`、`sync_turn`、`on_pre_compress`、`on_session_switch`。尤其是 `on_pre_compress`：当 context 即将被压缩时，先让 memory extractor 抢救长期事实，再让 compressor 生成摘要。
 
 P1/P2 做 vector retrieval。借鉴 mem0 的 scope filter：任何 search 必须限定 user/project/agent/run 中至少一个 scope。向量库只负责候选召回，不负责最终 truth。rerank 可以后置，先保证 trace 和删除语义。
 
@@ -154,6 +186,12 @@ ContextInjector
   build_memory_context(request, session_state, budget)
   attach_to_llm_request(context_block)
 
+MemoryHooks
+  prefetch(query, session_id)
+  sync_turn(user, assistant, session_id)
+  on_pre_compress(messages)
+  on_session_switch(new_session_id, parent_session_id)
+
 GraphProjection
   project(events, memory_items)
   search_entities_and_edges(query, scope)
@@ -172,6 +210,8 @@ GraphProjection
 不建议默认把所有 assistant/tool 内容都进长期记忆。Zep 的 `ignore_roles`、DeerFlow 的 tool/upload noise filtering 都在提醒同一件事：长期记忆写入必须有角色、来源和敏感信息策略。工具输出尤其容易把临时文件、报错、密钥片段、无关日志污染记忆库。
 
 不建议把 context compression 当作 memory。压缩摘要是为了让当前会话继续运行，不等于跨会话长期事实。压缩摘要可以成为 memory extraction 的输入，但不能直接等同于 durable memory。
+
+不建议一开始支持多个外部 memory provider 同时写入。Hermes 的“builtin + 至多一个外部 provider”是很好的复杂度刹车；Guga 应先把 provider 生命周期、scope、trace、删除语义跑顺，再考虑多后端并存。
 
 ## 待验证问题
 
@@ -233,6 +273,30 @@ GraphProjection
 - `/Users/lienli/Documents/GitHub/memo-ref/zep/integrations/python/zep_crewai/src/zep_crewai/graph_storage.py:18`：`ZepGraphStorage`。
 - `/Users/lienli/Documents/GitHub/memo-ref/zep/integrations/python/zep_crewai/src/zep_crewai/graph_storage.py:61`：generic graph save。
 - `/Users/lienli/Documents/GitHub/memo-ref/zep/integrations/python/zep_crewai/src/zep_crewai/graph_storage.py:98`：generic graph search。
+
+`hermes-agent`
+
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:67`：memory 内容威胁模式扫描。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:92`：`_scan_memory_content()`。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:107`：`MemoryStore` 双状态设计。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:126`：`load_from_disk()` 读取 `MEMORY.md` / `USER.md` 并冻结 snapshot。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:146`：独立 `.lock` 文件锁。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:224`：`add()` 写入前扫描、加锁、重读、去重、落盘。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:361`：`format_for_system_prompt()` 返回冻结快照。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/tools/memory_tool.py:434`：temp file + fsync + atomic replace。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:190`：`MemoryManager` 说明 builtin + 至多一个 external provider。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:204`：`add_provider()` 注册、外部 provider 限制、tool name 路由。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:264`：`build_system_prompt()`。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:285`：`prefetch_all()`。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:317`：`sync_all()`。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:403`：`on_session_switch()`。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:438`：`on_pre_compress()`。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/agent/memory_manager.py:483`：`on_memory_write()` 跳过 builtin，通知外部 provider。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/hermes_state.py:309`：`SessionDB` SQLite/FTS5 会话存储。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/hermes_state.py:1890`：FTS5 历史消息搜索。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/hermes_state.py:1950`：CJK trigram/LIKE 搜索分支。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/hermes_state.py:2771`：`vacuum()`。
+- `/Users/lienli/Documents/GitHub/agent-ref/hermes-agent/hermes_state.py:2794`：`maybe_auto_prune_and_vacuum()`。
 
 `全部项目入口`
 
