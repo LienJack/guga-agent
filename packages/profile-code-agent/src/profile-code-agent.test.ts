@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { PermissionRequest } from "@guga-agent/core";
+import { createAgentRuntime, type PermissionRequest } from "@guga-agent/core";
+import { createCodeAgentPlugins, createCodeAgentRuntimeOptions } from "./bundle";
 import { createCodeAgentPermissionPolicy, createCodeAgentPermissionResolver, isDestructiveShellCommand } from "./permissions";
 import { CODE_AGENT_PROFILE_ID, createCodeAgentProfile, createCodeAgentSystemPrompt } from "./profile";
 
@@ -69,6 +70,35 @@ describe("profile-code-agent", () => {
       action: "deny",
       reason: "host denied write"
     });
+  });
+
+  it("creates a plugin bundle from existing first-party capabilities", async () => {
+    const runtime = createAgentRuntime({
+      plugins: createCodeAgentPlugins({
+        workspaceRoot: "/workspace",
+        includeOperations: true
+      })
+    });
+
+    await runtime.run({ input: "initialize", providerId: "missing", runId: "run-code-bundle" });
+
+    expect(runtime.listCapabilityDescriptors?.()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "tool", name: "fs_read", ownerPluginId: "code-agent-filesystem" }),
+      expect.objectContaining({ type: "tool", name: "shell_exec", ownerPluginId: "code-agent-shell" }),
+      expect.objectContaining({ type: "tool", name: "git_status", ownerPluginId: "code-agent-git" }),
+      expect.objectContaining({ type: "operation", name: "audit.summary", ownerPluginId: "code-agent-audit-export" }),
+      expect.objectContaining({ type: "operation", name: "eval.run", ownerPluginId: "code-agent-eval-runner" })
+    ]));
+  });
+
+  it("creates runtime options without host or CLI dependencies", () => {
+    const options = createCodeAgentRuntimeOptions({
+      workspaceRoot: "/workspace",
+      includeOperations: false
+    });
+
+    expect(options.plugins).toHaveLength(3);
+    expect(options.permissions?.profile).toBe("ask-on-write");
   });
 });
 

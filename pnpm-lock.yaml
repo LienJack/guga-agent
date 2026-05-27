@@ -170,6 +170,30 @@ importers:
       '@guga-agent/core':
         specifier: workspace:*
         version: link:../core
+      '@guga-agent/plugin-audit-export':
+        specifier: workspace:*
+        version: link:../plugin-audit-export
+      '@guga-agent/plugin-eval-runner':
+        specifier: workspace:*
+        version: link:../plugin-eval-runner
+      '@guga-agent/plugin-mcp':
+        specifier: workspace:*
+        version: link:../plugin-mcp
+      '@guga-agent/plugin-ops-health':
+        specifier: workspace:*
+        version: link:../plugin-ops-health
+      '@guga-agent/plugin-skills':
+        specifier: workspace:*
+        version: link:../plugin-skills
+      '@guga-agent/plugin-tools-filesystem':
+        specifier: workspace:*
+        version: link:../plugin-tools-filesystem
+      '@guga-agent/plugin-tools-git':
+        specifier: workspace:*
+        version: link:../plugin-tools-git
+      '@guga-agent/plugin-tools-shell':
+        specifier: workspace:*
+        version: link:../plugin-tools-shell
 
   packages/provider-ai-sdk:
     dependencies:

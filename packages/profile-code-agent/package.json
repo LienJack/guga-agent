@@ -17,6 +17,14 @@
     "typecheck": "pnpm --filter @guga-agent/core build && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@guga-agent/core": "workspace:*"
+    "@guga-agent/core": "workspace:*",
+    "@guga-agent/plugin-audit-export": "workspace:*",
+    "@guga-agent/plugin-eval-runner": "workspace:*",
+    "@guga-agent/plugin-mcp": "workspace:*",
+    "@guga-agent/plugin-ops-health": "workspace:*",
+    "@guga-agent/plugin-skills": "workspace:*",
+    "@guga-agent/plugin-tools-filesystem": "workspace:*",
+    "@guga-agent/plugin-tools-git": "workspace:*",
+    "@guga-agent/plugin-tools-shell": "workspace:*"
   }
 }

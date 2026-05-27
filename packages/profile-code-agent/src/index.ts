@@ -15,3 +15,10 @@ export {
   createCodeAgentPermissionResolver,
   isDestructiveShellCommand
 } from "./permissions";
+export type {
+  CodeAgentBundleOptions
+} from "./bundle";
+export {
+  createCodeAgentPlugins,
+  createCodeAgentRuntimeOptions
+} from "./bundle";
