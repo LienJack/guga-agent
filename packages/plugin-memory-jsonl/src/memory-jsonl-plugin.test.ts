@@ -29,6 +29,7 @@ describe("createMemoryJsonlPlugin", () => {
     for (const name of [
       "memory.jsonl.review",
       "memory.jsonl.health",
+      "memory.jsonl.audit_snapshot",
       "memory.jsonl.retrieval",
       "memory.jsonl.curated_markdown"
     ]) {
