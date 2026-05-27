@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Quality checklist for descriptor behavior tests and gates."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Descriptor discovery must stay separate from execution and not hide runtime failures."}
+{"file":"docs/research/memory-review-capability.md","reason":"Check read-only trust semantics against existing memory review descriptor."}
+{"file":"docs/research/memory-jsonl-capability-surface.md","reason":"Check M28 acceptance criteria and non-goals."}
