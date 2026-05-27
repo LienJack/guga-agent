@@ -5,6 +5,7 @@ import { createAuditExportPlugin } from "@guga-agent/plugin-audit-export";
 import { createEvalRunnerPlugin } from "@guga-agent/plugin-eval-runner";
 import { createOpsHealthPlugin } from "@guga-agent/plugin-ops-health";
 import { CODE_AGENT_PROFILE_ID, createCodeAgentPlugins, createCodeAgentPermissionPolicy } from "@guga-agent/profile-code-agent";
+import { DEEP_RESEARCH_PROFILE_ID } from "@guga-agent/profile-deep-research-agent";
 import { createAiSdkProviderPlugin } from "@guga-agent/provider-ai-sdk";
 import { readCliConfig } from "../config";
 import { renderHostEvent } from "../render/events";
@@ -25,15 +26,17 @@ type RunArgs = {
   debugEvents: boolean;
   mock: boolean;
   ops: boolean;
-  profile?: typeof CODE_AGENT_PROFILE_ID;
+  profile?: CliProfileId;
   providerId?: string;
   modelId?: string;
 };
 
+type CliProfileId = typeof CODE_AGENT_PROFILE_ID | typeof DEEP_RESEARCH_PROFILE_ID;
+
 export async function runCli(argv: string[], io: CliIO): Promise<number> {
   const [command, ...rest] = argv;
   if (command !== "run") {
-    io.stderr.write("usage: guga run <prompt> [--provider id] [--model id] [--profile code] [--mock] [--debug-events] [--ops]\n");
+    io.stderr.write("usage: guga run <prompt> [--provider id] [--model id] [--profile code|deep-research] [--mock] [--debug-events] [--ops]\n");
     return 2;
   }
   const parsed = parseRunArgs(rest, io.env);
@@ -84,7 +87,7 @@ function parseRunArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): { o
   let debugEvents = false;
   let mock = false;
   let ops = false;
-  let profile: typeof CODE_AGENT_PROFILE_ID | undefined;
+  let profile: CliProfileId | undefined;
   const promptParts: string[] = [];
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -100,7 +103,7 @@ function parseRunArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): { o
     } else if (arg === "--profile") {
       const value = argv[index + 1];
       index += 1;
-      if (value !== CODE_AGENT_PROFILE_ID) {
+      if (!isCliProfileId(value)) {
         return { ok: false, error: `Unknown profile: ${value ?? "(missing)"}` };
       }
       profile = value;
@@ -134,6 +137,10 @@ function parseRunArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): { o
       ...(modelId ? { modelId } : {})
     }
   };
+}
+
+function isCliProfileId(value: string | undefined): value is CliProfileId {
+  return value === CODE_AGENT_PROFILE_ID || value === DEEP_RESEARCH_PROFILE_ID;
 }
 
 async function createCliHost(args: RunArgs, env: NodeJS.ProcessEnv = process.env): Promise<LocalGugaHost> {
