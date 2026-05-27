@@ -110,7 +110,24 @@ describe("memory governance", () => {
     expect(ledger.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "MEMORY_DECISION_CANDIDATE_NOT_GOVERNABLE" }),
       expect.objectContaining({ code: "MEMORY_DECISION_SUPERSEDES_REQUIRED" }),
-      expect.objectContaining({ code: "MEMORY_STRING_REQUIRED", path: "decision..id" })
+      expect.objectContaining({ code: "MEMORY_STRING_REQUIRED", path: "decision.<missing>.id" })
+    ]));
+  });
+
+  it("diagnoses duplicate decision ids and keeps the first decision authoritative", () => {
+    const replacementCandidate: MemoryCandidate = {
+      ...baseCandidate,
+      id: "candidate-2",
+      content: "Replacement memory candidate."
+    };
+    const ledger = createMemoryGovernanceLedger([baseCandidate, replacementCandidate], [
+      { ...baseDecision, id: "same", candidateId: "candidate-1", itemId: "first" },
+      { ...baseDecision, id: "same", candidateId: "candidate-2", itemId: "second", decidedAt: "2026-05-28T00:06:00.000Z" }
+    ]);
+
+    expect(ledger.items.map((item) => item.id)).toEqual(["first"]);
+    expect(ledger.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "MEMORY_DECISION_DUPLICATE_ID", path: "decision.same" })
     ]));
   });
 
@@ -143,6 +160,8 @@ describe("memory governance", () => {
     expect(rendered).toContain("The user prefers concise findings...");
     expect(rendered).toContain("[source:event-1]");
     expect(rendered).not.toContain("project-memory");
+
+    expect(renderGovernedMemoryBlock([{ ...userItems[0], sourceRefs: [] }])).toContain("No active safe memory items.");
   });
 
   it("validates decisions and registers the governance operation descriptor", async () => {

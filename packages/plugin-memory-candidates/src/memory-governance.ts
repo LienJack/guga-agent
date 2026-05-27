@@ -111,18 +111,28 @@ export function createMemoryGovernanceLedger(
   const sortedDecisions = [...decisions].sort(compareDecisions);
   const itemsById = new Map<string, GovernedMemoryItem>();
   const rejectedCandidateIds = new Set<string>();
+  const seenDecisionIds = new Set<string>();
 
   for (const candidate of candidates) {
     diagnostics.push(...prefixDiagnostics(validateMemoryCandidate(candidate), `candidate.${candidate.id}`));
   }
 
   for (const decision of sortedDecisions) {
-    const decisionPath = `decision.${decision.id}`;
+    const decisionPath = `decision.${decision.id || "<missing>"}`;
     const decisionDiagnostics = validateMemoryDecision(decision);
     diagnostics.push(...prefixDiagnostics(decisionDiagnostics, decisionPath));
     if (decisionDiagnostics.length > 0) {
       continue;
     }
+    if (seenDecisionIds.has(decision.id)) {
+      diagnostics.push({
+        code: "MEMORY_DECISION_DUPLICATE_ID",
+        message: "Decision ids must be unique",
+        path: decisionPath
+      });
+      continue;
+    }
+    seenDecisionIds.add(decision.id);
 
     const candidate = candidateById.get(decision.candidateId);
     if (!candidate) {
@@ -214,7 +224,7 @@ export function renderGovernedMemoryBlock(
   const maxContentChars = options.maxContentChars ?? 240;
   const title = options.title ?? "Governed Memory";
   const renderable = items
-    .filter((item) => item.status === "active" && item.safety.status === "safe" && scanMemoryCandidateContent(item.content).status === "safe")
+    .filter((item) => isRenderableGovernedItem(item))
     .sort(compareItems)
     .slice(0, maxItems);
 
@@ -257,6 +267,19 @@ function isGovernableCandidate(candidate: MemoryCandidate): boolean {
     candidate.safety.status === "safe" &&
     scanMemoryCandidateContent(candidate.content).status === "safe" &&
     validateMemoryCandidate(candidate).length === 0
+  );
+}
+
+function isRenderableGovernedItem(item: GovernedMemoryItem): boolean {
+  return (
+    item.status === "active" &&
+    item.safety.status === "safe" &&
+    item.id.trim().length > 0 &&
+    item.candidateId.trim().length > 0 &&
+    item.content.trim().length > 0 &&
+    item.sourceRefs.length > 0 &&
+    item.sourceRefs.every((sourceRef) => sourceRef.eventId.trim().length > 0) &&
+    scanMemoryCandidateContent(item.content).status === "safe"
   );
 }
 
