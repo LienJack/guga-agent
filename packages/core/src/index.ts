@@ -220,6 +220,11 @@ export type {
   ProviderRouterSuccess
 } from "./contracts/provider-router";
 export type {
+  CapabilityDescriptor,
+  CapabilityDiff,
+  CapabilityRegistrationOptions,
+  CapabilitySource,
+  CapabilityStatus,
   LocalPlugin,
   LocalModelPlugin,
   PluginCapabilityKind,
@@ -229,6 +234,7 @@ export type {
   PluginHostOptions,
   PluginShutdownContext,
   PluginShutdownResult,
+  SkillMetadata,
   ToolRegistrationOptions
 } from "./contracts/plugins";
 export type {
@@ -271,7 +277,7 @@ export { EventBus } from "./events/event-bus";
 export { HookKernel } from "./hooks/hook-kernel";
 export { PermissionKernel } from "./permissions/permission-kernel";
 export { PluginHost } from "./plugin-host/plugin-host";
-export { CapabilityRegistry } from "./registry/capability-registry";
+export { CapabilityRegistry, diffCapabilityDescriptors } from "./registry/capability-registry";
 export { ConversationState } from "./state/conversation-state";
 export { AgentLoop } from "./loop/agent-loop";
 export { ContextBudgeter } from "./context/context-budgeter";

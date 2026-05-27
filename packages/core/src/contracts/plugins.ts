@@ -9,6 +9,47 @@ export type ToolRegistrationOptions = {
     replaces: string;
     reason: string;
   };
+  source?: CapabilitySource;
+  namespace?: string;
+  ownerPluginId?: string;
+};
+
+export type CapabilitySource = "host" | "plugin" | "mcp" | "built-in";
+
+export type CapabilityRegistrationOptions = {
+  source?: CapabilitySource;
+  namespace?: string;
+  ownerPluginId?: string;
+};
+
+export type SkillMetadata = {
+  name: string;
+  description: string;
+  location?: string;
+  namespace?: string;
+  tags?: string[];
+};
+
+export type CapabilityStatus = "registered" | "skipped-conflict";
+
+export type CapabilityDescriptor = {
+  type: PluginCapabilityKind;
+  name: string;
+  source: CapabilitySource;
+  status: CapabilityStatus;
+  namespace?: string;
+  ownerPluginId?: string;
+  reason?: string;
+};
+
+export type CapabilityDiff = {
+  added: CapabilityDescriptor[];
+  removed: CapabilityDescriptor[];
+  changed: Array<{
+    before: CapabilityDescriptor;
+    after: CapabilityDescriptor;
+  }>;
+  skippedConflicts: CapabilityDescriptor[];
 };
 
 export type PluginContext = {
@@ -16,6 +57,7 @@ export type PluginContext = {
   registerProvider(provider: Provider): void;
   registerModel?(model: ModelMetadata): void;
   registerTool(tool: ToolDefinition, options?: ToolRegistrationOptions): void;
+  registerSkill?(skill: SkillMetadata): void;
   registerHook(hook: HookRegistration): void;
   registerContextPolicy?(policy: ContextPolicy): void;
   registerEventStore?(store: EventStore): void;
@@ -46,6 +88,7 @@ export type PluginCapabilityKind =
   | "provider"
   | "model"
   | "tool"
+  | "skill"
   | "hook"
   | "context-policy"
   | "event-store"

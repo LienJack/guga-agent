@@ -13,6 +13,7 @@ import type {
   ReplayRequest
 } from "../contracts/persistence";
 import type { ModelMetadata, Provider } from "../contracts/provider";
+import type { CapabilityDescriptor } from "../contracts/plugins";
 import type {
   AgentSessionIdentity,
   AgentPersistenceCapabilities,
@@ -103,6 +104,10 @@ export class AgentRuntime implements AgentRuntimeContract {
 
   listModels(): ModelMetadata[] {
     return this.registry.listModels();
+  }
+
+  listCapabilityDescriptors(): CapabilityDescriptor[] {
+    return this.registry.listCapabilityDescriptors();
   }
 
   registerTool(tool: ToolDefinition): void {

@@ -7,6 +7,7 @@ import {
   type LocalPlugin,
   type PluginFailure,
   type PluginShutdownResult,
+  type SkillMetadata,
   type ToolRegistrationOptions
 } from "../contracts/plugins";
 import type { AgentPersistenceCapabilities } from "../contracts/runtime";
@@ -46,6 +47,7 @@ type PluginContribution = {
   providers: string[];
   models: Array<Pick<ModelMetadata, "providerId" | "modelId">>;
   tools: PluginToolContribution[];
+  skills: string[];
   hooks: string[];
   contextPolicies: string[];
   eventStores: string[];
@@ -94,6 +96,7 @@ export class PluginHost {
         providers: [],
         models: [],
         tools: [],
+        skills: [],
         hooks: [],
         contextPolicies: [],
         eventStores: [],
@@ -109,6 +112,7 @@ export class PluginHost {
           registerProvider: (provider) => this.registerProvider(options.runId, plugin.id, provider, contribution),
           registerModel: (model) => this.registerModel(options.runId, plugin.id, model, contribution),
           registerTool: (tool, toolOptions) => this.registerTool(options.runId, plugin.id, tool, contribution, toolOptions),
+          registerSkill: (skill) => this.registerSkill(options.runId, plugin.id, skill, contribution),
           registerHook: (hook) =>
             this.registerHook(options.runId, plugin.id, pluginLoadIndex, hook, contribution),
           registerContextPolicy: (policy) => this.registerContextPolicy(options.runId, plugin.id, policy, contribution),
@@ -181,7 +185,7 @@ export class PluginHost {
     provider: Provider,
     contribution: PluginContribution
   ): void {
-    this.registry.registerProvider(provider);
+    this.registry.registerProvider(provider, { source: "plugin", ownerPluginId: pluginId });
     contribution.providers.push(provider.id);
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
@@ -202,7 +206,7 @@ export class PluginHost {
     const previousTool =
       options?.override && options.override.replaces === tool.name ? this.registry.getTool(tool.name) : undefined;
 
-    this.registry.registerTool(tool, options);
+    this.registry.registerTool(tool, { ...options, source: options?.source ?? "plugin", ownerPluginId: pluginId });
     contribution.tools.push(
       previousTool ? { type: "overrode", name: tool.name, previous: previousTool } : { type: "registered", name: tool.name }
     );
@@ -221,7 +225,7 @@ export class PluginHost {
     model: ModelMetadata,
     contribution: PluginContribution
   ): void {
-    this.registry.registerModel(model);
+    this.registry.registerModel(model, { source: "plugin", ownerPluginId: pluginId });
     contribution.models.push({ providerId: model.providerId, modelId: model.modelId });
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
@@ -240,6 +244,7 @@ export class PluginHost {
     contribution: PluginContribution
   ): void {
     this.hookKernel.registerHook(pluginId, pluginLoadIndex, hook);
+    this.registry.registerHookCapability(hook.id, { source: "plugin", ownerPluginId: pluginId });
     contribution.hooks.push(hook.id);
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
@@ -247,6 +252,27 @@ export class PluginHost {
       pluginId,
       capability: "hook",
       name: hook.id
+    });
+  }
+
+  private registerSkill(
+    runId: string,
+    pluginId: string,
+    skill: SkillMetadata,
+    contribution: PluginContribution
+  ): void {
+    this.registry.registerSkill(skill, {
+      source: "plugin",
+      ownerPluginId: pluginId,
+      ...(skill.namespace ? { namespace: skill.namespace } : {})
+    });
+    contribution.skills.push(skill.name);
+    this.eventBus.publish({
+      type: AgentEventType.PluginCapabilityRegistered,
+      runId,
+      pluginId,
+      capability: "skill",
+      name: skill.name
     });
   }
 
@@ -263,7 +289,7 @@ export class PluginHost {
         pluginId: policy.auditIdentity.pluginId ?? pluginId
       }
     };
-    this.registry.registerContextPolicy(registeredPolicy);
+    this.registry.registerContextPolicy(registeredPolicy, { source: "plugin", ownerPluginId: pluginId });
     this.hookKernel.registerContextPolicy(pluginId, registeredPolicy);
     contribution.contextPolicies.push(policy.id);
     this.eventBus.publish({
@@ -281,7 +307,7 @@ export class PluginHost {
     store: EventStore,
     contribution: PluginContribution
   ): void {
-    this.registry.registerEventStore(store);
+    this.registry.registerEventStore(store, "default", { source: "plugin", ownerPluginId: pluginId });
     contribution.eventStores.push("default");
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
@@ -298,7 +324,7 @@ export class PluginHost {
     store: SessionStore,
     contribution: PluginContribution
   ): void {
-    this.registry.registerSessionStore(store);
+    this.registry.registerSessionStore(store, "default", { source: "plugin", ownerPluginId: pluginId });
     contribution.sessionStores.push("default");
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
@@ -315,7 +341,7 @@ export class PluginHost {
     store: ArtifactStore,
     contribution: PluginContribution
   ): void {
-    this.registry.registerArtifactStore(store);
+    this.registry.registerArtifactStore(store, "default", { source: "plugin", ownerPluginId: pluginId });
     contribution.artifactStores.push("default");
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
@@ -332,7 +358,7 @@ export class PluginHost {
     capability: ReplayCapability,
     contribution: PluginContribution
   ): void {
-    this.registry.registerReplayCapability(capability);
+    this.registry.registerReplayCapability(capability, "default", { source: "plugin", ownerPluginId: pluginId });
     contribution.replayCapabilities.push("default");
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
@@ -396,6 +422,12 @@ export class PluginHost {
         } else {
           this.registry.removeTool(tool.name);
         }
+      }
+      for (const skillName of contribution.skills) {
+        this.registry.removeSkill(skillName);
+      }
+      for (const hookId of contribution.hooks) {
+        this.registry.removeHookCapability(hookId, { ownerPluginId: contribution.pluginId });
       }
       for (const policyId of contribution.contextPolicies) {
         this.registry.removeContextPolicy(policyId);

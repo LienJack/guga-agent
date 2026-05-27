@@ -13,6 +13,7 @@
 - [参考项目索引建设状态](./index-build-status.md)：记录 Repomix token tree、GitNexus、Graphify、Understand-Anything 的当前建设状态。
 - [Context Packs](./context-packs/)：用于沉淀高频主题的小型 LLM 上下文包。
 - [Memory Systems Context Pack](./context-packs/memory-systems.md)：`graphiti` / `mem0` / `zep` 的长期记忆、图谱、检索和 context injection 研究入口。
+- [Skills, MCP, And Capability Discovery](./skills-mcp-capability-discovery.md)：M6 对 skills 渐进加载、MCP stdio、capability discovery/diff、namespace/owner/source 的研究与 Guga 落点。
 
 ## 查询方式
 
@@ -46,3 +47,9 @@
 | `repomix/graphiti-*`, `repomix/mem0-*`, `repomix/zep-*` | memory 参考项目源码级验证，适合查 graph memory、vector memory、user graph、thread context、SDK/tool integration 和 turn-time context injection。 |
 | `graphs/graphiti`, `graphs/mem0`, `graphs/zep` | memory 参考项目 Graphify 图谱，适合先定位核心类、社区和跨文件关系。 |
 | `repomix` | 用于源码级实现规划的 packed source context 和 token tree。 |
+
+## 模块调研报告
+
+| 模块 | 调研问题 | 参考项目 | 输出文档 | Guga 落点 |
+| --- | --- | --- | --- | --- |
+| M6 Skills / MCP / Capability Discovery | skills 如何渐进加载、MCP 如何进入统一工具池、capability discovery/diff 如何解释插件能力变化。 | Claude Code, OpenCode, Hermes Agent, DeerFlow | [skills-mcp-capability-discovery.md](./skills-mcp-capability-discovery.md) | Core 提供 descriptor/diff/owner/source contract；`plugin-skills` 和 `plugin-mcp` 作为 first-party 插件落地。 |

@@ -14,6 +14,7 @@ import type {
   SessionStore
 } from "./persistence";
 import type { LocalModelPlugin, LocalPlugin } from "./plugins";
+import type { CapabilityDescriptor } from "./plugins";
 import type { ModelMetadata, Provider } from "./provider";
 import type { ModelPurpose } from "./provider";
 import type { ProviderRouterPolicy } from "./provider-router";
@@ -96,6 +97,7 @@ export type AgentRuntime = {
   registerProvider(provider: Provider): void;
   registerModel?(model: ModelMetadata): void;
   listModels?(): ModelMetadata[];
+  listCapabilityDescriptors?(): CapabilityDescriptor[];
   registerTool(tool: ToolDefinition): void;
   onEvent(listener: (event: AgentEvent) => void): () => void;
   getPersistenceCapabilities(): AgentPersistenceCapabilities;

@@ -83,6 +83,11 @@ describe("PluginHost", () => {
           capabilities: { toolCalling: true, usage: "optional" }
         });
         context.registerTool(createTestTool({ name: "from-plugin-tool", content: "ok" }));
+        context.registerSkill?.({
+          name: "from-plugin-skill",
+          description: "Skill from plugin",
+          location: "skills/from-plugin/SKILL.md"
+        });
         context.registerHook({
           id: "allow-tool",
           phase: HookPhase.PreToolGate,
@@ -105,6 +110,24 @@ describe("PluginHost", () => {
       modelId: "from-plugin-model"
     });
     expect(registry.requireTool("from-plugin-tool").name).toBe("from-plugin-tool");
+    expect(registry.getSkill("from-plugin-skill")).toMatchObject({
+      name: "from-plugin-skill",
+      description: "Skill from plugin"
+    });
+    expect(registry.listCapabilityDescriptors()).toContainEqual({
+      type: "skill",
+      name: "from-plugin-skill",
+      source: "plugin",
+      status: "registered",
+      ownerPluginId: "example"
+    });
+    expect(registry.listCapabilityDescriptors()).toContainEqual({
+      type: "hook",
+      name: "allow-tool",
+      source: "plugin",
+      status: "registered",
+      ownerPluginId: "example"
+    });
     expect(
       await hookKernel.runPreToolGate({
         runId: "run-gate",
@@ -114,6 +137,7 @@ describe("PluginHost", () => {
       })
     ).toMatchObject({ ok: true, decision: { type: "allow" } });
     expect(eventBus.events.map((event) => event.type)).toEqual([
+      AgentEventType.PluginCapabilityRegistered,
       AgentEventType.PluginCapabilityRegistered,
       AgentEventType.PluginCapabilityRegistered,
       AgentEventType.PluginCapabilityRegistered,
@@ -280,6 +304,13 @@ describe("PluginHost", () => {
       ok: true,
       content: "old"
     });
+    expect(registry.listCapabilityDescriptors()).toContainEqual({
+      type: "tool",
+      name: "override-me",
+      source: "host",
+      status: "registered",
+      reason: "restore plugin override from override-plugin"
+    });
   });
 
   it("removes ordinary plugin tool contributions during cleanup", async () => {
@@ -300,6 +331,41 @@ describe("PluginHost", () => {
     await host.shutdown({ runId: "run-cleanup-plugin-tool" });
 
     expect(registry.getTool("plugin-only")).toBeUndefined();
+  });
+
+  it("registers and cleans up plugin skill contributions", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    const plugin: LocalPlugin = {
+      id: "skills-plugin",
+      init(context) {
+        context.registerSkill?.({
+          name: "progressive-skill",
+          description: "A progressively loaded skill",
+          location: "skills/progressive/SKILL.md",
+          namespace: "project"
+        });
+      }
+    };
+    const host = new PluginHost({ plugins: [plugin], registry, hookKernel, eventBus });
+
+    await host.initialize({ runId: "run-skill-plugin" });
+
+    expect(registry.getSkill("progressive-skill")).toBeDefined();
+    expect(registry.listCapabilityDescriptors()).toContainEqual({
+      type: "skill",
+      name: "progressive-skill",
+      source: "plugin",
+      status: "registered",
+      namespace: "project",
+      ownerPluginId: "skills-plugin"
+    });
+
+    await host.shutdown({ runId: "run-skill-plugin-shutdown" });
+
+    expect(registry.getSkill("progressive-skill")).toBeUndefined();
+    expect(registry.listCapabilityDescriptors()).not.toContainEqual(expect.objectContaining({ type: "skill" }));
   });
 
   it("runs shutdown hooks and plugin shutdown even when failures occur", async () => {
@@ -341,6 +407,7 @@ describe("PluginHost", () => {
         status: "failed"
       })
     );
+    expect(registry.listCapabilityDescriptors()).not.toContainEqual(expect.objectContaining({ type: "hook" }));
   });
 
   it("does not require hosts to manually register plugin capabilities", async () => {

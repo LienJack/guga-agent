@@ -144,6 +144,11 @@ describe("AgentRuntime", () => {
     expect(runtime.listModels()).toEqual([
       expect.objectContaining({ providerId: "mock", modelId: "mock-primary" })
     ]);
+    expect(runtime.listCapabilityDescriptors?.()).toEqual(expect.arrayContaining([
+      { type: "provider", name: "mock", source: "host", status: "registered" },
+      { type: "model", name: "mock/mock-primary", source: "host", status: "registered" },
+      { type: "tool", name: "echo", source: "host", status: "registered" }
+    ]));
   });
 
   it("does not require real provider SDKs for runtime tests", async () => {

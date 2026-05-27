@@ -32,6 +32,12 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/plugin-mcp:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/plugin-replay-audit:
     dependencies:
       '@guga-agent/core':
@@ -39,6 +45,12 @@ importers:
         version: link:../core
 
   packages/plugin-session-jsonl:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-skills:
     dependencies:
       '@guga-agent/core':
         specifier: workspace:*

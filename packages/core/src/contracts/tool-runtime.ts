@@ -4,7 +4,7 @@ import type { ToolCall } from "./messages";
 import type { PermissionProfile } from "./permissions";
 import type { ToolEffect, ToolResult } from "./tools";
 
-export type ToolSourceKind = "core" | "first-party" | "plugin" | "host" | "test";
+export type ToolSourceKind = "core" | "first-party" | "plugin" | "mcp" | "host" | "test";
 
 export type ToolSourceMetadata = {
   kind: ToolSourceKind;

@@ -1,0 +1,7 @@
+{"file": "AGENTS.md", "reason": "Validation must respect project research and output-format rules."}
+{"file": ".trellis/workflow.md", "reason": "Validation must respect Trellis check, spec update, commit, and finish gates."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend quality gate entry point for package implementation review."}
+{"file": ".trellis/spec/guides/agent-reference-projects-guide.md", "reason": "Check research evidence quality and reference-project interpretation rules."}
+{"file": "docs/roadmap.md", "reason": "Check M6 implementation remains aligned with roadmap constraints and downstream dependencies."}
+{"file": "docs/research/context-packs/tool-registry.md", "reason": "Check design against established tool/MCP/skills evidence and Guga migration recommendations."}
+{"file": "docs/brainstorms/2026-05-27-m6-skills-mcp-capability-discovery-requirements.md", "reason": "Check implementation and tests satisfy M6 acceptance criteria."}

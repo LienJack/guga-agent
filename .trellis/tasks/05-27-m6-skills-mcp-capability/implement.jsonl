@@ -1,0 +1,8 @@
+{"file": "AGENTS.md", "reason": "Project-level research funnel, workflow, and output-format rules for reference agent analysis."}
+{"file": ".trellis/workflow.md", "reason": "Trellis task lifecycle and execution gate requirements for implementation work."}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend development quality and structure entry point for TypeScript package work."}
+{"file": ".trellis/spec/guides/agent-reference-projects-guide.md", "reason": "Rules for using reference agent projects and avoiding raw-source-first research."}
+{"file": "docs/roadmap.md", "reason": "Long-term roadmap positioning for M6 and downstream dependency context."}
+{"file": "docs/research/context-packs/tool-registry.md", "reason": "Primary context pack for tools, permissions, MCP, skills, and capability discovery."}
+{"file": "docs/research/source-analysis/design-ideas-index.md", "reason": "Routing index for deeper source-analysis evidence on Tools, MCP, Skills, and extension design."}
+{"file": "docs/brainstorms/2026-05-27-m6-skills-mcp-capability-discovery-requirements.md", "reason": "M6 requirement scope, acceptance criteria, risks, and non-goals."}

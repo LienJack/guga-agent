@@ -13,6 +13,7 @@ provider tool intent -> core pipeline -> hooks -> permission -> tool -> result p
 - Core message, provider, model metadata, tool runtime, permission, result budget, usage, runtime, model event, router, and hook contracts.
 - Durable session, event, artifact, resume, fork, and replay contracts. Concrete storage remains in plugin packages.
 - In-memory `CapabilityRegistry` for registering providers, model metadata, and tools.
+- Serializable capability discovery descriptors for providers, models, tools, skills, hooks, context policies, stores, and replay capabilities.
 - In-memory `EventBus` for observing runtime facts during tests or host integration, plus an optional durable append/publish lane for recovery-sensitive facts.
 - `ConversationState` for preserving assistant tool calls and matching tool results.
 - Minimal `AgentLoop` for tool-calling runs through either direct mock providers or the provider router.
@@ -33,6 +34,18 @@ provider tool intent -> core pipeline -> hooks -> permission -> tool -> result p
 - Full host UI permission dialogs, durable result stores, enterprise policy engines, or remote sandbox backends.
 - Concrete durable session store, replay plugin, artifact store implementation, or UI projection.
 - Context compaction, skills, long-term memory, multi-agent orchestration, or eval infrastructure.
+
+## Capability Discovery Boundary
+
+Core records capability ownership and source metadata while keeping concrete implementations outside the kernel. Hosts can call `listCapabilityDescriptors()` on the runtime or registry to inspect serializable descriptors such as:
+
+- `type`: provider, model, tool, skill, hook, context-policy, store, or replay.
+- `name`: the stable runtime identifier.
+- `source`: host, plugin, MCP, built-in, or test source.
+- `ownerPluginId`: the plugin that contributed the capability when applicable.
+- `namespace`: a stable grouping such as an MCP server name or skill namespace.
+
+`diffCapabilityDescriptors(before, after)` provides a small host-facing primitive for explaining added, removed, changed, and conflict-skipped capabilities. Concrete skills and MCP behavior live in first-party plugins such as `@guga-agent/plugin-skills` and `@guga-agent/plugin-mcp`.
 
 ## Minimal Usage Shape
 
