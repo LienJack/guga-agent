@@ -1,0 +1,13 @@
+{"file":"AGENTS.md","reason":"Project workflow, Trellis, and 7-layer research funnel instructions."}
+{"file":"任务.md","reason":"Long-running M8 checklist, execution rules, and required article/compound gates."}
+{"file":"docs/roadmap.md","reason":"M8 production operations scope and dependencies."}
+{"file":"docs/research/context-packs/provider-abstraction.md","reason":"Provider health, credential pool, routing, pricing, and config evidence."}
+{"file":"docs/research/context-packs/agent-loop.md","reason":"Health check, streaming, interruption, and fault-tolerance context."}
+{"file":"docs/research/context-packs/tool-registry.md","reason":"Permission/tool scope and capability registry context."}
+{"file":"docs/research/source-analysis/design-ideas-index.md","reason":"Routing index for productionization, provider, security, and observability references."}
+{"file":"docs/brainstorms/2026-05-27-m8-production-ops-requirements.md","reason":"M8 requirements and acceptance criteria."}
+{"file":"docs/research/production-operations-runtime.md","reason":"M8 research report and architecture decision evidence."}
+{"file":"docs/plans/2026-05-27-005-feat-production-operations-runtime-plan.md","reason":"Implementation plan and unit breakdown for M8."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Project quality guidance for backend/runtime package changes."}
+{"file":"docs/solutions/architecture-patterns/plugin-capability-discovery.md","reason":"M6 capability descriptor/diff pattern that M8 trust/scope should extend."}
+{"file":"docs/solutions/architecture-patterns/host-protocol-cli-workbench.md","reason":"M7 host surface that M8 operational data should feed."}
