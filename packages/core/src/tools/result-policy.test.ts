@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { AgentEventType } from "../contracts/events";
+import type { ArtifactStore, PutArtifactOptions, ReadArtifactResult } from "../contracts/persistence";
 import type { ToolCallCorrelation } from "../contracts/tool-runtime";
 import type { ToolResult } from "../contracts/tools";
-import { InMemoryToolResultStore } from "../context/tool-result-store";
+import { ArtifactToolResultStore, InMemoryToolResultStore } from "../context/tool-result-store";
 import { EventBus } from "../events/event-bus";
 import { ResultPolicy } from "./result-policy";
 
@@ -92,6 +93,56 @@ describe("ResultPolicy", () => {
     expect(store.get("tool-result-run-result-turn-0-attempt-1-batch-result-call-result")?.content).toBe("abcdef");
   });
 
+  it("uses artifact-backed references without changing model-visible preview behavior", () => {
+    const eventBus = new EventBus();
+    const store = new ArtifactToolResultStore({ artifactStore: new FakeArtifactStore() });
+    const policy = new ResultPolicy({ eventBus, store, defaultBudget: { maxContentChars: 4, strategy: "truncate" } });
+
+    const result = policy.apply({
+      call,
+      correlation,
+      result: { ok: true, content: "abcdef" }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      content: expect.stringContaining("abcd"),
+      budget: {
+        applied: true,
+        reference: {
+          type: "artifact",
+          id: "tool-result-run-result-turn-0-attempt-1-batch-result-call-result",
+          artifact: {
+            artifactId: "tool-result-run-result-turn-0-attempt-1-batch-result-call-result",
+            sizeBytes: 6,
+            mimeType: "text/plain; charset=utf-8"
+          }
+        },
+        view: {
+          llmPreview: expect.stringContaining("abcd"),
+          auditMetadata: {
+            strategy: "truncate",
+            referenceType: "artifact",
+            providerRawPersistence: "descriptor-only",
+            artifact: {
+              artifactId: "tool-result-run-result-turn-0-attempt-1-batch-result-call-result",
+              sizeBytes: 6
+            }
+          }
+        }
+      }
+    });
+    expect(result.content).not.toContain("abcdef");
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ToolResultBudgeted,
+      result: expect.objectContaining({
+        budget: expect.objectContaining({
+          reference: expect.objectContaining({ type: "artifact" })
+        })
+      })
+    }));
+  });
+
   it("builds synthetic cancelled, skipped, denied, and timed-out results", () => {
     const policy = new ResultPolicy();
 
@@ -113,3 +164,35 @@ describe("ResultPolicy", () => {
     });
   });
 });
+
+class FakeArtifactStore implements ArtifactStore {
+  putArtifact(options: PutArtifactOptions) {
+    const data = typeof options.data === "string" ? options.data : JSON.stringify(options.data);
+    const reference = {
+      artifactId: options.artifactId ?? "generated",
+      contentHash: { algorithm: "sha256" as const, value: "b".repeat(64) },
+      sizeBytes: data.length,
+      mimeType: options.mimeType,
+      createdAt: "2026-05-27T00:00:00.000Z",
+      redaction: { state: "none" as const },
+      ...(options.metadata ? { metadata: options.metadata } : {})
+    };
+    return { ok: true as const, reference };
+  }
+
+  readArtifact(): ReadArtifactResult {
+    return {
+      ok: false,
+      status: "not_found",
+      diagnostic: { kind: "artifact_missing", message: "missing", recoverable: true }
+    };
+  }
+
+  tombstoneArtifact() {
+    return {
+      ok: false as const,
+      status: "not_found" as const,
+      diagnostic: { kind: "artifact_missing" as const, message: "missing", recoverable: true }
+    };
+  }
+}

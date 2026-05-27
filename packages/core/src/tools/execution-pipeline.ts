@@ -169,13 +169,24 @@ export class ExecutionPipeline {
     }
 
     const executableCall = patchedCall;
-    this.eventBus.publish({
+    const start = await this.eventBus.publishDurable({
       type: AgentEventType.ToolStarted,
       runId: options.runId,
       turn: options.turn,
       correlation,
       call: executableCall
+    }, {
+      idempotencyKey: durableToolKey(correlation, "tool.started")
     });
+    if (!start.ok) {
+      return this.finish(
+        executableCall,
+        correlation,
+        failure("TOOL_PERSISTENCE_UNAVAILABLE", "Tool execution start marker could not be durably recorded", start),
+        "exception",
+        tool
+      );
+    }
 
     const rawResult = await executeTool(executableCall, tool, options.signal);
     const executionReason = !rawResult.ok && rawResult.error.code === "TOOL_TIMEOUT" ? "timeout" : undefined;
@@ -259,13 +270,13 @@ export class ExecutionPipeline {
     };
   }
 
-  private finish(
+  private async finish(
     call: ToolCall,
     correlation: ToolCallCorrelation,
     result: ToolResult,
     reason?: ToolRuntimeResult["reason"],
     tool?: ToolDefinition
-  ): ToolRuntimeResult {
+  ): Promise<ToolRuntimeResult> {
     const budgeted = this.resultPolicy.apply({
       call,
       correlation,
@@ -281,14 +292,28 @@ export class ExecutionPipeline {
       correlation,
       result: budgeted
     });
-    this.eventBus.publish({
+    const terminalEvent = {
       type: budgeted.ok ? AgentEventType.ToolCompleted : lifecycleFailureType(reason),
       runId: correlation.runId,
       turn: correlation.turn,
       correlation,
       call,
       result: budgeted
+    } as const;
+    const terminal = await this.eventBus.publishDurable(terminalEvent, {
+      idempotencyKey: durableToolKey(correlation, "tool.terminal")
     });
+    if (!terminal.ok) {
+      const uncertain = {
+        ...budgeted,
+        metadata: {
+          ...budgeted.metadata,
+          persistenceStatus: "interrupted",
+          durableResult: terminal
+        }
+      };
+      return { call, correlation, result: uncertain, reason: reason ?? "exception" };
+    }
     return { call, correlation, result: budgeted, ...(reason ? { reason } : {}) };
   }
 }
@@ -594,4 +619,15 @@ function lifecycleFailureType(reason: ToolRuntimeResult["reason"] | undefined): 
     return AgentEventType.ToolTimeout;
   }
   return AgentEventType.ToolFailed;
+}
+
+function durableToolKey(correlation: ToolCallCorrelation, boundary: string): string {
+  return [
+    correlation.runId,
+    correlation.turn,
+    correlation.toolCallId,
+    correlation.attempt,
+    correlation.batchId ?? "batchless",
+    boundary
+  ].join(":");
 }

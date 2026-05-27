@@ -52,7 +52,10 @@ export class ResultPolicy {
       toolName: options.call.name,
       result: options.result,
       content,
-      metadata: { budgetStrategy: budget.strategy ?? "truncate" }
+      metadata: {
+        budgetStrategy: budget.strategy ?? "truncate",
+        providerRawPersistence: "descriptor-only"
+      }
     });
     const preview = createToolResultPreview({
       call: options.call,
@@ -132,7 +135,10 @@ function truncateResult(
         reference,
         ...(rereadInstruction ? { rereadInstruction } : {}),
         omittedContentChars: Math.max(0, originalContentChars - maxContentChars),
-        view: { llmPreview: previewContent, auditMetadata: { strategy: "truncate" } }
+        view: {
+          llmPreview: previewContent,
+          auditMetadata: auditMetadata("truncate", reference)
+        }
       }
     };
   }
@@ -155,7 +161,10 @@ function truncateResult(
       reference,
       ...(rereadInstruction ? { rereadInstruction } : {}),
       omittedContentChars: Math.max(0, originalContentChars - maxContentChars),
-      view: { llmPreview: previewContent, auditMetadata: { strategy: "truncate" } }
+      view: {
+        llmPreview: previewContent,
+        auditMetadata: auditMetadata("truncate", reference)
+      }
     }
   };
 }
@@ -181,7 +190,10 @@ function referenceResult(
         reference,
         ...(rereadInstruction ? { rereadInstruction } : {}),
         omittedContentChars: originalContentChars,
-        view: { llmPreview: previewContent, auditMetadata: { strategy: "reference" } }
+        view: {
+          llmPreview: previewContent,
+          auditMetadata: auditMetadata("reference", reference)
+        }
       }
     };
   }
@@ -202,7 +214,31 @@ function referenceResult(
       reference,
       ...(rereadInstruction ? { rereadInstruction } : {}),
       omittedContentChars: originalContentChars,
-      view: { llmPreview: previewContent, auditMetadata: { strategy: "reference" } }
+      view: {
+        llmPreview: previewContent,
+        auditMetadata: auditMetadata("reference", reference)
+      }
     }
+  };
+}
+
+function auditMetadata(strategy: "truncate" | "reference", reference: ToolResultReference): Record<string, unknown> {
+  return {
+    strategy,
+    referenceType: reference.type,
+    providerRawPersistence: "descriptor-only",
+    ...(reference.artifact
+      ? {
+          artifact: {
+            artifactId: reference.artifact.artifactId,
+            contentHash: reference.artifact.contentHash,
+            sizeBytes: reference.artifact.sizeBytes,
+            mimeType: reference.artifact.mimeType,
+            privacyTags: reference.artifact.privacyTags,
+            retention: reference.artifact.retention,
+            redaction: reference.artifact.redaction
+          }
+        }
+      : {})
   };
 }

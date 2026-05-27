@@ -2,12 +2,14 @@ import { CoreError } from "../contracts/errors";
 import { AgentEventType } from "../contracts/events";
 import type { ContextPolicy } from "../contracts/context";
 import type { HookRegistration } from "../contracts/hooks";
+import type { ArtifactStore, EventStore, ReplayCapability, SessionStore } from "../contracts/persistence";
 import {
   type LocalPlugin,
   type PluginFailure,
   type PluginShutdownResult,
   type ToolRegistrationOptions
 } from "../contracts/plugins";
+import type { AgentPersistenceCapabilities } from "../contracts/runtime";
 import type { ModelMetadata, Provider } from "../contracts/provider";
 import type { ToolDefinition } from "../contracts/tools";
 import { EventBus } from "../events/event-bus";
@@ -19,6 +21,7 @@ export type PluginHostConstructorOptions = {
   registry: CapabilityRegistry;
   hookKernel: HookKernel;
   eventBus: EventBus;
+  persistence?: AgentPersistenceCapabilities;
 };
 
 export type PluginHostInitializeOptions = {
@@ -45,6 +48,10 @@ type PluginContribution = {
   tools: PluginToolContribution[];
   hooks: string[];
   contextPolicies: string[];
+  eventStores: string[];
+  sessionStores: string[];
+  artifactStores: string[];
+  replayCapabilities: string[];
 };
 
 type PluginToolContribution =
@@ -63,6 +70,7 @@ export class PluginHost {
   private readonly registry: CapabilityRegistry;
   private readonly hookKernel: HookKernel;
   private readonly eventBus: EventBus;
+  private readonly persistence: PluginHostConstructorOptions["persistence"];
   private readonly contributions: PluginContribution[] = [];
   private readonly initializedPlugins: LocalPlugin[] = [];
   private initialized = false;
@@ -72,6 +80,7 @@ export class PluginHost {
     this.registry = options.registry;
     this.hookKernel = options.hookKernel;
     this.eventBus = options.eventBus;
+    this.persistence = options.persistence;
   }
 
   async initialize(options: PluginHostInitializeOptions): Promise<PluginHostInitializeResult> {
@@ -86,7 +95,11 @@ export class PluginHost {
         models: [],
         tools: [],
         hooks: [],
-        contextPolicies: []
+        contextPolicies: [],
+        eventStores: [],
+        sessionStores: [],
+        artifactStores: [],
+        replayCapabilities: []
       };
       this.contributions.push(contribution);
 
@@ -98,7 +111,15 @@ export class PluginHost {
           registerTool: (tool, toolOptions) => this.registerTool(options.runId, plugin.id, tool, contribution, toolOptions),
           registerHook: (hook) =>
             this.registerHook(options.runId, plugin.id, pluginLoadIndex, hook, contribution),
-          registerContextPolicy: (policy) => this.registerContextPolicy(options.runId, plugin.id, policy, contribution)
+          registerContextPolicy: (policy) => this.registerContextPolicy(options.runId, plugin.id, policy, contribution),
+          registerEventStore: (store) => this.registerEventStore(options.runId, plugin.id, store, contribution),
+          registerSessionStore: (store) => this.registerSessionStore(options.runId, plugin.id, store, contribution),
+          registerArtifactStore: (store) => this.registerArtifactStore(options.runId, plugin.id, store, contribution),
+          registerReplayCapability: (capability) =>
+            this.registerReplayCapability(options.runId, plugin.id, capability, contribution),
+          getEventStore: () => this.persistence?.eventStore ?? this.registry.getEventStore(),
+          getSessionStore: () => this.persistence?.sessionStore ?? this.registry.getSessionStore(),
+          getArtifactStore: () => this.persistence?.artifactStore ?? this.registry.getArtifactStore()
         });
         this.initializedPlugins.push(plugin);
         this.eventBus.publish({
@@ -254,6 +275,74 @@ export class PluginHost {
     });
   }
 
+  private registerEventStore(
+    runId: string,
+    pluginId: string,
+    store: EventStore,
+    contribution: PluginContribution
+  ): void {
+    this.registry.registerEventStore(store);
+    contribution.eventStores.push("default");
+    this.eventBus.publish({
+      type: AgentEventType.PluginCapabilityRegistered,
+      runId,
+      pluginId,
+      capability: "event-store",
+      name: "default"
+    });
+  }
+
+  private registerSessionStore(
+    runId: string,
+    pluginId: string,
+    store: SessionStore,
+    contribution: PluginContribution
+  ): void {
+    this.registry.registerSessionStore(store);
+    contribution.sessionStores.push("default");
+    this.eventBus.publish({
+      type: AgentEventType.PluginCapabilityRegistered,
+      runId,
+      pluginId,
+      capability: "session-store",
+      name: "default"
+    });
+  }
+
+  private registerArtifactStore(
+    runId: string,
+    pluginId: string,
+    store: ArtifactStore,
+    contribution: PluginContribution
+  ): void {
+    this.registry.registerArtifactStore(store);
+    contribution.artifactStores.push("default");
+    this.eventBus.publish({
+      type: AgentEventType.PluginCapabilityRegistered,
+      runId,
+      pluginId,
+      capability: "artifact-store",
+      name: "default"
+    });
+  }
+
+  private registerReplayCapability(
+    runId: string,
+    pluginId: string,
+    capability: ReplayCapability,
+    contribution: PluginContribution
+  ): void {
+    this.registry.registerReplayCapability(capability);
+    contribution.replayCapabilities.push("default");
+    this.eventBus.publish({
+      type: AgentEventType.PluginCapabilityRegistered,
+      runId,
+      pluginId,
+      capability: "replay",
+      name: "default"
+    });
+  }
+
   private async shutdownInitializedPlugins(options: PluginHostShutdownOptions): Promise<PluginShutdownResult["failures"]> {
     const failures: PluginShutdownResult["failures"] = [];
 
@@ -310,6 +399,18 @@ export class PluginHost {
       }
       for (const policyId of contribution.contextPolicies) {
         this.registry.removeContextPolicy(policyId);
+      }
+      for (const eventStoreId of contribution.eventStores) {
+        this.registry.removeEventStore(eventStoreId);
+      }
+      for (const sessionStoreId of contribution.sessionStores) {
+        this.registry.removeSessionStore(sessionStoreId);
+      }
+      for (const artifactStoreId of contribution.artifactStores) {
+        this.registry.removeArtifactStore(artifactStoreId);
+      }
+      for (const replayCapabilityId of contribution.replayCapabilities) {
+        this.registry.removeReplayCapability(replayCapabilityId);
       }
       this.hookKernel.removeContextPolicy(contribution.pluginId);
     }

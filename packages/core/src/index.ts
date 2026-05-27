@@ -126,12 +126,90 @@ export type {
   ToolPermissionMetadata
 } from "./contracts/permissions";
 export type {
+  AgentPersistenceCapabilities,
+  AgentResumeSessionOptions,
+  AgentSessionIdentity,
   AgentRunOptions,
   AgentRunResult,
   AgentRuntime,
   AgentRuntimeOptions,
   AgentRuntimeShutdownResult
 } from "./contracts/runtime";
+export type {
+  ArtifactRedaction,
+  ArtifactManifestTransition,
+  ArtifactReference,
+  ArtifactRetention,
+  ArtifactStore,
+  CreateSessionOptions,
+  CreateSessionResult,
+  DurableEventActor,
+  DurableEventEnvelope,
+  DurableEventIdempotency,
+  DurableEventProvenance,
+  DurableEventSource,
+  DurableEventUpcastDiagnostic,
+  DurableEventUpcastResult,
+  DurableEventUpcaster,
+  EventAppendOptions,
+  EventAppendResult,
+  EventAppendSuccess,
+  EventStore,
+  EventStreamReadOptions,
+  EventStreamReadResult,
+  ExpectedRevision,
+  ForkBranchOptions,
+  ForkBranchResult,
+  HashDescriptor,
+  JsonObject,
+  JsonPrimitive,
+  JsonValue,
+  ProviderInputRecord,
+  ProviderToolDescriptorRecord,
+  PutArtifactOptions,
+  PutArtifactResult,
+  ReadArtifactResult,
+  ReplayAuditResult,
+  ReplayAuditTimelineItem,
+  ReplayCapability,
+  ReplayConversationResult,
+  ReplayDiagnostic,
+  ReplayFailureResult,
+  ReplayModelInputResult,
+  ReplayRequest,
+  SessionBranch,
+  SessionBranchSource,
+  SessionConflictDiagnostic,
+  SessionLeaf,
+  SessionRecord,
+  SessionStore,
+  SessionTreeResult,
+  SetActiveLeafOptions,
+  SetActiveLeafResult,
+  StoreCorruptionDiagnostic,
+  StoreCorruptionKind,
+  TombstoneArtifactResult
+} from "./contracts/persistence";
+export type {
+  ResumeInterruptedOperation,
+  ResumeOperationKind,
+  ResumeOperationStatus,
+  ResumeReport,
+  ResumeReportFailure,
+  ResumeReportResult
+} from "./persistence/resume-report";
+export {
+  computeDurableEventRecordHash,
+  createDurableEventEnvelope,
+  normalizeDurableJson,
+  upcastDurableEventEnvelope,
+  validateDurableEventEnvelope
+} from "./persistence/durable-event-envelope";
+export type {
+  CreateDurableEventEnvelopeInput,
+  DurableEventValidationIssue,
+  DurableEventValidationResult
+} from "./persistence/durable-event-envelope";
 export type {
   ProviderRouterFailure,
   ProviderRouterModelCandidate,
@@ -200,6 +278,13 @@ export { ContextBudgeter } from "./context/context-budgeter";
 export { CompactionService, DEFAULT_COMPACTION_POLICY } from "./context/compaction-service";
 export { InMemoryContextDecisionLedger } from "./context/context-decision-ledger";
 export { InMemoryToolResultStore } from "./context/tool-result-store";
+export { ArtifactToolResultStore } from "./context/tool-result-store";
+export type {
+  ArtifactToolResultStoreOptions,
+  StoreToolResultOptions,
+  ToolResultRecord,
+  ToolResultStore
+} from "./context/tool-result-store";
 export { ModelInputProjector } from "./context/model-input-projection";
 export { ReinjectionService } from "./context/reinjection-service";
 export { ProviderRouter } from "./router/provider-router";

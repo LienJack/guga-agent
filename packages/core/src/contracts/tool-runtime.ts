@@ -1,3 +1,5 @@
+import type { ArtifactReference } from "./persistence";
+
 import type { ToolCall } from "./messages";
 import type { PermissionProfile } from "./permissions";
 import type { ToolEffect, ToolResult } from "./tools";
@@ -96,6 +98,7 @@ export type ToolResultReference = {
   type: "artifact" | "buffer" | "host-reference";
   id: string;
   label?: string;
+  artifact?: ArtifactReference;
   metadata?: Record<string, unknown>;
 };
 

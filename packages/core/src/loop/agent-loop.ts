@@ -6,6 +6,7 @@ import type { CoreMessage, ToolCall } from "../contracts/messages";
 import type { LegacyProviderError, Provider, ProviderError, ProviderRequest, ProviderResponse } from "../contracts/provider";
 import { ProviderErrorCategory } from "../contracts/provider";
 import type { AgentRunFailure, AgentRunOptions, AgentRunResult } from "../contracts/runtime";
+import type { DurablePublishResult } from "../events/event-bus";
 import type { ToolAvailabilityContext } from "../contracts/tool-runtime";
 import type { ToolDefinition } from "../contracts/tools";
 import { ModelInputProjector } from "../context/model-input-projection";
@@ -77,7 +78,14 @@ export class AgentLoop {
     let overridePolicyDecisions: Parameters<ModelInputProjector["assemble"]>[0]["policyDecisions"] | undefined;
     let reactiveRetries = 0;
 
-    this.publish({ type: AgentEventType.RunStarted, runId, input: options.input });
+    const runStarted = await this.publishDurable({
+      type: AgentEventType.RunStarted,
+      runId,
+      input: options.input
+    }, durableKey(runId, 0, "run.started", runId));
+    if (runStarted instanceof CoreError) {
+      return this.fail(runId, eventStartIndex, runStarted, "persistence_unavailable");
+    }
 
     let directProvider: Provider | undefined;
     if (!this.router) {
@@ -123,10 +131,12 @@ export class AgentLoop {
             turn,
             messages: projection.messages,
             tools: projection.tools,
+            eventBus: this.eventBus,
+            projection,
             ...(options.purpose ? { purpose: options.purpose } : {}),
             ...(options.signal ? { signal: options.signal } : {})
           })
-        : await this.callDirectProvider(runId, turn, requireDirectProvider(directProvider), projection.messages, projection.tools, options);
+        : await this.callDirectProvider(runId, turn, requireDirectProvider(directProvider), projection, options);
 
       for (const event of routeResult.events) {
         this.publish({ type: AgentEventType.ModelEvent, runId, turn, event });
@@ -153,9 +163,25 @@ export class AgentLoop {
       }
 
       const response = routeResult.response;
-      this.publish({ type: AgentEventType.ModelResponded, runId, turn, response });
+      const modelResponded = await this.publishDurable({
+        type: AgentEventType.ModelResponded,
+        runId,
+        turn,
+        response
+      }, durableKey(runId, turn, "model.responded", routeResult.model.providerId));
+      if (modelResponded instanceof CoreError) {
+        return this.fail(runId, eventStartIndex, modelResponded, "persistence_interrupted");
+      }
       if (response.usage) {
-        this.publish({ type: AgentEventType.UsageRecorded, runId, turn, usage: response.usage });
+        const usage = await this.publishDurable({
+          type: AgentEventType.UsageRecorded,
+          runId,
+          turn,
+          usage: response.usage
+        }, durableKey(runId, turn, "usage.recorded", routeResult.model.providerId));
+        if (usage instanceof CoreError) {
+          return this.fail(runId, eventStartIndex, usage, "persistence_interrupted");
+        }
       }
 
       if (response.type === "failure") {
@@ -183,7 +209,14 @@ export class AgentLoop {
 
       if (response.type === "final") {
         state.addAssistantFinal(response.content);
-        this.publish({ type: AgentEventType.RunFinished, runId, status: "completed" });
+        const finished = await this.publishDurable({
+          type: AgentEventType.RunFinished,
+          runId,
+          status: "completed"
+        }, durableKey(runId, turn, "run.finished", "completed"));
+        if (finished instanceof CoreError) {
+          return this.fail(runId, eventStartIndex, finished, "persistence_interrupted");
+        }
         return {
           ok: true,
           runId,
@@ -231,6 +264,15 @@ export class AgentLoop {
             const coreError = toCoreError(result.reason, "HOOK_FAILED");
             return this.fail(runId, eventStartIndex, coreError, coreError.code === "HOOK_FAILED" ? "hook_failed" : "tool_failed");
           }
+          const persistenceStatus = result.value.result.metadata?.persistenceStatus;
+          if (persistenceStatus === "interrupted") {
+            return this.fail(
+              runId,
+              eventStartIndex,
+              new CoreError("PROVIDER_FAILED", "Tool terminal marker could not be durably recorded", result.value.result.metadata),
+              "persistence_interrupted"
+            );
+          }
           state.addToolResult(result.value.call, result.value.result);
         }
       }
@@ -244,7 +286,7 @@ export class AgentLoop {
     );
   }
 
-  private fail(runId: string, eventStartIndex: number, error: CoreError, reason: string): AgentRunFailure {
+  private async fail(runId: string, eventStartIndex: number, error: CoreError, reason: string): Promise<AgentRunFailure> {
     this.publish({
       type: AgentEventType.Error,
       runId,
@@ -252,7 +294,15 @@ export class AgentLoop {
       message: error.message,
       details: error.details
     });
-    this.publish({ type: AgentEventType.RunFinished, runId, status: "failed", reason });
+    const finished = await this.publishDurable({
+      type: AgentEventType.RunFinished,
+      runId,
+      status: "failed",
+      reason
+    }, durableKey(runId, 0, "run.finished", reason));
+    if (finished instanceof CoreError) {
+      this.publish({ type: AgentEventType.RunFinished, runId, status: "failed", reason: "persistence_interrupted" });
+    }
     return {
       ok: false,
       runId,
@@ -269,6 +319,17 @@ export class AgentLoop {
     this.eventBus.publish(event);
   }
 
+  private async publishDurable(event: AgentEvent, idempotencyKey: string): Promise<CoreError | undefined> {
+    const result = await this.eventBus.publishDurable(event, { idempotencyKey });
+    if (!result.ok) {
+      return new CoreError("PROVIDER_FAILED", `Durable event ${event.type} could not be recorded`, {
+        persistenceStatus: "interrupted",
+        durableResult: result
+      });
+    }
+    return undefined;
+  }
+
   private resolveProvider(providerId: string): CoreError | Provider {
     try {
       return this.registry.requireProvider(providerId);
@@ -281,18 +342,38 @@ export class AgentLoop {
     runId: string,
     turn: number,
     provider: ReturnType<CapabilityRegistry["requireProvider"]>,
-    messages: ProviderRequest["messages"],
-    tools: ProviderRequest["tools"],
+    projection: ReturnType<ModelInputProjector["assemble"]>,
     options: AgentRunOptions
   ) {
-    this.publish({
+    const messages = projection.messages;
+    const tools = projection.tools;
+    const requestEvent = {
       type: AgentEventType.ModelRequested,
       runId,
       turn,
       providerId: provider.id,
       messages,
       toolNames: tools.map((tool) => tool.name)
+    } as const;
+    const start = await this.eventBus.publishDurable(requestEvent, {
+      idempotencyKey: durableKey(runId, turn, "model.requested", provider.id)
     });
+    if (!start.ok) {
+      return durableProviderFailure(runId, turn, provider.id, options.modelId ?? provider.id, start, "Provider request was not durably recorded");
+    }
+
+    const inputCommitted = await this.eventBus.publishDurable({
+      type: AgentEventType.ProviderInputCommitted,
+      runId,
+      turn,
+      projectionId: projection.id,
+      ...(projection.hash ? { projectionHash: projection.hash } : {})
+    }, {
+      idempotencyKey: durableKey(runId, turn, "provider.input.committed", projection.id)
+    });
+    if (!inputCommitted.ok) {
+      return durableProviderFailure(runId, turn, provider.id, options.modelId ?? provider.id, inputCommitted, "Provider input was not durably recorded");
+    }
 
     const request: ProviderRequest = { messages, tools };
     if (options.signal) {
@@ -390,20 +471,47 @@ export class AgentLoop {
       ...(parentSummaryRef ? { parentSummaryRef } : {}),
       iterationNo: iterationNoFor(projection) + 1
     });
-    this.publish({
+    const start = await this.eventBus.publishDurable({
       type: AgentEventType.ContextCompactStarted,
       runId,
       turn,
       projectionId: projection.id,
       trigger
+    }, {
+      idempotencyKey: durableKey(runId, turn, "context.compact.started", projection.id)
     });
-    this.publish({
+    if (!start.ok) {
+      return new CoreError("PROVIDER_FAILED", "Context compaction start marker could not be durably recorded", start);
+    }
+    const preCommit = await this.eventBus.appendDurableRecord({
+      type: "context.compact.pre_commit",
+      runId,
+      turn,
+      projectionId: projection.id,
+      trigger,
+      boundary: compacted.result.boundary
+    }, {
+      eventType: "context.compact.pre_commit",
+      idempotencyKey: durableKey(runId, turn, "context.compact.pre_commit", projection.id)
+    });
+    if (!preCommit.ok) {
+      return new CoreError("PROVIDER_FAILED", "Context compaction pre-commit marker could not be durably recorded", preCommit);
+    }
+    const terminal = await this.eventBus.publishDurable({
       type: compacted.result.failed ? AgentEventType.ContextCompactFailed : AgentEventType.ContextCompactCompleted,
       runId,
       turn,
       projectionId: projection.id,
       result: compacted.result
+    }, {
+      idempotencyKey: durableKey(runId, turn, "context.compact.terminal", projection.id)
     });
+    if (!terminal.ok) {
+      return new CoreError("PROVIDER_FAILED", "Context compaction terminal marker could not be durably recorded", {
+        persistenceStatus: "interrupted",
+        durableResult: terminal
+      });
+    }
     const afterHook = await this.runContextHook(HookPhase.ContextCompactAfter, {
       runId,
       turn,
@@ -463,7 +571,13 @@ export class AgentLoop {
       ...modelTargetOption(options.model)
     });
     let alreadyCompacted = hasCompactionSummary(projection.messages);
-    this.publish(projectionCreatedEvent(projection));
+    const projectionPublished = await this.publishDurable(
+      projectionCreatedEvent(projection),
+      durableKey(options.runId, options.turn, "context.projection.created", projection.id)
+    );
+    if (projectionPublished instanceof CoreError) {
+      return projectionPublished;
+    }
 
     const assembleHook = await this.runContextHook(HookPhase.ContextAssemble, {
       runId: options.runId,
@@ -516,7 +630,13 @@ export class AgentLoop {
           ...modelTargetOption(options.model)
         });
         alreadyCompacted = alreadyCompacted || hasCompactionSummary(projection.messages);
-        this.publish(projectionCreatedEvent(projection));
+        const truncatedProjectionPublished = await this.publishDurable(
+          projectionCreatedEvent(projection),
+          durableKey(options.runId, options.turn, "context.projection.created", projection.id)
+        );
+        if (truncatedProjectionPublished instanceof CoreError) {
+          return truncatedProjectionPublished;
+        }
       }
     }
 
@@ -842,6 +962,49 @@ function visibleTools(
     });
     return false;
   });
+}
+
+function durableKey(runId: string, turn: number, boundary: string, identity: string): string {
+  return `${runId}:${turn}:${boundary}:${identity}`;
+}
+
+function durableProviderFailure(
+  runId: string,
+  turn: number,
+  providerId: string,
+  modelId: string,
+  result: DurablePublishResult,
+  message: string
+) {
+  const providerError = {
+    category: ProviderErrorCategory.Fatal,
+    code: "PROVIDER_FAILED",
+    message,
+    providerId,
+    modelId,
+    metadata: {
+      persistenceStatus: "unavailable",
+      durableResult: result
+    }
+  };
+  return {
+    ok: false as const,
+    error: {
+      code: "PROVIDER_FAILED" as const,
+      message,
+      details: providerError
+    },
+    events: [
+      {
+        type: ModelEventType.ProviderError,
+        runId,
+        turn,
+        providerId,
+        modelId,
+        error: providerError
+      }
+    ]
+  };
 }
 
 function toCoreError(error: unknown, fallbackCode: CoreErrorCode = "PROVIDER_FAILED"): CoreError {

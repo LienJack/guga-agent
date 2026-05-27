@@ -496,6 +496,8 @@ first-party 插件：
 
 **目标：** 让 agent 从内存循环变成可恢复、可回放、可分叉的工作台。
 
+**实现备注（2026-05-27）：** M5 采用 local-first durable substrate：core 暴露 store/replay contracts 与 durable side-effect gates，first-party JSONL、filesystem artifact、replay/audit 插件通过同一 public plugin surface 接入。
+
 建设范围：
 
 - 定义 `SessionStore`、`EventStore`、`ArtifactStore` 接口。

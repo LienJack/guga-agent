@@ -1,4 +1,6 @@
 import { CoreError } from "../contracts/errors";
+import { AgentEventType } from "../contracts/events";
+import type { ModelInputProjection } from "../contracts/context";
 import { ModelEventType, type ModelEvent } from "../contracts/model-events";
 import {
   ProviderErrorCategory,
@@ -15,11 +17,18 @@ import type {
   ProviderRouterRequest,
   ProviderRouterResult
 } from "../contracts/provider-router";
+import type { DurablePublishResult } from "../events/event-bus";
+import type { EventBus } from "../events/event-bus";
 import { CapabilityRegistry } from "../registry/capability-registry";
 
 export type ProviderRouterOptions = {
   registry: CapabilityRegistry;
   policy?: ProviderRouterPolicy;
+};
+
+export type ProviderRouterRouteRequest = ProviderRouterRequest & {
+  eventBus?: EventBus;
+  projection?: ModelInputProjection;
 };
 
 export class ProviderRouter {
@@ -31,7 +40,7 @@ export class ProviderRouter {
     this.policy = options.policy;
   }
 
-  async route(request: ProviderRouterRequest): Promise<ProviderRouterResult> {
+  async route(request: ProviderRouterRouteRequest): Promise<ProviderRouterResult> {
     const events: ModelEvent[] = [];
     const candidates = this.candidatesFor(request);
     const maxRetries = this.policy?.maxRetries ?? 0;
@@ -100,6 +109,37 @@ export class ProviderRouter {
       }
 
       for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+        const start = request.eventBus
+          ? await request.eventBus.publishDurable({
+              type: AgentEventType.ModelRequested,
+              runId: request.runId,
+              turn: request.turn,
+              providerId: candidate.providerId,
+              messages: request.messages,
+              toolNames: request.tools.map((tool) => tool.name)
+            }, {
+              idempotencyKey: durableKey(request.runId, request.turn, "model.requested", candidate.providerId, attempt)
+            })
+          : undefined;
+        if (start && !start.ok) {
+          return durableRouterFailure(request, candidate, attempt, start, "Provider request was not durably recorded", events);
+        }
+
+        if (request.projection && request.eventBus) {
+          const committed = await request.eventBus.publishDurable({
+            type: AgentEventType.ProviderInputCommitted,
+            runId: request.runId,
+            turn: request.turn,
+            projectionId: request.projection.id,
+            ...(request.projection.hash ? { projectionHash: request.projection.hash } : {})
+          }, {
+            idempotencyKey: durableKey(request.runId, request.turn, "provider.input.committed", request.projection.id, attempt)
+          });
+          if (!committed.ok) {
+            return durableRouterFailure(request, candidate, attempt, committed, "Provider input was not durably recorded", events);
+          }
+        }
+
         let response: ProviderResponse;
         try {
           response = await provider.generate({
@@ -242,6 +282,52 @@ function eventsFromResponse(
 
 function shouldRetry(error: ProviderError, attempt: number, maxRetries: number): boolean {
   return attempt < maxRetries && (error.retryable === true || error.category === ProviderErrorCategory.Retryable);
+}
+
+function durableKey(runId: string, turn: number, boundary: string, identity: string, attempt: number): string {
+  return `${runId}:${turn}:${boundary}:${identity}:${attempt}`;
+}
+
+function durableRouterFailure(
+  request: ProviderRouterRouteRequest,
+  model: ModelIdentifier,
+  attempt: number,
+  result: DurablePublishResult,
+  message: string,
+  events: ModelEvent[]
+): ProviderRouterFailure {
+  const providerError: ProviderError = {
+    category: ProviderErrorCategory.Fatal,
+    code: "PROVIDER_FAILED",
+    message,
+    providerId: model.providerId,
+    modelId: model.modelId,
+    metadata: {
+      attempt,
+      persistenceStatus: "unavailable",
+      durableResult: result
+    }
+  };
+  events.push({
+    type: ModelEventType.ProviderError,
+    runId: request.runId,
+    turn: request.turn,
+    attempt,
+    providerId: model.providerId,
+    modelId: model.modelId,
+    error: providerError,
+    ...(request.purpose ? { purpose: request.purpose } : {})
+  });
+  return {
+    ok: false,
+    error: {
+      code: "PROVIDER_FAILED",
+      message,
+      details: { purpose: request.purpose, providerError },
+      providerError
+    },
+    events
+  };
 }
 
 function normalizeProviderError(

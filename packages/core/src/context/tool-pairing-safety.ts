@@ -29,6 +29,16 @@ export type ToolPairingSafetyResult = {
   decisions: ToolPairingDecision[];
 };
 
+export function toolPairingDecisionCode(decision: ToolPairingDecision): "TOOL_PAIRING_VALID" | "TOOL_PAIRING_REPAIRED" | "TOOL_PAIRING_REFUSED" {
+  if (decision.type === "repair") {
+    return "TOOL_PAIRING_REPAIRED";
+  }
+  if (decision.type === "refuse") {
+    return "TOOL_PAIRING_REFUSED";
+  }
+  return "TOOL_PAIRING_VALID";
+}
+
 export function ensureToolPairingSafety(messages: readonly CoreMessage[]): ToolPairingSafetyResult {
   const next = structuredClone(messages) as CoreMessage[];
   const decisions: ToolPairingDecision[] = [];
