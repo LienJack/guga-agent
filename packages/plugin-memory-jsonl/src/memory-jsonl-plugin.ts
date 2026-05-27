@@ -28,7 +28,12 @@ export function createMemoryJsonlPlugin(options: MemoryJsonlPluginOptions = {}):
         ownerPluginId: pluginId,
         trust: readWriteTrust
       });
-      for (const name of ["memory.jsonl.review", "memory.jsonl.retrieval", "memory.jsonl.curated_markdown"]) {
+      for (const name of [
+        "memory.jsonl.review",
+        "memory.jsonl.health",
+        "memory.jsonl.retrieval",
+        "memory.jsonl.curated_markdown"
+      ]) {
         context.registerOperation?.(name, {
           source: "plugin",
           ownerPluginId: pluginId,

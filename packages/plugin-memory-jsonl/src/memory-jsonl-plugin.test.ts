@@ -26,7 +26,12 @@ describe("createMemoryJsonlPlugin", () => {
         })
       })
     ]));
-    for (const name of ["memory.jsonl.review", "memory.jsonl.retrieval", "memory.jsonl.curated_markdown"]) {
+    for (const name of [
+      "memory.jsonl.review",
+      "memory.jsonl.health",
+      "memory.jsonl.retrieval",
+      "memory.jsonl.curated_markdown"
+    ]) {
       expect(descriptors).toEqual(expect.arrayContaining([
         expect.objectContaining({
           type: "operation",
