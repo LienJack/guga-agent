@@ -25,14 +25,23 @@ export {
 } from "./events";
 export type {
   ArtifactResource,
+  AuditSummaryResource,
   CapabilityResource,
+  CapabilityScopeResource,
   HostErrorPayload,
+  MetricsSnapshotResource,
+  OperationalDiagnosticResource,
+  OperationalStatusResource,
   PermissionRequestResource,
   PermissionResolution,
   PermissionStatus,
+  ProviderHealthResource,
   RunResource,
   RunStatus,
-  SessionResource
+  SessionResource,
+  TrustDescriptorResource,
+  UsageCostResource,
+  UsageResource
 } from "./resources";
 export type {
   SseEnvelope

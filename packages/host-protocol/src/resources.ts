@@ -70,4 +70,86 @@ export type CapabilityResource = {
   namespace?: string;
   ownerPluginId?: string;
   reason?: string;
+  trust?: TrustDescriptorResource;
+};
+
+export type CapabilityScopeResource = {
+  kind: string;
+  access?: string;
+  value?: string;
+};
+
+export type TrustDescriptorResource = {
+  level: string;
+  scopes?: CapabilityScopeResource[];
+  reason?: string;
+};
+
+export type OperationalDiagnosticResource = {
+  severity: "info" | "warning" | "error";
+  code: string;
+  message: string;
+  retryable?: boolean;
+  details?: unknown;
+};
+
+export type ProviderHealthResource = {
+  providerId: string;
+  modelId?: string;
+  status: "unknown" | "healthy" | "degraded" | "unavailable";
+  checkedAt: string;
+  latencyMs?: number;
+  diagnostics: OperationalDiagnosticResource[];
+};
+
+export type UsageCostResource =
+  | {
+      status: "unknown";
+      reason?: string;
+    }
+  | {
+      status: "known";
+      amount: number;
+      currency: string;
+    };
+
+export type UsageResource = {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  cachedInputTokens?: number;
+  reasoningTokens?: number;
+  cost?: UsageCostResource;
+};
+
+export type AuditSummaryResource = {
+  runId: string;
+  startedAt?: string;
+  completedAt?: string;
+  toolCalls: {
+    started: number;
+    completed: number;
+    failed: number;
+  };
+  permissions: {
+    requested: number;
+    allowed: number;
+    denied: number;
+  };
+  usage: UsageResource;
+  failures: OperationalDiagnosticResource[];
+};
+
+export type MetricsSnapshotResource = {
+  updatedAt: string;
+  counters: Record<string, number>;
+};
+
+export type OperationalStatusResource = {
+  updatedAt: string;
+  capabilities: CapabilityResource[];
+  health: ProviderHealthResource[];
+  audit: AuditSummaryResource[];
+  metrics: MetricsSnapshotResource;
+  diagnostics: OperationalDiagnosticResource[];
 };

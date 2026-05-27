@@ -111,6 +111,26 @@ async function handleRequest(
       return;
     }
 
+    if (request.method === "GET" && segments.length === 2 && segments[0] === "operations" && segments[1] === "health") {
+      sendJson(response, 200, { health: hostRuntime.listProviderHealth() });
+      return;
+    }
+
+    if (request.method === "GET" && segments.length === 2 && segments[0] === "operations" && segments[1] === "audit") {
+      sendJson(response, 200, { summaries: hostRuntime.listAuditSummaries() });
+      return;
+    }
+
+    if (request.method === "GET" && segments.length === 2 && segments[0] === "operations" && segments[1] === "metrics") {
+      sendJson(response, 200, hostRuntime.getMetricsSnapshot());
+      return;
+    }
+
+    if (request.method === "GET" && segments.length === 2 && segments[0] === "operations" && segments[1] === "status") {
+      sendJson(response, 200, hostRuntime.getOperationalStatus());
+      return;
+    }
+
     sendError(response, 404, "NOT_FOUND", "Route not found");
   } catch (error) {
     sendError(response, 500, "INTERNAL_ERROR", error instanceof Error ? error.message : "Unexpected error");

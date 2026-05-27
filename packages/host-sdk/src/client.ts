@@ -1,6 +1,10 @@
 import type {
   CapabilityResource,
   HostEvent,
+  AuditSummaryResource,
+  MetricsSnapshotResource,
+  OperationalStatusResource,
+  ProviderHealthResource,
   RunResource,
   SessionResource
 } from "@guga-agent/host-protocol";
@@ -33,6 +37,10 @@ export type HostClient = {
   streamRunEvents(runId: string, options?: { afterSeq?: number; signal?: AbortSignal }): AsyncIterable<HostEvent>;
   cancelRun(runId: string): Promise<RunResource>;
   listCapabilities(): Promise<CapabilityResource[]>;
+  listProviderHealth(): Promise<ProviderHealthResource[]>;
+  listAuditSummaries(): Promise<AuditSummaryResource[]>;
+  getMetricsSnapshot(): Promise<MetricsSnapshotResource>;
+  getOperationalStatus(): Promise<OperationalStatusResource>;
 };
 
 export class HostClientError extends Error {
@@ -99,6 +107,26 @@ export function connectHost(options: ConnectHostOptions): HostClient {
     async listCapabilities() {
       const response = await requestJson<{ capabilities: CapabilityResource[] }>(fetchImpl, `${baseUrl}/capabilities`);
       return response.capabilities;
+    },
+    async listProviderHealth() {
+      const response = await requestJson<{ health: ProviderHealthResource[] }>(
+        fetchImpl,
+        `${baseUrl}/operations/health`
+      );
+      return response.health;
+    },
+    async listAuditSummaries() {
+      const response = await requestJson<{ summaries: AuditSummaryResource[] }>(
+        fetchImpl,
+        `${baseUrl}/operations/audit`
+      );
+      return response.summaries;
+    },
+    getMetricsSnapshot() {
+      return requestJson(fetchImpl, `${baseUrl}/operations/metrics`);
+    },
+    getOperationalStatus() {
+      return requestJson(fetchImpl, `${baseUrl}/operations/status`);
     }
   };
 }

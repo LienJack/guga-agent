@@ -80,4 +80,12 @@ export class InMemoryRunStore {
   listEvents(runId: string): HostEvent[] {
     return [...(this.events.get(runId) ?? [])];
   }
+
+  listRuns(): RunResource[] {
+    return [...this.runs.values()].map((run) => this.getRun(run.id) ?? run);
+  }
+
+  listAllEvents(): HostEvent[] {
+    return [...this.events.values()].flat();
+  }
 }

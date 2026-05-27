@@ -32,6 +32,15 @@ importers:
       '@guga-agent/host-sdk':
         specifier: workspace:*
         version: link:../host-sdk
+      '@guga-agent/plugin-audit-export':
+        specifier: workspace:*
+        version: link:../plugin-audit-export
+      '@guga-agent/plugin-eval-runner':
+        specifier: workspace:*
+        version: link:../plugin-eval-runner
+      '@guga-agent/plugin-ops-health':
+        specifier: workspace:*
+        version: link:../plugin-ops-health
       '@guga-agent/provider-ai-sdk':
         specifier: workspace:*
         version: link:../provider-ai-sdk

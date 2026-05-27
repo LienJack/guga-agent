@@ -6,10 +6,16 @@ import {
 } from "@guga-agent/core";
 import {
   createHostEventSequencer,
+  type AuditSummaryResource,
   type CapabilityResource,
   type HostEvent,
+  type MetricsSnapshotResource,
+  type OperationalDiagnosticResource,
+  type OperationalStatusResource,
+  type ProviderHealthResource,
   type RunResource,
-  type SessionResource
+  type SessionResource,
+  type UsageCostResource
 } from "@guga-agent/host-protocol";
 import { projectAgentEvent } from "./event-projector";
 import { InMemoryRunStore } from "./in-memory-run-store";
@@ -170,6 +176,42 @@ export class HostRuntime {
     return (this.runtime.listCapabilityDescriptors?.() ?? []).map(capabilityResourceFromDescriptor);
   }
 
+  listProviderHealth(): ProviderHealthResource[] {
+    const timestamp = this.now().toISOString();
+    return (this.runtime.listCapabilityDescriptors?.() ?? [])
+      .filter((descriptor) => descriptor.type === "provider")
+      .map((descriptor) => ({
+        providerId: descriptor.name,
+        status: "unknown",
+        checkedAt: timestamp,
+        diagnostics: [{
+          severity: "info",
+          code: "HEALTH_CHECK_NOT_RUN",
+          message: "Provider health checks are exposed as operation capabilities and have not been executed by the host"
+        }]
+      }));
+  }
+
+  listAuditSummaries(): AuditSummaryResource[] {
+    return this.store.listRuns().map((run) => auditSummaryFromRun(run, this.store.listEvents(run.id)));
+  }
+
+  getMetricsSnapshot(): MetricsSnapshotResource {
+    return metricsSnapshotFromEvents(this.store.listAllEvents(), this.now().toISOString());
+  }
+
+  getOperationalStatus(): OperationalStatusResource {
+    const metrics = this.getMetricsSnapshot();
+    return {
+      updatedAt: metrics.updatedAt,
+      capabilities: this.listCapabilities(),
+      health: this.listProviderHealth(),
+      audit: this.listAuditSummaries(),
+      metrics,
+      diagnostics: []
+    };
+  }
+
   async dispose(): Promise<void> {
     if (this.ownsRuntime) {
       await this.runtime.dispose();
@@ -225,6 +267,174 @@ function capabilityResourceFromDescriptor(descriptor: CapabilityDescriptor): Cap
     status: descriptor.status,
     ...(descriptor.namespace ? { namespace: descriptor.namespace } : {}),
     ...(descriptor.ownerPluginId ? { ownerPluginId: descriptor.ownerPluginId } : {}),
-    ...(descriptor.reason ? { reason: descriptor.reason } : {})
+    ...(descriptor.reason ? { reason: descriptor.reason } : {}),
+    ...(descriptor.trust ? { trust: descriptor.trust } : {})
   };
+}
+
+function auditSummaryFromRun(run: RunResource, events: HostEvent[]): AuditSummaryResource {
+  const usage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    cost: summarizeHostCost(events)
+  };
+  const failures: OperationalDiagnosticResource[] = [];
+  let startedAt: string | undefined;
+  let completedAt: string | undefined;
+  const toolCalls = {
+    started: 0,
+    completed: 0,
+    failed: 0
+  };
+  const permissions = {
+    requested: 0,
+    allowed: 0,
+    denied: 0
+  };
+
+  for (const event of events) {
+    switch (event.type) {
+      case "run.started":
+        startedAt ??= event.occurredAt;
+        break;
+      case "run.completed":
+        completedAt = event.occurredAt;
+        break;
+      case "run.failed":
+        completedAt = event.occurredAt;
+        failures.push({
+          severity: "error",
+          code: event.error.code,
+          message: event.error.message
+        });
+        break;
+      case "tool.started":
+        toolCalls.started += 1;
+        break;
+      case "tool.completed":
+        toolCalls.completed += 1;
+        break;
+      case "tool.failed":
+        toolCalls.failed += 1;
+        failures.push({
+          severity: "error",
+          code: event.error.code,
+          message: event.error.message
+        });
+        break;
+      case "permission.requested":
+        permissions.requested += 1;
+        break;
+      case "permission.resolved":
+        if (event.decision === "allow") {
+          permissions.allowed += 1;
+        } else {
+          permissions.denied += 1;
+        }
+        break;
+      case "usage.recorded":
+        usage.inputTokens += event.inputTokens ?? 0;
+        usage.outputTokens += event.outputTokens ?? 0;
+        usage.totalTokens += event.totalTokens ?? 0;
+        break;
+      default:
+        break;
+    }
+  }
+
+  const summary: AuditSummaryResource = {
+    runId: run.id,
+    toolCalls,
+    permissions,
+    usage,
+    failures
+  };
+  if (startedAt !== undefined) {
+    summary.startedAt = startedAt;
+  }
+  if (completedAt !== undefined) {
+    summary.completedAt = completedAt;
+  }
+  return summary;
+}
+
+function metricsSnapshotFromEvents(events: HostEvent[], updatedAt: string): MetricsSnapshotResource {
+  const counters: Record<string, number> = {
+    "runs.started": 0,
+    "runs.completed": 0,
+    "runs.failed": 0,
+    "tools.started": 0,
+    "tools.completed": 0,
+    "tools.failed": 0,
+    "permissions.requested": 0,
+    "permissions.allowed": 0,
+    "permissions.denied": 0,
+    "usage.input_tokens": 0,
+    "usage.output_tokens": 0,
+    "usage.total_tokens": 0
+  };
+
+  for (const event of events) {
+    switch (event.type) {
+      case "run.started":
+        increment(counters, "runs.started");
+        break;
+      case "run.completed":
+        increment(counters, "runs.completed");
+        break;
+      case "run.failed":
+        increment(counters, "runs.failed");
+        break;
+      case "tool.started":
+        increment(counters, "tools.started");
+        break;
+      case "tool.completed":
+        increment(counters, "tools.completed");
+        break;
+      case "tool.failed":
+        increment(counters, "tools.failed");
+        break;
+      case "permission.requested":
+        increment(counters, "permissions.requested");
+        break;
+      case "permission.resolved":
+        increment(counters, event.decision === "allow" ? "permissions.allowed" : "permissions.denied");
+        break;
+      case "usage.recorded":
+        increment(counters, "usage.input_tokens", event.inputTokens ?? 0);
+        increment(counters, "usage.output_tokens", event.outputTokens ?? 0);
+        increment(counters, "usage.total_tokens", event.totalTokens ?? 0);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return { updatedAt, counters };
+}
+
+function summarizeHostCost(events: HostEvent[]): UsageCostResource {
+  const usageEvents = events.filter((event) => event.type === "usage.recorded");
+  if (usageEvents.length === 0) {
+    return {
+      status: "unknown",
+      reason: "event stream does not contain known usage costs"
+    };
+  }
+  if (usageEvents.every((event) => event.costUsd !== undefined)) {
+    return {
+      status: "known",
+      amount: usageEvents.reduce((sum, event) => sum + (event.costUsd ?? 0), 0),
+      currency: "USD"
+    };
+  }
+  return {
+    status: "unknown",
+    reason: "event stream contains usage records without known costs"
+  };
+}
+
+function increment(counters: Record<string, number>, key: string, amount = 1): void {
+  counters[key] = (counters[key] ?? 0) + amount;
 }

@@ -22,6 +22,16 @@ describe("CLI run command", () => {
     expect(io.stdout()).toContain("\"type\":\"run.completed\"");
   });
 
+  it("prints redacted operational status with --ops", async () => {
+    const io = captureIo();
+
+    await expect(runCli(["run", "hello", "--mock", "--ops"], io)).resolves.toBe(0);
+
+    expect(io.stdout()).toContain("operations: providers=1 operations=5 runs=1 totalTokens=3");
+    expect(io.stdout()).not.toContain("test-secret");
+    expect(io.stderr()).toBe("");
+  });
+
   it("renders tool progress from host events", () => {
     expect(renderHostEvent({
       type: "tool.started",

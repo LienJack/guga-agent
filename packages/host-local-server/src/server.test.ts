@@ -76,6 +76,26 @@ describe("HostLocalServer", () => {
         expect.objectContaining({ type: "tool", name: "echo" })
       ])
     });
+    await expect(fetchJson(`${server.url}/operations/metrics`)).resolves.toMatchObject({
+      counters: expect.objectContaining({
+        "runs.started": 1,
+        "runs.completed": 1,
+        "usage.total_tokens": 9
+      })
+    });
+    await expect(fetchJson(`${server.url}/operations/audit`)).resolves.toMatchObject({
+      summaries: [
+        expect.objectContaining({
+          runId: run.id,
+          usage: expect.objectContaining({ totalTokens: 9 })
+        })
+      ]
+    });
+    await expect(fetchJson(`${server.url}/operations/status`)).resolves.toMatchObject({
+      metrics: expect.objectContaining({
+        counters: expect.objectContaining({ "runs.completed": 1 })
+      })
+    });
     await expect(postJson(`${server.url}/runs/${run.id}/cancel`, {})).resolves.toMatchObject({
       id: run.id,
       status: "completed"

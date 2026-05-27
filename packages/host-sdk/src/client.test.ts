@@ -50,6 +50,23 @@ describe("host SDK", () => {
     await expect(host.client.listCapabilities()).resolves.toEqual(expect.arrayContaining([
       expect.objectContaining({ type: "tool", name: "echo" })
     ]));
+    await expect(host.client.getMetricsSnapshot()).resolves.toMatchObject({
+      counters: expect.objectContaining({
+        "runs.completed": 1,
+        "usage.total_tokens": 11
+      })
+    });
+    await expect(host.client.listAuditSummaries()).resolves.toEqual([
+      expect.objectContaining({
+        runId: run.id,
+        usage: expect.objectContaining({ totalTokens: 11 })
+      })
+    ]);
+    await expect(host.client.getOperationalStatus()).resolves.toMatchObject({
+      metrics: expect.objectContaining({
+        counters: expect.objectContaining({ "runs.completed": 1 })
+      })
+    });
     await expect(host.client.getRun("missing")).rejects.toBeInstanceOf(HostClientError);
   });
 
