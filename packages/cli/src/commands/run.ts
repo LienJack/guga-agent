@@ -1,6 +1,7 @@
 import { createAgentRuntime, createMockProvider } from "@guga-agent/core";
 import { HostRuntime } from "@guga-agent/host-runtime";
 import { createLocalGugaHost, type LocalGugaHost } from "@guga-agent/host-sdk";
+import { createAiSdkProviderPlugin } from "@guga-agent/provider-ai-sdk";
 import { readCliConfig } from "../config";
 import { renderHostEvent } from "../render/events";
 
@@ -38,7 +39,7 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
 }
 
 export async function runCommand(args: RunArgs, io: CliIO): Promise<number> {
-  const host = await createCliHost(args);
+  const host = await createCliHost(args, io.env);
   try {
     const session = await host.client.createSession({ title: "CLI run" });
     const run = await host.client.startRun(session.id, {
@@ -110,9 +111,25 @@ function parseRunArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): { o
   };
 }
 
-async function createCliHost(args: RunArgs): Promise<LocalGugaHost> {
+async function createCliHost(args: RunArgs, env: NodeJS.ProcessEnv = process.env): Promise<LocalGugaHost> {
   if (!args.mock) {
-    return createLocalGugaHost();
+    const config = readCliConfig(env);
+    const modelId = args.modelId ?? config.modelId;
+    if (!modelId) {
+      return createLocalGugaHost();
+    }
+    const providerPlugin = createAiSdkProviderPlugin({
+      id: args.providerId ?? config.providerId ?? "ai-sdk",
+      mode: config.providerMode ?? "openai",
+      modelId,
+      ...(config.apiKey ? { apiKey: config.apiKey } : {}),
+      ...(config.baseURL ? { baseURL: config.baseURL } : {})
+    });
+    return createLocalGugaHost({
+      hostRuntime: new HostRuntime({
+        runtime: createAgentRuntime({ model: providerPlugin })
+      })
+    });
   }
 
   const runtime = createAgentRuntime();

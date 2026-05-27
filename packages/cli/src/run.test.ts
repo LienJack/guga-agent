@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readCliConfig } from "./config";
 import { runCli } from "./commands/run";
 import { renderHostEvent } from "./render/events";
 
@@ -31,6 +32,22 @@ describe("CLI run command", () => {
       callId: "call-1",
       name: "shell"
     })).toEqual(["tool shell started"]);
+  });
+
+  it("reads real provider config from environment", () => {
+    expect(readCliConfig({
+      GUGA_PROVIDER: "ai-sdk",
+      GUGA_PROVIDER_MODE: "openai-compatible",
+      GUGA_MODEL: "local-model",
+      GUGA_BASE_URL: "http://localhost:11434/v1",
+      GUGA_API_KEY: "test"
+    })).toEqual({
+      providerId: "ai-sdk",
+      providerMode: "openai-compatible",
+      modelId: "local-model",
+      baseURL: "http://localhost:11434/v1",
+      apiKey: "test"
+    });
   });
 });
 

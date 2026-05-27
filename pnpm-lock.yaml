@@ -32,6 +32,9 @@ importers:
       '@guga-agent/host-sdk':
         specifier: workspace:*
         version: link:../host-sdk
+      '@guga-agent/provider-ai-sdk':
+        specifier: workspace:*
+        version: link:../provider-ai-sdk
 
   packages/core: {}
 

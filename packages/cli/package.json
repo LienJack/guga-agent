@@ -23,6 +23,7 @@
     "@guga-agent/core": "workspace:*",
     "@guga-agent/host-protocol": "workspace:*",
     "@guga-agent/host-runtime": "workspace:*",
-    "@guga-agent/host-sdk": "workspace:*"
+    "@guga-agent/host-sdk": "workspace:*",
+    "@guga-agent/provider-ai-sdk": "workspace:*"
   }
 }
