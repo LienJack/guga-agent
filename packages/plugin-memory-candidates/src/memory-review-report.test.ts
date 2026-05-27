@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { createAgentRuntime, type CapabilityDescriptor } from "@guga-agent/core";
 import {
   createMemoryGovernanceLedger,
+  createMemoryReviewHealth,
   createMemoryReviewPlugin,
   createMemoryReviewReport,
+  renderMemoryReviewHealthBlock,
   renderMemoryReviewReport,
   type MemoryCandidate,
   type MemoryDecision
@@ -103,6 +105,17 @@ describe("memory review report", () => {
     expect(report.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "MEMORY_DECISION_CANDIDATE_NOT_GOVERNABLE" })
     ]));
+
+    expect(createMemoryReviewHealth(report)).toEqual({
+      status: "blocked",
+      reasons: ["governance-diagnostics", "unsafe-candidates", "undecided-candidates"],
+      counts: {
+        active: 1,
+        undecided: 1,
+        unsafe: 1,
+        diagnostics: 1
+      }
+    });
   });
 
   it("reports superseded items deterministically", () => {
@@ -131,6 +144,41 @@ describe("memory review report", () => {
     expect(report.counts).toMatchObject({ active: 1, superseded: 1, undecided: 0 });
     expect(report.activeItems.map((item) => item.id)).toEqual(["memory-2"]);
     expect(report.supersededItems.map((item) => item.id)).toEqual(["memory-1"]);
+    expect(createMemoryReviewHealth(report)).toMatchObject({
+      status: "healthy",
+      reasons: [],
+      counts: { active: 1, undecided: 0, unsafe: 0, diagnostics: 0 }
+    });
+  });
+
+  it("classifies undecided memory as needs review and renders a compact health block", () => {
+    const report = createMemoryReviewReport(createMemoryGovernanceLedger([
+      baseCandidate,
+      {
+        ...baseCandidate,
+        id: "candidate-2",
+        content: "Undecided memory should be reviewed by a human.",
+        createdAt: "2026-05-28T00:01:00.000Z"
+      }
+    ], [baseDecision]));
+
+    const health = createMemoryReviewHealth(report);
+
+    expect(health).toEqual({
+      status: "needs_review",
+      reasons: ["undecided-candidates"],
+      counts: { active: 1, undecided: 1, unsafe: 0, diagnostics: 0 }
+    });
+    expect(renderMemoryReviewHealthBlock(health, "Memory Health")).toBe([
+      "## Memory Health",
+      "",
+      "- status: needs_review",
+      "- active: 1",
+      "- undecided: 1",
+      "- unsafe: 0",
+      "- diagnostics: 0",
+      "- reasons: undecided-candidates"
+    ].join("\n"));
   });
 
   it("renders a bounded markdown audit report", () => {

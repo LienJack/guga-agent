@@ -53,11 +53,15 @@ export type {
   RenderCuratedMemoryMarkdownOptions
 } from "./memory-markdown";
 export {
+  createMemoryReviewHealth,
   createMemoryReviewReport,
+  renderMemoryReviewHealthBlock,
   renderMemoryReviewReport
 } from "./memory-review-report";
 export type {
   MemoryReviewCandidateSummary,
+  MemoryReviewHealth,
+  MemoryReviewHealthStatus,
   MemoryReviewReport,
   MemoryReviewReportCounts,
   RenderMemoryReviewReportOptions

@@ -46,6 +46,14 @@ export type MemoryReviewReport = {
   diagnostics: MemoryGovernanceDiagnostic[];
 };
 
+export type MemoryReviewHealthStatus = "healthy" | "needs_review" | "blocked";
+
+export type MemoryReviewHealth = {
+  status: MemoryReviewHealthStatus;
+  reasons: string[];
+  counts: Pick<MemoryReviewReportCounts, "active" | "undecided" | "unsafe" | "diagnostics">;
+};
+
 export type RenderMemoryReviewReportOptions = {
   title?: string;
   maxActiveItems?: number;
@@ -54,6 +62,51 @@ export type RenderMemoryReviewReportOptions = {
   maxDiagnostics?: number;
   maxContentChars?: number;
 };
+
+export function createMemoryReviewHealth(report: MemoryReviewReport): MemoryReviewHealth {
+  const reasons: string[] = [];
+  if (report.counts.diagnostics > 0) {
+    reasons.push("governance-diagnostics");
+  }
+  if (report.counts.unsafe > 0) {
+    reasons.push("unsafe-candidates");
+  }
+  if (report.counts.undecided > 0) {
+    reasons.push("undecided-candidates");
+  }
+
+  const status: MemoryReviewHealthStatus =
+    report.counts.diagnostics > 0 || report.counts.unsafe > 0
+      ? "blocked"
+      : report.counts.undecided > 0
+        ? "needs_review"
+        : "healthy";
+
+  return {
+    status,
+    reasons,
+    counts: {
+      active: report.counts.active,
+      undecided: report.counts.undecided,
+      unsafe: report.counts.unsafe,
+      diagnostics: report.counts.diagnostics
+    }
+  };
+}
+
+export function renderMemoryReviewHealthBlock(health: MemoryReviewHealth, title = "Memory Review Health"): string {
+  const reasons = health.reasons.length > 0 ? health.reasons.join(", ") : "none";
+  return [
+    `## ${title}`,
+    "",
+    `- status: ${health.status}`,
+    `- active: ${health.counts.active}`,
+    `- undecided: ${health.counts.undecided}`,
+    `- unsafe: ${health.counts.unsafe}`,
+    `- diagnostics: ${health.counts.diagnostics}`,
+    `- reasons: ${reasons}`
+  ].join("\n");
+}
 
 export function createMemoryReviewReport(ledger: MemoryGovernanceLedger): MemoryReviewReport {
   const decisionedCandidateIds = new Set(
