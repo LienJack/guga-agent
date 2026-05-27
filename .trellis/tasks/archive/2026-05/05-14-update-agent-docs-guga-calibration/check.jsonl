@@ -1,0 +1,7 @@
+{"file":"docs/research/intake/source-contract.md","reason":"Check reference project names and version anchors remain accurate."}
+{"file":"docs/research/context-packs/agent-loop.md","reason":"Check agent-loop priority statements."}
+{"file":"docs/research/context-packs/tool-registry.md","reason":"Check tool, permission, MCP, and skill priority statements."}
+{"file":"docs/research/context-packs/context-compression.md","reason":"Check context/resume priority statements."}
+{"file":"docs/research/context-packs/provider-abstraction.md","reason":"Check provider/transport priority statements."}
+{"file":"docs/research/context-packs/ui-protocol.md","reason":"Check UI protocol priority statements."}
+{"file":"docs/research/context-packs/multi-agent.md","reason":"Check subagent delegation priority statements."}
