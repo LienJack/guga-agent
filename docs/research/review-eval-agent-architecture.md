@@ -36,6 +36,14 @@ M13 should follow the profile-package pattern: implement review/eval as `@guga-a
 4. Export review report writer and diagnostics.
 5. Teach CLI `--profile review`.
 
+## 实施结果
+
+- `@guga-agent/profile-review-agent` now exports profile metadata, system prompt, finding ledger helpers, and report writer helpers.
+- Findings support severity, confidence, category, evidence, optional file/line location, and recommendations.
+- Reports render findings before open questions and summary.
+- CLI now accepts `guga run --profile review`.
+- Core remains unchanged.
+
 ## 证据
 
 - Fact: M9 implementation kept coding behavior out of core.
