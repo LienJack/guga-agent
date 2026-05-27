@@ -53,3 +53,4 @@
 | 模块 | 调研问题 | 参考项目 | 输出文档 | Guga 落点 |
 | --- | --- | --- | --- | --- |
 | M6 Skills / MCP / Capability Discovery | skills 如何渐进加载、MCP 如何进入统一工具池、capability discovery/diff 如何解释插件能力变化。 | Claude Code, OpenCode, Hermes Agent, DeerFlow | [skills-mcp-capability-discovery.md](./skills-mcp-capability-discovery.md) | Core 提供 descriptor/diff/owner/source contract；`plugin-skills` 和 `plugin-mcp` 作为 first-party 插件落地。 |
+| M7/M11 CLI / Desktop / Web Host Architecture | CLI-first host protocol 如何承载 session/run/event/permission/artifact/resume/fork，并让桌面/Web 复用同一 runtime。 | OpenCode, DeerFlow, Hermes Agent, cc-haha, AG-UI research | [cli-desktop-web-host-architecture.md](./cli-desktop-web-host-architecture.md) | 先建 typed host protocol、local server + SSE、SDK、CLI；桌面/Web 做同一事件流的 viewer/control surface。 |

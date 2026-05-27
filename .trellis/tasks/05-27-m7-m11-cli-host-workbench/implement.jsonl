@@ -1,0 +1,10 @@
+{"file":"AGENTS.md","reason":"Project workflow, Trellis, and 7-layer research funnel instructions."}
+{"file":"任务.md","reason":"Long-running execution checklist and M7/M11 acceptance expectations."}
+{"file":"docs/roadmap.md","reason":"Roadmap scope, dependencies, and M7/M11 target shape."}
+{"file":"docs/research/context-packs/ui-protocol.md","reason":"Primary context pack for CLI/server/SSE/desktop/Web host protocol patterns."}
+{"file":"docs/research/agent-agui.md","reason":"Existing AG-UI/client protocol analysis and canonical event guidance."}
+{"file":"docs/research/source-analysis/design-ideas-index.md","reason":"Reference routing for Gateway, UI, Channels, OpenCode, Hermes, DeerFlow, ACP, and SDK materials."}
+{"file":"docs/brainstorms/2026-05-27-m7-m11-cli-host-workbench-requirements.md","reason":"M7/M11 requirements artifact for implementation planning."}
+{"file":"docs/research/cli-desktop-web-host-architecture.md","reason":"M7/M11 host protocol research report and architecture decision evidence."}
+{"file":"docs/plans/2026-05-27-004-feat-cli-host-protocol-workbench-plan.md","reason":"Implementation plan and unit breakdown for M7/M11 host protocol work."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Project quality guidance for typed events, capability discovery, and host/runtime boundaries."}

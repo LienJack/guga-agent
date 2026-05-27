@@ -1,0 +1,9 @@
+{"file":"AGENTS.md","reason":"Verify workflow compliance and research funnel use."}
+{"file":"任务.md","reason":"Verify M7/M11 checklist progress and required gates."}
+{"file":"docs/roadmap.md","reason":"Verify implementation aligns with roadmap dependencies and non-goals."}
+{"file":"docs/research/context-packs/ui-protocol.md","reason":"Verify research and implementation preserve reference-backed protocol decisions."}
+{"file":"docs/research/agent-agui.md","reason":"Verify canonical event/adapters boundary is preserved."}
+{"file":"docs/brainstorms/2026-05-27-m7-m11-cli-host-workbench-requirements.md","reason":"Verify acceptance criteria are satisfied."}
+{"file":"docs/research/cli-desktop-web-host-architecture.md","reason":"Verify implementation matches research-backed host protocol decisions."}
+{"file":"docs/plans/2026-05-27-004-feat-cli-host-protocol-workbench-plan.md","reason":"Verify implementation units and acceptance criteria are completed."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Verify quality and boundary guidance after implementation."}
