@@ -145,6 +145,15 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/plugin-memory-jsonl:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@guga-agent/plugin-memory-candidates':
+        specifier: workspace:*
+        version: link:../plugin-memory-candidates
+
   packages/plugin-ops-health:
     dependencies:
       '@guga-agent/core':
