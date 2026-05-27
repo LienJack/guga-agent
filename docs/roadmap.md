@@ -1,6 +1,6 @@
 # Guga Agent Roadmap
 
-这份 roadmap 将 Guga Agent 重新定义为一个 **agent core + plugin ecosystem** 的工程路线。核心判断是：agent 的不可替代能力应该沉淀为极小的 core；provider、工具、上下文策略、skills、MCP、UI、session 存储、eval 和商业运营都通过 plugin 接入。
+这份 roadmap 将 Guga Agent 重新定义为一个 **agent core + plugin ecosystem + desktop workbench** 的工程路线。核心判断是：agent 的不可替代能力应该沉淀为极小的 core；provider、工具、上下文策略、skills、MCP、UI、session 存储、eval 和商业运营都通过 plugin 接入，最终产品体验对齐 OpenClaw 和 Hermes Agent 的桌面端工作台。
 
 设计理念更偏向 pi agent：Guga 不是先做一个大而全的应用，再从应用里拆 SDK；而是先做一个可编程的 agent workbench。core 只负责稳定的生命周期、事件、状态和能力注册，其他能力都在清晰的插件边界里生长。
 
@@ -8,7 +8,31 @@
 
 ## 一句话结论
 
-Guga Agent 的最终形态不是“内置很多功能的 agent”，而是一个 **小内核、强插件、可恢复、可审计、可嵌入** 的 agent runtime。
+Guga Agent 的最终形态不是“内置很多功能的 agent”，而是一个 **小内核、强插件、CLI-first、桌面工作台化、可恢复、可审计、可嵌入** 的 agent runtime。
+
+## 当前基线（2026-05-27）
+
+当前仓库已经不再是纯路线图阶段。`packages/core` 已具备 core contracts、agent loop、capability registry、plugin host、hook kernel、permission/tool runtime、provider router、context projection、durable store/replay contracts 等核心边界；first-party 插件也已经覆盖 provider bridge、filesystem/shell/git tools、default context policy、JSONL session store、filesystem artifact store 和 replay/audit。
+
+因此后续 roadmap 的重点从“证明 core 能跑”切换为：
+
+- 继续保持 core 极小，避免 code-agent、deep research、CLI/桌面/Web 体验把业务复杂度塞回 core。
+- 先补齐 capability ecosystem：skills、MCP、capability discovery、插件安装和可解释启停。
+- 再建设专业 agent：coding agent、deep research agent、review/eval agent。
+- 先把 CLI 做成最基础、最可靠的产品形态；最终把桌面应用做成对齐 OpenClaw 和 Hermes Agent 的高密度 agent workbench，Web、IDE/API 则作为同一个 runtime event/protocol 的其他投影。
+
+## 长任务执行纪律
+
+后续每个大模块都必须作为可复用的工程闭环推进，而不是只写代码：
+
+1. 用 `ce-brainstorm` 和 `trellis-brainstorm` 明确需求、范围、MVP、非目标，并创建/更新 Trellis task。
+2. 先按 7-layer research funnel 深度调研参考项目，不直接跳 raw source；调研结论沉淀到 `docs/` 下。
+3. 用 `ce-plan` 写可执行计划，明确 repo-relative 文件、测试、风险、系统影响和验收标准。
+4. 用 `ce-work` 执行实现，并保持每个 implementation unit 可验证。
+5. 用 `ce-code-review` 做合并前 review，处理安全、正确性、测试、维护性和项目标准问题。
+6. 用 `ce-compound` 把解决过程沉淀到 `docs/solutions/`，让后续 agent 能复用。
+7. 用 `write-blog` 在 `blog/` 下补一篇“如果从 0 开始建立 agent”的模块文章。
+8. 用 `trellis-finish-work` 完成任务归档、journal 和收尾。
 
 ## 参考发现
 
@@ -35,7 +59,14 @@ Guga Agent 是一个 agent runtime platform。它应该让宿主项目可以：
 - 通过插件扩展命令、工具、skills、MCP、UI、providers 和 agent hooks。
 - 通过 agent hooks 在受控节点改写 prompt/context、阻断危险动作、贡献资源、补充 UI projection。
 - 从 event log 恢复、回放、审计一次 run。
-- 在 CLI、Web、IDE、API、worker 中复用同一个 core。
+- 先以 CLI 作为最基础形态运行，再在桌面应用、Web、IDE、API、worker 中复用同一个 core。
+
+产品目标分四层对齐：
+
+- **基础使用形态：CLI。** CLI 是 Guga 的最小可用产品，也是所有能力的 dogfood 入口；它必须能完整表达 session、run、permission、tool progress、artifact、resume、fork、debug event。
+- **代码能力：对齐 Claude Code 和 OpenCode。** Guga 的 code-agent 目标不是泛聊天，而是本地 coding agent：读写代码、运行命令、管理 diff/test、处理权限、恢复长任务、支持可审计的工具执行。
+- **桌面应用：对齐 OpenClaw 和 Hermes。** 桌面目标是把同一套 runtime 事件、权限、artifact 和长任务状态投影成高密度 agent workbench；OpenClaw 是桌面产品形态主参考，Hermes 是成熟长任务/网关/工具/权限/多平台压力样本参考。
+- **持续研究和路线自修正。** `任务.md` 和本 roadmap 是 living documents。后续可以边准备参考仓库、边跑 repomix/Graphify/Context Pack、边用 `arch-insight` 形成判断，再持续修正路线。
 
 最重要的产品约束：
 
@@ -525,17 +556,18 @@ first-party 插件：
 - 不做全文搜索。
 - 不做多人协作。
 
-## M6：Skills, MCP, And Capability Marketplace Foundation
+## M6：Skills, MCP, And Capability Discovery
 
 **目标：** 让 Guga 能通过标准化资源扩展知识和工具，而不是手工改代码。
 
 建设范围：
 
-- 实现 `plugin-skills`：扫描 user/project/plugin skill paths。
+- 实现 `plugin-skills`：扫描 host 显式配置的 project/plugin skill paths。
 - Skills 采用渐进式加载：metadata 常驻、body 按需、assets 执行时读取。
-- 实现 `plugin-mcp`：MCP server 注册、连接、工具转换、namespace。
-- 实现 capability discovery：当前启用插件、工具、skills、commands、providers 可解释。
-- 实现基础 plugin installer，但不做公开 marketplace。
+- 实现 `plugin-mcp`：MCP stdio server 注册、连接、工具转换、namespace。
+- 实现 capability discovery：当前启用插件、工具、skills、hooks、stores、providers 可解释。
+- 实现 capability diff：插件启停或 reload 前后的新增、移除、变化和冲突可解释。
+- 建立 namespace / source / owner metadata；不做 marketplace。
 
 退出标准：
 
@@ -547,6 +579,7 @@ first-party 插件：
 不做：
 
 - 不做复杂 MCP 远程认证。
+- 不做 SSE/WebSocket/HTTP MCP transport。
 - 不做插件评分/搜索市场。
 - 不做自动安装未知插件。
 
@@ -605,6 +638,137 @@ first-party 插件：
 - 不做没有 trust model 的 marketplace。
 - 不做和 runtime 无关的 BI。
 
+## M9：Code Agent
+
+**目标：** 在通用 runtime 之上建设专业 coding agent，而不是把 coding 行为写死进 core。Code Agent 应作为 first-party agent profile / plugin bundle 存在，复用 core 的 tools、permissions、context、session、replay、subagent 和 host protocol。
+
+主要参考：
+
+- Claude Code：coding loop、tool pipeline、permission UI、subagent、CLI/TUI 任务控制面。
+- OpenCode：coding agent profile、本地 server、SSE、ACP、LSP、permission config 和多客户端复用。
+- pi agent：extension-first session runtime、code-focused workbench 和模式切换，作为 core/plugin 工作台形态补充参考。
+- Hermes Agent：长任务执行、terminal/worktree/browser/tool guards、fallback 和运行稳定性，作为极端长任务压力样本。
+
+建设范围：
+
+- 定义 `code-agent` profile：默认工具集、permission profile、context policy、skills、system prompt/resource discovery。
+- 实现代码库理解能力：repo map、symbol/search、文件引用、测试发现、计划/任务上下文重注入。
+- 实现编辑执行能力：read/write/edit/shell/git/test/browser 等工具以插件方式组合，而不是直接进入 core。
+- 实现长任务策略：plan-unit execution、worktree isolation、incremental commits、review gate、resume after interruption。
+- 实现 coding-specific context：active files、diff、tests、plan、errors、terminal output、review findings 的投影和压缩。
+- 实现 code-agent eval：小型 fixtures、bug-fix tasks、tool-call trace、replay-based regression。
+- 产出调研报告：`docs/research/code-agent-architecture.md`。
+- 产出博客：`blog/build-agent-from-zero-code-agent.md`。
+
+退出标准：
+
+- 不改 core 即可创建一个 code-agent session。
+- code-agent 能从计划执行一个小型改动：读代码、改文件、跑测试、生成 diff、写 review summary。
+- 所有副作用动作仍经过 permission runtime。
+- code-agent 的上下文、工具、prompt、skills 能被 replay/audit 解释。
+- CLI 必须能完整使用 code-agent；桌面/Web 至少能看到同一套 code-agent event stream。
+
+不做：
+
+- 不做 Claude Code 全量 TUI 复制。
+- 不做复杂 swarm/team mailbox。
+- 不做 IDE 深度集成；ACP/LSP 只做必要协议调研和最小 bridge。
+- 不把 coding prompt、工具列表、测试策略写进 core。
+
+## M10：Deep Research Agent
+
+**目标：** 建设面向长期研究任务的专业 agent，先服务 Guga 自己的参考项目调研、技术报告、方案比较和证据链管理，再扩展为通用 deep research agent。
+
+主要参考：
+
+- DeerFlow：lead agent、LangGraph-style workflow、research/decompose/synthesize/present_files、middleware guardrails。
+- DeepAgentsJS：middleware 组合、subagents、filesystem/artifact、summarization、skills。
+- Hermes Agent：长上下文压缩、session search、tool result artifact、research trace 和 report 生成。
+- Claude Code / OpenCode：可回放事件、工具状态、权限和终端展示。
+
+建设范围：
+
+- 定义 `deep-research-agent` profile：research planner、source collector、evidence verifier、synthesizer、report writer。
+- 实现 evidence ledger：每条结论绑定来源、强度（Fact / Inference / Pending Verification）、引用路径、时间和可复核片段。
+- 实现 research workflow：问题框架 -> 分解 -> 检索 -> 阅读 -> 对比 -> 证据合并 -> 报告 -> 待验证问题。
+- 实现 artifact-first 输出：报告、附录、证据表、图谱/索引、可复核材料。
+- 实现 source policy：本地 docs/context packs/source-analysis 优先，必要时再进 repomix/context/raw source。
+- 实现长任务 resume：研究任务可中断、继续、分叉和回放。
+- 产出调研报告：`docs/research/deep-research-agent-architecture.md`。
+- 产出博客：`blog/build-agent-from-zero-deep-research-agent.md`。
+
+退出标准：
+
+- 能针对一个 Guga 子系统自动产出结构化研究报告，并清楚区分事实、推论和待验证。
+- 能按 7-layer funnel 使用参考项目材料，不直接把 raw source 当第一入口。
+- CLI 必须能展示研究进度、已读来源、证据强度和当前 synthesis；桌面/Web 后续消费同一事件流。
+- 研究报告可被后续 `ce-brainstorm` / `ce-plan` 直接消费。
+
+不做：
+
+- 不做互联网搜索型通用问答产品。
+- 不做无证据来源的长文生成。
+- 不做自动修改代码；deep research 只产出报告、建议和计划输入。
+
+## M11：CLI-First Host And Desktop/Web Workbench
+
+**目标：** 先把 CLI 做成最基础、最可靠的产品形态，再实现对齐 OpenClaw 和 Hermes Agent 的桌面端工作台；Web、未来 IDE/API 都消费同一套 runtime protocol，而不是为每个终端复制 agent loop。M11 是 M7 Host Adapters 的产品化深化：先定 CLI 和 host protocol，再把桌面/Web 作为同一事件流的工作台投影。
+
+主要参考：
+
+- Claude Code：CLI/TUI 状态面、permission/task/agent 控制面、流式工具展示。
+- OpenCode：本地 HTTP server、REST + SSE、SDK、ACP、mDNS、CLI/Web/Desktop 复用。
+- OpenClaw：桌面应用主参考，后续调研需先 materialize checkout、确认项目版本、源码锚点和可借鉴边界。
+- cc-haha：远程/IM/桌面桥接和多客户端投影。
+- DeerFlow：FastAPI gateway、channels、message bus。
+- Hermes Agent：长任务工作台、gateway session、platform adapter、streaming edit、per-user/per-thread 隔离、权限/审批和工具状态压力样本。
+
+建设范围：
+
+- 定义 Guga Host Protocol：session CRUD、prompt/run、event stream、permission request/response、tool progress、artifact read、resume/fork/cancel。
+- 定义事件 schema 与 UI projection：message、reasoning、tool call、tool result、permission、context pressure、compact boundary、agent delegation、artifact。
+- 定义 CLI 基础产品目标：interactive run、headless run、debug event stream、permission prompt、resume/fork/cancel、artifact/diff/test output。
+- 定义桌面工作台目标：session list、run timeline、event stream、permission queue、tool state、artifact viewer、diff/test output renderer、长任务状态面。
+- 定义 Web 工作台目标：先作为轻量 event/artifact/permission viewer，后续再向桌面能力靠齐。
+- 实现 server SDK：typed client，避免 CLI/Web 手写协议。
+- 调研并决定 AG-UI / ACP / 自定义 SSE 的边界：哪些采用标准，哪些保持 Guga 私有协议。
+- 产出调研报告：`docs/research/cli-desktop-web-host-architecture.md`。
+- 产出博客：`blog/build-agent-from-zero-cli-desktop-web-host.md`。
+
+退出标准：
+
+- CLI 能独立完成基础 agent 工作流，不依赖桌面/Web 才可用。
+- 桌面/Web 使用同一个 server/runtime，不复制 agent loop。
+- 同一个 session 能在 CLI 发起，桌面/Web 观察或接管权限请求。
+- Permission、tool progress、artifact、context compact、resume/fork 都有协议事件。
+- UI 不解析 assistant 文本猜状态，只消费 typed event/projection。
+
+不做：
+
+- 不做重型管理后台。
+- 不做 IM 全平台网关。
+- 不在第一版桌面里复制 Hermes 的完整网关复杂度。
+- 不做 IDE 深度体验；ACP/IDE 先保留 adapter 插槽。
+
+## M12：Learning, Writing, And Evaluation Flywheel
+
+**目标：** 把“做一个 agent”变成可复用学习系统：每个模块有调研、有设计、有实现、有 review、有 solution、有博客、有 eval。Guga 不只产出代码，也产出如何从 0 建立 agent 的连续知识库。
+
+建设范围：
+
+- 为每个大模块维护 `docs/research/<module>.md` 调研报告。
+- 为每个大模块维护 `docs/brainstorms/` 和 `docs/plans/` 里的需求/计划链路。
+- 用 `docs/solutions/` 沉淀实现中遇到的模式、坑、修复和决策。
+- 在 `blog/` 下维护 `build-agent-from-zero-*` 系列文章。
+- 建立 replay/eval 数据集：核心 trace、失败恢复、工具权限、context overflow、code-agent task、deep-research task。
+- 建立模块完成 checklist：research -> requirements -> plan -> implementation -> tests -> review -> compound -> blog -> finish。
+
+退出标准：
+
+- 每个大模块完成时，至少有一份调研报告、一份计划、一组测试、一次 code review、一份 solution 记录和一篇博客。
+- 新 agent session 可以通过 `docs/roadmap.md`、`任务.md`、`docs/research/`、`docs/solutions/` 迅速接上项目上下文。
+- 用户可以把博客系列作为学习路径，从 M0 到 code-agent / deep-research / CLI-first desktop/web host 逐步理解 agent 如何构建。
+
 ## 跨阶段依赖
 
 ```text
@@ -617,29 +781,32 @@ M0 Core Kernel
           -> M6 Skills + MCP + Capability Discovery
             -> M7 Host Adapters
               -> M8 Production Operations
+                -> M9 Code Agent
+                  -> M10 Deep Research Agent
+                    -> M11 CLI-First Host And Desktop/Web Workbench
+                      -> M12 Learning/Writing/Eval Flywheel
 ```
 
 M2 和 M3 可以部分并行，但都必须建立在 M1 的 plugin host、capability registry 和 hook kernel 上。M3 必须先定义清楚 tool hook 的 fail-closed 语义，否则权限和审计会漂移。M4 必须等 M3 的 tool result contract 稳定，否则 compaction 无法安全处理工具输出。M7 必须等 M5 至少能恢复 session，否则多 host 只会复制临时状态。
 
-## 第一批工程任务
+M9 依赖 M6 的 skills/MCP/capability discovery、M7 的 host event protocol 和 M5 的 resume/replay。M10 可以与 M9 部分并行，但必须复用同一套 artifact、evidence、session 和 report pipeline。M11 不应在 M9/M10 之前做重 UI；先用它们的真实工作流压协议。M12 贯穿所有阶段，不是最后才做：每个阶段完成时都要补 research、solution、blog 和 eval。
 
-如果现在开始实现，第一批 issue 应围绕 core/plugin 最小闭环，而不是直接做完整应用：
+## 下一批工程任务
 
-1. 定义 core contracts：message、tool call、tool result、provider event、agent event。
-2. 实现 `AgentLoop` 最小状态机和 mock provider。
-3. 实现 `EventBus` 与内存事件记录。
-4. 实现 `CapabilityRegistry`，支持 provider/tool 注册。
-5. 实现 plugin manifest schema。
-6. 实现本地 plugin loader。
-7. 实现 `HookKernel`：phase、effect、priority、timeout、audit event。
-8. 实现 plugin runtime API：registerTool、registerProvider、registerHook、onEvent。
-9. 实现 namespace 和冲突检测。
-10. 实现 stale context guard。
-11. 写 `plugin-tool-echo` 示例。
-12. 写 `plugin-provider-mock` 示例。
-13. 写 `plugin-hook-policy-demo`：阻断危险 tool call、贡献 resource path、追加 model input patch。
-14. 添加 e2e：不改 core，仅通过插件完成一次 tool-calling run。
-15. 添加 e2e：hook 能阻断工具调用，并在 audit event 中记录 decision。
+M0-M5 的 core/runtime 基线已经有实现痕迹。下一批 issue 应围绕 capability ecosystem 和专业 agent 入口，而不是继续往 core 塞功能：
+
+1. M6 research：写 `docs/research/skills-mcp-capability-discovery.md`，对比 Claude Code、OpenCode、Hermes、DeerFlow、pi 的 skills/MCP/plugin discovery。
+2. M6 requirements：定义 skills metadata 常驻、body 按需、assets 执行时读取的 contract。
+3. M6 implementation：实现 `plugin-skills`、`plugin-mcp`、capability diff、namespace 和启停解释。
+4. M6 blog：补 `blog/build-agent-from-zero-m6-skills-mcp.md`。
+5. M7/M11 research：写 `docs/research/cli-desktop-web-host-architecture.md`，先明确 CLI 基础形态，再定桌面/Web 复用的 REST/SSE/permission/artifact/resume/fork 协议。
+6. M7 implementation：实现最小 server + CLI adapter；桌面/Web 先只做 event viewer 和 permission/artifact 基础面。
+7. M9 research：写 `docs/research/code-agent-architecture.md`，以 Claude Code 和 OpenCode 为主参考，对齐 Guga 的代码能力目标；pi/Hermes 只作为工作台和长任务补充参考。
+8. M9 implementation：实现 `code-agent` profile / plugin bundle，不改 core。
+9. M10 research：写 `docs/research/deep-research-agent-architecture.md`，以 DeerFlow 为主参考，补 DeepAgentsJS/Hermes。
+10. M10 implementation：实现 `deep-research-agent` profile、evidence ledger、report pipeline。
+11. M12 backlog：补缺失博客，尤其是 M5 的 `blog/build-agent-from-zero-m5-session-store-replay.md`。
+12. 每个 issue 都必须经过 research -> brainstorm -> plan -> work -> code review -> compound -> blog -> finish 的闭环。
 
 ## 暂缓事项
 
