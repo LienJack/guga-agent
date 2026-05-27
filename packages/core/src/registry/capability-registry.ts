@@ -354,6 +354,7 @@ export class CapabilityRegistry {
       status: "registered",
       ...(input.namespace ? { namespace: input.namespace } : {}),
       ...(input.ownerPluginId ? { ownerPluginId: input.ownerPluginId } : {}),
+      ...(input.trust ? { trust: input.trust } : {}),
       ...(input.reason ? { reason: input.reason } : {})
     } satisfies CapabilityDescriptor;
     this.descriptors.set(descriptorKey(type, name, descriptor), descriptor);
@@ -441,6 +442,7 @@ function descriptorEquals(left: CapabilityDescriptor, right: CapabilityDescripto
     && left.status === right.status
     && left.namespace === right.namespace
     && left.ownerPluginId === right.ownerPluginId
+    && JSON.stringify(left.trust ?? null) === JSON.stringify(right.trust ?? null)
     && left.reason === right.reason;
 }
 

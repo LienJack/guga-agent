@@ -1,5 +1,6 @@
 import type { HookRegistration } from "./hooks";
 import type { ContextPolicy } from "./context";
+import type { TrustDescriptor } from "./operations";
 import type { ArtifactStore, EventStore, ReplayCapability, SessionStore } from "./persistence";
 import type { ModelIdentifier, ModelMetadata, Provider } from "./provider";
 import type { ToolDefinition } from "./tools";
@@ -20,6 +21,7 @@ export type CapabilityRegistrationOptions = {
   source?: CapabilitySource;
   namespace?: string;
   ownerPluginId?: string;
+  trust?: TrustDescriptor;
 };
 
 export type SkillMetadata = {
@@ -39,6 +41,7 @@ export type CapabilityDescriptor = {
   status: CapabilityStatus;
   namespace?: string;
   ownerPluginId?: string;
+  trust?: TrustDescriptor;
   reason?: string;
 };
 

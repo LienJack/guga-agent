@@ -16,6 +16,13 @@ import {
 } from "./hooks";
 import { ModelEventType, type ModelEvent } from "./model-events";
 import type { CoreMessage, ToolCall } from "./messages";
+import type {
+  AuditSummary,
+  CredentialConfigView,
+  MetricsSnapshot,
+  ProviderHealth,
+  TrustDescriptor
+} from "./operations";
 import type { LocalPlugin } from "./plugins";
 import {
   ProviderErrorCategory,
@@ -125,6 +132,45 @@ describe("core contracts", () => {
 
     expect(error.category).toBe("rate-limit");
     expect(error.retryable).toBe(true);
+  });
+
+  it("can express production operations resources without leaking credential values", () => {
+    const health: ProviderHealth = {
+      providerId: "ai-sdk",
+      modelId: "gpt-test",
+      status: "healthy",
+      checkedAt: "2026-05-27T00:00:00.000Z",
+      latencyMs: 12,
+      diagnostics: []
+    };
+    const credential: CredentialConfigView = {
+      providerId: "ai-sdk",
+      source: "env",
+      status: "configured",
+      redacted: { OPENAI_API_KEY: "sk-...abcd" },
+      diagnostics: []
+    };
+    const trust: TrustDescriptor = {
+      level: "first-party",
+      scopes: [{ kind: "tool", access: "execute", value: "filesystem.read" }]
+    };
+    const audit: AuditSummary = {
+      runId: "run-ops",
+      toolCalls: { started: 1, completed: 1, failed: 0 },
+      permissions: { requested: 1, allowed: 1, denied: 0 },
+      usage: { totalTokens: 3, cost: { status: "unknown" } },
+      failures: []
+    };
+    const metrics: MetricsSnapshot = {
+      updatedAt: "2026-05-27T00:00:00.000Z",
+      counters: { "runs.completed": 1 }
+    };
+
+    expect(health.status).toBe("healthy");
+    expect(JSON.stringify(credential)).not.toContain("secret");
+    expect(trust.scopes?.[0]?.kind).toBe("tool");
+    expect(audit.usage.cost?.status).toBe("unknown");
+    expect(metrics.counters["runs.completed"]).toBe(1);
   });
 
   it("keeps legacy provider failure errors representable during migration", () => {

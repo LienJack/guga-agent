@@ -1,4 +1,18 @@
 export type {
+  AuditSummary,
+  CapabilityScopeDescriptor,
+  CapabilityTrustLevel,
+  CredentialConfigSource,
+  CredentialConfigStatus,
+  CredentialConfigView,
+  MetricsSnapshot,
+  OperationalDiagnostic,
+  OperationalSeverity,
+  ProviderHealth,
+  ProviderHealthStatus,
+  TrustDescriptor
+} from "./contracts/operations";
+export type {
   AssistantMessage,
   CoreMessage,
   MessageRole,

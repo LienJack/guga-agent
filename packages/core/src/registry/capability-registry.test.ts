@@ -149,6 +149,32 @@ describe("CapabilityRegistry", () => {
     expect(JSON.parse(JSON.stringify(registry.listCapabilityDescriptors()))).toEqual(registry.listCapabilityDescriptors());
   });
 
+  it("records optional trust metadata on capability descriptors", () => {
+    const registry = new CapabilityRegistry();
+    registry.registerTool(tool, {
+      source: "plugin",
+      ownerPluginId: "filesystem",
+      trust: {
+        level: "first-party",
+        scopes: [{ kind: "path", access: "read", value: "/repo" }]
+      }
+    });
+
+    expect(registry.listCapabilityDescriptors()).toEqual([
+      {
+        type: "tool",
+        name: "echo",
+        source: "plugin",
+        status: "registered",
+        ownerPluginId: "filesystem",
+        trust: {
+          level: "first-party",
+          scopes: [{ kind: "path", access: "read", value: "/repo" }]
+        }
+      }
+    ]);
+  });
+
   it("removes skill descriptors with skill metadata", () => {
     const registry = new CapabilityRegistry();
     registry.registerSkill({ name: "docs", description: "Write docs" });
