@@ -126,6 +126,22 @@ describe("JsonlMemoryStore", () => {
         ]
       }
     });
+    await expect(reopened.readCuratedMarkdown({ title: "Durable Curated Memory", includeSourceRefs: true, includeTags: true, maxContentChars: 36 })).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [],
+      ledger: {
+        items: [{ id: "memory-1", candidateId: "candidate-1" }]
+      },
+      markdown: expect.stringContaining("# Durable Curated Memory")
+    });
+    const curated = await reopened.readCuratedMarkdown({ title: "Durable Curated Memory", includeSourceRefs: true, includeTags: true, maxContentChars: 36 });
+    expect(curated).toMatchObject({ ok: true });
+    if (curated.ok) {
+      expect(curated.markdown).toContain("## project / decision");
+      expect(curated.markdown).toContain("Persist governed memory records a...");
+      expect(curated.markdown).toContain("tags: memory");
+      expect(curated.markdown).toContain("sources: event-1");
+    }
 
     await expect(reopened.readReviewMarkdown({ title: "Durable Memory Audit", maxContentChars: 36 })).resolves.toMatchObject({
       ok: true,
@@ -174,6 +190,34 @@ describe("JsonlMemoryStore", () => {
         results: [],
         diagnostics: [{ code: "MEMORY_RETRIEVAL_QUERY_REQUIRED" }]
       }
+    });
+  });
+
+  it("renders curated Markdown with scope and kind filters", async () => {
+    const root = await tempRoot();
+    const store = new JsonlMemoryStore({ rootDir: root });
+    await store.appendCandidate(candidate);
+    await store.appendDecision(decision);
+    await store.appendCandidate(userCandidate);
+    await store.appendDecision(userDecision);
+
+    const rendered = await store.readCuratedMarkdown({ scopes: ["user"], kinds: ["decision"], includeTags: true });
+    expect(rendered).toMatchObject({ ok: true });
+    if (rendered.ok) {
+      expect(rendered.markdown).toContain("## user / decision");
+      expect(rendered.markdown).toContain("local memory retrieval");
+      expect(rendered.markdown).not.toContain("append-only JSONL");
+    }
+  });
+
+  it("renders curated Markdown empty state when no active safe items exist", async () => {
+    const store = new JsonlMemoryStore({ rootDir: await tempRoot() });
+
+    await expect(store.readCuratedMarkdown({ title: "Durable Curated Memory" })).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [],
+      ledger: { counts: { active: 0, superseded: 0, rejected: 0 } },
+      markdown: "# Durable Curated Memory\n\nNo active safe memory items."
     });
   });
 
@@ -231,6 +275,11 @@ describe("JsonlMemoryStore", () => {
       diagnostics: [{ kind: "partial_tail", recoverable: true }],
       markdown: expect.stringContaining("candidate-1")
     });
+    await expect(store.readCuratedMarkdown()).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [{ kind: "partial_tail", recoverable: true }],
+      markdown: "# Curated Memory\n\nNo active safe memory items."
+    });
     await expect(store.readRetrieval("append jsonl memory", { scope: "project" })).resolves.toMatchObject({
       ok: true,
       diagnostics: [{ kind: "partial_tail", recoverable: true }],
@@ -270,6 +319,11 @@ describe("JsonlMemoryStore", () => {
       diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]
     });
     await expect(store.readReviewHealth()).resolves.toMatchObject({
+      ok: false,
+      status: "corrupt",
+      diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]
+    });
+    await expect(store.readCuratedMarkdown()).resolves.toMatchObject({
       ok: false,
       status: "corrupt",
       diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]
