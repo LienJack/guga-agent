@@ -13,16 +13,21 @@
 
 ## Requirements
 
-- [ ] 将 `claude-code-analysis`、`deerflow-book`、`hermes-agent-anatomy`、`Hermes-Wiki` 的解析资料放到 `docs/research` 下。
-- [ ] 避免复制 `.git`、依赖目录、压缩包、源码镜像等查询噪声。
-- [ ] 建立总 index，说明每套资料适合查询什么。
-- [ ] 建立面向“设计理念”的主题索引，按问题域路由到相关资料。
+- [x] 将 `claude-code-analysis`、`deerflow-book`、`hermes-agent-anatomy`、`Hermes-Wiki` 的解析资料放到 `docs/research` 下。
+- [x] 避免复制 `.git`、依赖目录、压缩包、源码镜像等查询噪声。
+- [x] 建立总 index，说明每套资料适合查询什么。
+- [x] 建立面向“设计理念”的主题索引，按问题域路由到相关资料。
 
 ## Acceptance Criteria
 
-- [ ] `docs/research` 下存在新的源码解析资料目录。
-- [ ] 索引中包含四套资料的来源、重点、查询入口和主题路由。
-- [ ] 后续 LLM 可以从索引快速定位相关 Markdown 文件。
+- [x] `docs/research` 下存在新的源码解析资料目录。
+- [x] 索引中包含四套资料的来源、重点、查询入口和主题路由。
+- [x] 后续 LLM 可以从索引快速定位相关 Markdown 文件。
+
+## Completion Notes
+
+- 总入口：`docs/research/source-analysis/index.md`。
+- 设计理念入口：`docs/research/source-analysis/design-ideas-index.md`。
 
 ## Out of Scope
 
