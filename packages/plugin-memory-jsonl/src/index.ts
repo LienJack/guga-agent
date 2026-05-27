@@ -5,6 +5,7 @@ export type {
   JsonlMemoryAppendResult,
   JsonlMemoryDiagnostic,
   JsonlMemoryRecord,
+  JsonlMemoryReviewHealthResult,
   JsonlMemoryReviewMarkdownResult,
   JsonlMemoryReadResult,
   JsonlMemoryReviewReportResult,

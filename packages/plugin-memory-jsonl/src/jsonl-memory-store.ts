@@ -2,6 +2,7 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   createMemoryGovernanceLedger,
+  createMemoryReviewHealth,
   createMemoryReviewReport,
   renderMemoryReviewReport,
   validateMemoryCandidate,
@@ -9,6 +10,7 @@ import {
   type MemoryCandidate,
   type MemoryDecision,
   type MemoryGovernanceLedger,
+  type MemoryReviewHealth,
   type MemoryReviewReport,
   type RenderMemoryReviewReportOptions
 } from "@guga-agent/plugin-memory-candidates";
@@ -65,6 +67,10 @@ export type JsonlMemoryReviewReportResult =
 
 export type JsonlMemoryReviewMarkdownResult =
   | { ok: true; report: MemoryReviewReport; markdown: string; diagnostics: JsonlMemoryDiagnostic[] }
+  | { ok: false; status: "corrupt"; diagnostics: JsonlMemoryDiagnostic[] };
+
+export type JsonlMemoryReviewHealthResult =
+  | { ok: true; report: MemoryReviewReport; health: MemoryReviewHealth; diagnostics: JsonlMemoryDiagnostic[] }
   | { ok: false; status: "corrupt"; diagnostics: JsonlMemoryDiagnostic[] };
 
 export class JsonlMemoryStore {
@@ -181,6 +187,19 @@ export class JsonlMemoryStore {
       ok: true,
       report: read.report,
       markdown: renderMemoryReviewReport(read.report, options),
+      diagnostics: read.diagnostics
+    };
+  }
+
+  async readReviewHealth(): Promise<JsonlMemoryReviewHealthResult> {
+    const read = await this.readReviewReport();
+    if (!read.ok) {
+      return { ok: false, status: "corrupt", diagnostics: read.diagnostics };
+    }
+    return {
+      ok: true,
+      report: read.report,
+      health: createMemoryReviewHealth(read.report),
       diagnostics: read.diagnostics
     };
   }
