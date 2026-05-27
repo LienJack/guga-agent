@@ -1,0 +1,5 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": "docs/brainstorms/2026-05-28-m10-deep-research-agent-requirements.md", "reason": "M10 requirements"}
+{"file": ".trellis/tasks/05-28-05-28-m10-deep-research-agent/prd.md", "reason": "M10 PRD"}
+{"file": "docs/research/deep-research-agent-architecture.md", "reason": "M10 research"}
+{"file": "docs/plans/2026-05-28-007-feat-deep-research-agent-plan.md", "reason": "M10 plan"}
