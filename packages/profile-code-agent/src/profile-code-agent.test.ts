@@ -3,6 +3,8 @@ import { createAgentRuntime, type PermissionRequest } from "@guga-agent/core";
 import { createCodeAgentPlugins, createCodeAgentRuntimeOptions } from "./bundle";
 import { createCodeAgentPermissionPolicy, createCodeAgentPermissionResolver, isDestructiveShellCommand } from "./permissions";
 import { CODE_AGENT_PROFILE_ID, createCodeAgentProfile, createCodeAgentSystemPrompt } from "./profile";
+import { buildRepoContext, renderRepoContext } from "./repo-context";
+import { discoverTestCommands } from "./test-discovery";
 
 describe("profile-code-agent", () => {
   it("defines stable profile metadata", () => {
@@ -99,6 +101,48 @@ describe("profile-code-agent", () => {
 
     expect(options.plugins).toHaveLength(3);
     expect(options.permissions?.profile).toBe("ask-on-write");
+  });
+
+  it("builds deterministic repo context from explicit inputs", () => {
+    const context = buildRepoContext({
+      workspaceRoot: "/repo",
+      gitStatus: " M packages/a.ts\n?? packages/b.ts\n",
+      activeFiles: ["packages/b.ts", "packages/a.ts", "packages/a.ts"],
+      packageScripts: {
+        build: "tsc",
+        test: "vitest run",
+        empty: ""
+      },
+      notes: ["Prefer existing helpers", ""]
+    });
+
+    expect(context).toEqual({
+      workspaceRoot: "/repo",
+      gitStatus: "M packages/a.ts\n?? packages/b.ts",
+      activeFiles: ["packages/a.ts", "packages/b.ts"],
+      packageScripts: {
+        build: "tsc",
+        test: "vitest run"
+      },
+      notes: ["Prefer existing helpers"]
+    });
+    expect(renderRepoContext(context)).toContain("Active files: packages/a.ts, packages/b.ts");
+  });
+
+  it("discovers validation commands from scripts and changed files", () => {
+    expect(discoverTestCommands({
+      packageManager: "pnpm",
+      changedFiles: ["packages/profile-code-agent/src/profile.ts"],
+      packageScripts: {
+        test: "vitest run",
+        typecheck: "tsc --noEmit",
+        build: "tsc"
+      }
+    })).toEqual([
+      expect.objectContaining({ command: "pnpm test", confidence: "high" }),
+      expect.objectContaining({ command: "pnpm typecheck", confidence: "high" }),
+      expect.objectContaining({ command: "pnpm build", confidence: "medium" })
+    ]);
   });
 });
 

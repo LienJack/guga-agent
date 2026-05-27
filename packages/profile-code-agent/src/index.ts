@@ -22,3 +22,19 @@ export {
   createCodeAgentPlugins,
   createCodeAgentRuntimeOptions
 } from "./bundle";
+export type {
+  BuildRepoContextOptions,
+  PackageScripts,
+  RepoContext
+} from "./repo-context";
+export {
+  buildRepoContext,
+  renderRepoContext
+} from "./repo-context";
+export type {
+  DiscoverTestCommandsOptions,
+  TestCommandCandidate
+} from "./test-discovery";
+export {
+  discoverTestCommands
+} from "./test-discovery";
