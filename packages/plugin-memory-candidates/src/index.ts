@@ -36,6 +36,17 @@ export type {
   RenderGovernedMemoryOptions
 } from "./memory-governance";
 export {
+  renderMemoryRetrievalBlock,
+  searchGovernedMemoryItems
+} from "./memory-retrieval";
+export type {
+  MemoryRetrievalDiagnostic,
+  MemoryRetrievalOptions,
+  MemoryRetrievalResponse,
+  MemoryRetrievalResult,
+  RenderMemoryRetrievalOptions
+} from "./memory-retrieval";
+export {
   createMemoryCandidatesPlugin,
   createMemoryGovernancePlugin
 } from "./memory-candidates-plugin";
