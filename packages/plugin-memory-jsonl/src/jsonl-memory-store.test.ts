@@ -31,6 +31,23 @@ const decision: MemoryDecision = {
   itemId: "memory-1"
 };
 
+const userCandidate: MemoryCandidate = {
+  ...candidate,
+  id: "candidate-user",
+  scope: "user",
+  content: "Remember that local memory retrieval must stay scope bounded.",
+  createdAt: "2026-05-28T00:10:00.000Z",
+  sourceRefs: [{ eventId: "event-user", sessionId: "session-1", turn: 2 }]
+};
+
+const userDecision: MemoryDecision = {
+  ...decision,
+  id: "decision-user",
+  candidateId: "candidate-user",
+  itemId: "memory-user",
+  decidedAt: "2026-05-28T00:11:00.000Z"
+};
+
 describe("JsonlMemoryStore", () => {
   afterEach(async () => {
     await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -96,6 +113,19 @@ describe("JsonlMemoryStore", () => {
         counts: { active: 1, undecided: 0, unsafe: 0, diagnostics: 0 }
       }
     });
+    await expect(reopened.readRetrieval("append jsonl memory", { scope: "project" })).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [],
+      response: {
+        diagnostics: [],
+        results: [
+          {
+            item: { id: "memory-1", candidateId: "candidate-1" },
+            matchedTerms: expect.arrayContaining(["jsonl", "memory"])
+          }
+        ]
+      }
+    });
 
     await expect(reopened.readReviewMarkdown({ title: "Durable Memory Audit", maxContentChars: 36 })).resolves.toMatchObject({
       ok: true,
@@ -111,6 +141,40 @@ describe("JsonlMemoryStore", () => {
       expect(markdown.markdown).toContain("memory-1");
       expect(markdown.markdown).toContain("Persist governed memory records a...");
     }
+  });
+
+  it("retrieves only from the requested memory scope", async () => {
+    const root = await tempRoot();
+    const store = new JsonlMemoryStore({ rootDir: root });
+    await store.appendCandidate(candidate);
+    await store.appendDecision(decision);
+    await store.appendCandidate(userCandidate);
+    await store.appendDecision(userDecision);
+
+    const project = await store.readRetrieval("memory retrieval", { scope: "project", maxResults: 5 });
+    expect(project).toMatchObject({ ok: true });
+    if (project.ok) {
+      expect(project.response.results.map((result) => result.item.id)).toEqual(["memory-1"]);
+    }
+
+    const user = await store.readRetrieval("memory retrieval", { scope: "user", maxResults: 5 });
+    expect(user).toMatchObject({ ok: true });
+    if (user.ok) {
+      expect(user.response.results.map((result) => result.item.id)).toEqual(["memory-user"]);
+    }
+  });
+
+  it("returns retrieval diagnostics without treating query issues as JSONL failures", async () => {
+    const store = new JsonlMemoryStore({ rootDir: await tempRoot() });
+
+    await expect(store.readRetrieval("   ", { scope: "project" })).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [],
+      response: {
+        results: [],
+        diagnostics: [{ code: "MEMORY_RETRIEVAL_QUERY_REQUIRED" }]
+      }
+    });
   });
 
   it("rejects invalid candidates and decisions before append", async () => {
@@ -167,6 +231,14 @@ describe("JsonlMemoryStore", () => {
       diagnostics: [{ kind: "partial_tail", recoverable: true }],
       markdown: expect.stringContaining("candidate-1")
     });
+    await expect(store.readRetrieval("append jsonl memory", { scope: "project" })).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [{ kind: "partial_tail", recoverable: true }],
+      response: {
+        diagnostics: [],
+        results: []
+      }
+    });
     await expect(store.appendDecision(decision)).resolves.toMatchObject({
       ok: false,
       status: "unavailable",
@@ -198,6 +270,11 @@ describe("JsonlMemoryStore", () => {
       diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]
     });
     await expect(store.readReviewHealth()).resolves.toMatchObject({
+      ok: false,
+      status: "corrupt",
+      diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]
+    });
+    await expect(store.readRetrieval("append jsonl memory", { scope: "project" })).resolves.toMatchObject({
       ok: false,
       status: "corrupt",
       diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]

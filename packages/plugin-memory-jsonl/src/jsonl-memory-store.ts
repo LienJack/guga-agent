@@ -5,11 +5,14 @@ import {
   createMemoryReviewHealth,
   createMemoryReviewReport,
   renderMemoryReviewReport,
+  searchGovernedMemoryItems,
   validateMemoryCandidate,
   validateMemoryDecision,
   type MemoryCandidate,
   type MemoryDecision,
   type MemoryGovernanceLedger,
+  type MemoryRetrievalOptions,
+  type MemoryRetrievalResponse,
   type MemoryReviewHealth,
   type MemoryReviewReport,
   type RenderMemoryReviewReportOptions
@@ -71,6 +74,10 @@ export type JsonlMemoryReviewMarkdownResult =
 
 export type JsonlMemoryReviewHealthResult =
   | { ok: true; report: MemoryReviewReport; health: MemoryReviewHealth; diagnostics: JsonlMemoryDiagnostic[] }
+  | { ok: false; status: "corrupt"; diagnostics: JsonlMemoryDiagnostic[] };
+
+export type JsonlMemoryRetrievalResult =
+  | { ok: true; response: MemoryRetrievalResponse; diagnostics: JsonlMemoryDiagnostic[] }
   | { ok: false; status: "corrupt"; diagnostics: JsonlMemoryDiagnostic[] };
 
 export class JsonlMemoryStore {
@@ -200,6 +207,18 @@ export class JsonlMemoryStore {
       ok: true,
       report: read.report,
       health: createMemoryReviewHealth(read.report),
+      diagnostics: read.diagnostics
+    };
+  }
+
+  async readRetrieval(query: string, options: MemoryRetrievalOptions): Promise<JsonlMemoryRetrievalResult> {
+    const read = await this.readGovernanceLedger();
+    if (!read.ok) {
+      return { ok: false, status: "corrupt", diagnostics: read.diagnostics };
+    }
+    return {
+      ok: true,
+      response: searchGovernedMemoryItems(read.ledger.items, query, options),
       diagnostics: read.diagnostics
     };
   }
