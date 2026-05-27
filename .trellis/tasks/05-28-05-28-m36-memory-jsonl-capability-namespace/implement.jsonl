@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Namespace contract for capability descriptors"}
+{"file": "docs/solutions/architecture-patterns/plugin-capability-discovery.md", "reason": "Prior capability namespace pattern"}
+{"file": "docs/research/memory-jsonl-capability-name-constants.md", "reason": "Recent exported JSONL capability vocabulary"}
