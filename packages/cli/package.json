@@ -29,6 +29,7 @@
     "@guga-agent/plugin-ops-health": "workspace:*",
     "@guga-agent/profile-code-agent": "workspace:*",
     "@guga-agent/profile-deep-research-agent": "workspace:*",
+    "@guga-agent/profile-review-agent": "workspace:*",
     "@guga-agent/provider-ai-sdk": "workspace:*"
   }
 }

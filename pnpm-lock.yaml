@@ -47,6 +47,9 @@ importers:
       '@guga-agent/profile-deep-research-agent':
         specifier: workspace:*
         version: link:../profile-deep-research-agent
+      '@guga-agent/profile-review-agent':
+        specifier: workspace:*
+        version: link:../profile-review-agent
       '@guga-agent/provider-ai-sdk':
         specifier: workspace:*
         version: link:../provider-ai-sdk

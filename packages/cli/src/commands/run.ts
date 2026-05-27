@@ -6,6 +6,7 @@ import { createEvalRunnerPlugin } from "@guga-agent/plugin-eval-runner";
 import { createOpsHealthPlugin } from "@guga-agent/plugin-ops-health";
 import { CODE_AGENT_PROFILE_ID, createCodeAgentPlugins, createCodeAgentPermissionPolicy } from "@guga-agent/profile-code-agent";
 import { DEEP_RESEARCH_PROFILE_ID } from "@guga-agent/profile-deep-research-agent";
+import { REVIEW_AGENT_PROFILE_ID } from "@guga-agent/profile-review-agent";
 import { createAiSdkProviderPlugin } from "@guga-agent/provider-ai-sdk";
 import { readCliConfig } from "../config";
 import { renderHostEvent } from "../render/events";
@@ -31,12 +32,12 @@ type RunArgs = {
   modelId?: string;
 };
 
-type CliProfileId = typeof CODE_AGENT_PROFILE_ID | typeof DEEP_RESEARCH_PROFILE_ID;
+type CliProfileId = typeof CODE_AGENT_PROFILE_ID | typeof DEEP_RESEARCH_PROFILE_ID | typeof REVIEW_AGENT_PROFILE_ID;
 
 export async function runCli(argv: string[], io: CliIO): Promise<number> {
   const [command, ...rest] = argv;
   if (command !== "run") {
-    io.stderr.write("usage: guga run <prompt> [--provider id] [--model id] [--profile code|deep-research] [--mock] [--debug-events] [--ops]\n");
+    io.stderr.write("usage: guga run <prompt> [--provider id] [--model id] [--profile code|deep-research|review] [--mock] [--debug-events] [--ops]\n");
     return 2;
   }
   const parsed = parseRunArgs(rest, io.env);
@@ -140,7 +141,7 @@ function parseRunArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): { o
 }
 
 function isCliProfileId(value: string | undefined): value is CliProfileId {
-  return value === CODE_AGENT_PROFILE_ID || value === DEEP_RESEARCH_PROFILE_ID;
+  return value === CODE_AGENT_PROFILE_ID || value === DEEP_RESEARCH_PROFILE_ID || value === REVIEW_AGENT_PROFILE_ID;
 }
 
 async function createCliHost(args: RunArgs, env: NodeJS.ProcessEnv = process.env): Promise<LocalGugaHost> {
