@@ -53,6 +53,16 @@ export type {
   RenderCuratedMemoryMarkdownOptions
 } from "./memory-markdown";
 export {
+  createMemoryReviewReport,
+  renderMemoryReviewReport
+} from "./memory-review-report";
+export type {
+  MemoryReviewCandidateSummary,
+  MemoryReviewReport,
+  MemoryReviewReportCounts,
+  RenderMemoryReviewReportOptions
+} from "./memory-review-report";
+export {
   createMemoryCandidatesPlugin,
   createMemoryGovernancePlugin
 } from "./memory-candidates-plugin";

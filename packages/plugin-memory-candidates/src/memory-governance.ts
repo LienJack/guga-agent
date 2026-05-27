@@ -52,6 +52,7 @@ export type GovernedMemoryItem = {
 export type MemoryGovernanceDiagnostic = MemoryCandidateDiagnostic;
 
 export type MemoryGovernanceLedger = {
+  candidates: MemoryCandidate[];
   items: GovernedMemoryItem[];
   decisions: MemoryDecision[];
   diagnostics: MemoryGovernanceDiagnostic[];
@@ -193,6 +194,7 @@ export function createMemoryGovernanceLedger(
 
   const items = [...itemsById.values()].sort(compareItems);
   return {
+    candidates: [...candidates].sort(compareCandidates),
     items,
     decisions: sortedDecisions,
     diagnostics,
@@ -288,6 +290,16 @@ function compareDecisions(left: MemoryDecision, right: MemoryDecision): number {
 }
 
 function compareItems(left: GovernedMemoryItem, right: GovernedMemoryItem): number {
+  return (
+    left.scope.localeCompare(right.scope) ||
+    left.kind.localeCompare(right.kind) ||
+    right.importance - left.importance ||
+    left.createdAt.localeCompare(right.createdAt) ||
+    left.id.localeCompare(right.id)
+  );
+}
+
+function compareCandidates(left: MemoryCandidate, right: MemoryCandidate): number {
   return (
     left.scope.localeCompare(right.scope) ||
     left.kind.localeCompare(right.kind) ||
