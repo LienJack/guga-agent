@@ -346,38 +346,151 @@ first-party 插件：
 
 ## M4：Context Policy Plugins
 
-**目标：** 把“模型看见什么”做成可替换策略，而不是固定 prompt 拼接。
+**目标：** 把“模型看见什么”做成可替换、可审计、可恢复的 context policy plugin，而不是固定 prompt 拼接或单体 `ContextManager`。
+
+核心判断来自 `docs/agent-context-management.md` 和九个参考项目的交叉结论：context 不是历史消息本身，而是从事件账本、会话状态、工具 artifact、资源文件、skills、当前 pending turn 和压缩摘要投影出来的一次模型输入。M4 只负责让这个投影过程可插拔、可预算、可压缩、可追踪；长期记忆、向量检索、跨 session semantic memory 留到 M5/M8 之后。
+
+参考项目取舍：
+
+- `blade-code`：采用 `system/history/pending` 分层和 tool call/result 配对保护，避免压缩污染 system 或打断当前轮。
+- `blade-agent-sdk`：采用 loop recovery hook 的边界，context overflow 是可恢复分支，不是 `ContextManager` 私自吞掉的异常。
+- `claude-code`：采用 append-only session log、auto-compact、PTL fallback、post-compact 文件/plan/skill 重注入的产品经验；不照搬它的完整 CLI 状态机。
+- `opencode`：采用 compaction message/part 和 session projection 思路，让 compact boundary 成为协议事实；不把摘要当唯一事实源。
+- `hermes-agent`：采用 ContextEngine 可插拔、50% 阈值、防抖、Smart Collapse、三层大工具结果防护和结构化 action-log summary；复杂的 FTS/session split 延后。
+- `deepagentsjs`：采用 middleware 组合、大结果文件化、summary middleware 不重写完整 state 的经验；不绑定 LangGraph。
+- `deer-flow`：采用 middleware 兜底思路，特别是 dangling tool call 修复和 todo/context 自愈；不采用纯 LangChain middleware 作为 Guga 的 core 形态。
+- `cc-haha`：采用 compact boundary 进入客户端协议和 UI projection 的经验，让用户和调试器都能看见上下文发生过变化。
+- `pi`：采用 extension-first 的 `resources_discover`、`context`、`session_before_compact` 思路，让插件能贡献资源、触发/取消压缩，并在 session replacement 后重建 cwd-bound services。
+
+M4 的设计原则：
+
+- **Context 是 projection，不是账本。** 原始 session event、tool result、artifact、summary 都保留；模型输入只是某次调用的投影。
+- **Policy 只能返回贡献或 patch。** context hook 不能直接 mutate event log、conversation state 或 provider request。
+- **先治理工具输出，再做摘要。** 大日志、搜索结果、文件读取、测试输出是爆窗主因，必须先预算、截断、落盘和引用化。
+- **压缩是显式事件。** compact start/boundary/summary/failure 都进入 event/audit stream，并能投影到 UI。
+- **压缩不能破坏消息合法性。** system 不被压缩，pending 不被压缩，tool call/result 不产生孤儿。
+- **恢复优先于聪明。** context overflow、provider prompt-too-long、manual compact 都必须能回到同一用户意图继续执行。
+- **后续能力有插槽但不提前实现。** memory、retrieval、enterprise policy、eval-driven prompt tuning 需要接口预留，不进入 M4 主交付。
 
 建设范围：
 
-- 定义 `ContextPolicy`：assemble、budget、truncate、compact、reinject。
-- 定义 `ModelInputProjection`：每次模型调用的 messages、sources、token estimate。
-- 支持 `resources.discover`、`context.assemble`、`context.compact.before`、`context.compact.after` hooks。
-- 实现 tool result store，大结果只给 preview 和引用。
-- 实现 compaction plugin，保留 system、pending、recent tail、summary boundary。
-- 实现 post-compact reinjection：当前文件、plan、active skills、active tools。
-- context hooks 只能贡献 source 或返回 patch，不能覆盖原始 event log。
+- 定义 `ContextPolicy` 能力：resource discovery、source contribution、budget planning、tool result shaping、compaction decision、compaction execution、post-compact reinjection。
+- 定义 `ModelInputProjection`：每次模型调用的 messages、tool definitions、source metadata、policy decisions、token estimate、reserved output budget、projection hash。
+- 定义 context source 类型：system/developer prompt、session history、pending turn、tool result preview、artifact reference、resource file、skill body、plan/todo、compaction summary、host-injected context。
+- 支持 `resources.discover`、`context.assemble`、`context.budget`、`context.truncate`、`context.compact.before`、`context.compact.after`、`context.reinject` hooks。
+- 实现 `ContextBudgeter`：根据模型 context window、reserved output、tool definitions、pending turn、recent tail 和 provider usage 判断是否需要截断或压缩。
+- 实现 `ToolResultStore`：大工具结果不完整进入模型，只给 head/tail preview、摘要、artifact id/path、重读提示和 source metadata。
+- 实现 lightweight truncation：按工具类型做 head/tail、snip、Smart Collapse，不调用 LLM 也能降低上下文压力。
+- 实现 reactive compaction：provider 返回 context overflow / prompt too long 时，触发 compact + retry 当前轮，且保留原始失败事件。
+- 实现 proactive compaction：根据上一轮 usage 或投影 token estimate 接近阈值时，在下一次模型调用前 compact。
+- 实现 compaction plugin：保留 system、pending、未闭合工具轮次、recent tail、上一份 summary，并生成新的 summary boundary。
+- 实现 post-compact reinjection：当前文件/资源引用、plan/todo、active skills、active tools、permission mode、host context 在 compact 后重新进入 projection。
+- 实现 context audit：每次 projection 记录来源、策略、触发原因、token 估算、截断说明、summary parent/cutoff/boundary。
+- context hooks 只能贡献 source、返回 typed patch、返回 gate decision 或 annotation，不能覆盖原始 event log。
+- replay 时默认使用已记录的 context decisions，不重跑有副作用或非确定性 context hook。
 
-first-party 插件：
+M4 分阶段实现：
 
-- `plugin-context-basic`：无压缩，仅预算检查。
-- `plugin-context-compaction`：summary + recent tail。
-- `plugin-context-tool-results`：大工具结果落盘和重读引用。
+**M4a：Model Input Projection Skeleton**
+
+- 建立 `ContextPolicy` / `ContextSource` / `ModelInputProjection` 的最小 contract。
+- 把 model request 前的 prompt 拼接改为 projection 流程：collect sources -> order -> budget -> emit projection。
+- 每次 projection 产生 source metadata 和 token estimate，即使暂时不压缩。
+- `plugin-context-basic` 只做预算检查和最近窗口保护，用来验证 M0-M3 的 loop/provider/tool contract。
 
 退出标准：
 
+- Agent loop 不再手写拼接最终 messages。
+- 每次 provider request 都能解释 system、history、pending、tool results、resources 分别来自哪里。
+- token estimate 超预算时能返回结构化 context-pressure event，即使还不自动压缩。
+
+**M4b：Tool Result Budget And Artifact References**
+
+- 将工具执行结果拆成 raw result、LLM preview、UI projection、audit metadata 四种视图。
+- 单个大结果和单轮聚合大结果都能落到 artifact store 或 workspace-safe 文件引用。
+- 搜索、文件读取、shell/test 输出按工具类型保留关键信息，避免一刀切截断。
+- `tool.result.before` 与 `context.truncate` 共同保证模型只看到可预算 preview。
+
+退出标准：
+
+- 5MB 日志、超长 grep 结果或完整文件读取不会直接进入模型输入。
+- 模型能看到“已省略什么、如何重读”的引用，而不是沉默丢内容。
+- UI/audit 仍能访问原始或完整 tool result。
+
+**M4c：Reactive Compact And Pairing Safety**
+
+- provider context overflow 进入 recovery 分支：compact、重建 projection、重试当前用户意图。
+- 压缩前先修复或拒绝非法 tool call/result 对，pending turn 默认不可压缩。
+- 压缩结果包含 summary、recent tail、boundary、pre/post token、trigger、retained sources。
+- compact 失败必须产生可见 error event，并允许降级到更激进的本地 truncation。
+
+退出标准：
+
+- context overflow 不直接终止 run。
+- compact 后不存在 orphan tool call/tool result。
+- compact boundary 能被 UI/replay/audit 看到。
+
+**M4d：Policy Plugin Hooks**
+
+- 插件可通过 `resources.discover` 贡献 skill、prompt template、context file、project rules。
+- 插件可通过 `context.assemble` 贡献 source 或调整优先级，但必须声明 source provenance。
+- 插件可通过 `context.compact.before` 取消、延迟或定制一次 compaction。
+- 插件可通过 `context.compact.after` 标注 summary、触发 reinjection 或记录质量信号。
+- context policy hook 必须有 phase、effect、priority、timeout、permission scope 和 audit event。
+
+退出标准：
+
+- 不改 core 就能新增一种 context policy。
+- 插件对模型输入的任何增删改都有 source metadata 和 audit trail。
+- session reload/replacement 后旧 hook context 失效，不能继续写入新 session。
+
+**M4e：Post-Compact Reinjection And Projection Replay**
+
+- compact 后自动重注入当前工作状态：活动文件、plan/todo、active skills、active tools、permission mode、host context。
+- `ModelInputProjection` 可从 event log 和 context decisions 重建，支撑 M5 replay。
+- projection hash 与 source list 写入 event stream，方便后续 eval 比较不同 policy。
+- 为 manual compact、auto compact、reactive compact 保持同一套事件和审计语义。
+
+退出标准：
+
+- 压缩后 agent 仍知道当前目标、关键约束、最近文件、计划和下一步。
+- 能重建“某一轮模型实际看见了什么”。
+- 更换 context policy 后，可以通过 replay/eval 比较行为差异。
+
+first-party 插件：
+
+- M4 首版使用 `@guga-agent/plugin-context-default` 作为单一默认 context policy，证明不改 core 即可替换 context 行为；host/plugin 作者文档见 [`docs/context-policy-plugins.md`](context-policy-plugins.md)。
+- 后续可拆为 `plugin-context-basic`、`plugin-context-tool-results`、`plugin-context-truncation`、`plugin-context-compaction`、`plugin-context-reinjection`，但多包拆分不属于 M4 首版交付。
+
+退出标准：
+
+- Agent loop 中没有散落的 prompt 拼接逻辑，模型输入统一来自 `ModelInputProjection`。
 - 大工具输出不会完整塞进模型输入。
 - context overflow 是可恢复分支。
 - compact 不破坏 tool call/result 配对。
 - 插件能通过 `resources.discover` 贡献 skill/prompt/context path。
 - 插件能通过 `context.compact.before` 取消或调整一次 compaction，并留下 audit event。
 - 每次模型输入都能追踪 source metadata。
+- compact boundary、summary、source cutoff、pre/post token 和触发原因都能进入 event stream。
+- post-compact 后当前文件、plan、active skills、active tools 不会被摘要“遗忘”。
+- replay 可以重建一次模型输入 projection，至少达到 M5 的 session replay 前置要求。
 
 不做：
 
 - 不做长期记忆。
 - 不做向量搜索。
 - 不做跨 session semantic memory。
+- 不做 FTS/session search。
+- 不做企业级 context policy 管理后台。
+- 不做自动从历史会话提炼用户偏好。
+- 不做多 agent 全局共享 memory。
+- 不做摘要质量自动评分；M4 只记录质量信号接口，M8 再接 eval。
+
+后续落点：
+
+- M5 接手 append-only event store、artifact store、session resume、fork、projection replay 的持久化能力。
+- M6 接手 skills/MCP/resource discovery 的完整生态化，让 M4 的 `resources.discover` 有更多来源。
+- M8 接手 context policy versioning、trust model、enterprise allowlist、summary quality eval、sensitive data filtering 和 audit export。
 
 ## M5：Session Store And Replay Plugins
 

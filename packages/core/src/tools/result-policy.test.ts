@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AgentEventType } from "../contracts/events";
 import type { ToolCallCorrelation } from "../contracts/tool-runtime";
 import type { ToolResult } from "../contracts/tools";
+import { InMemoryToolResultStore } from "../context/tool-result-store";
 import { EventBus } from "../events/event-bus";
 import { ResultPolicy } from "./result-policy";
 
@@ -34,8 +35,13 @@ describe("ResultPolicy", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      content: "01234\n\n[Tool output truncated: 10 characters exceeded 5 character budget]",
-      budget: { applied: true, originalContentChars: 10 }
+      content: expect.stringContaining("Tool output preview omitted"),
+      budget: {
+        applied: true,
+        originalContentChars: 10,
+        reference: expect.objectContaining({ id: expect.stringContaining("tool-result-run-result") }),
+        view: { llmPreview: expect.stringContaining("01234") }
+      }
     });
     expect(eventBus.events).toContainEqual(expect.objectContaining({ type: AgentEventType.ToolResultBudgeted }));
   });
@@ -55,16 +61,18 @@ describe("ResultPolicy", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("TOOL_FAILED");
-      expect(result.error.details).toEqual({
+      expect(result.error.details).toMatchObject({
         truncated: true,
         originalContentChars: 20,
-        content: "012345678901"
+        content: expect.stringContaining("012345678901"),
+        reference: expect.objectContaining({ type: "buffer" })
       });
     }
   });
 
-  it("creates budget metadata with references when reference strategy is selected", () => {
-    const policy = new ResultPolicy({ defaultBudget: { maxContentChars: 4, strategy: "reference" } });
+  it("stores raw output and creates budget metadata with references when reference strategy is selected", () => {
+    const store = new InMemoryToolResultStore();
+    const policy = new ResultPolicy({ store, defaultBudget: { maxContentChars: 4, strategy: "reference" } });
 
     const result = policy.apply({
       call,
@@ -74,12 +82,14 @@ describe("ResultPolicy", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      content: "[Tool output stored as reference: tool-result-call-result]",
+      content: expect.stringContaining("Tool output stored as reference"),
       budget: {
         applied: true,
-        reference: { type: "buffer", id: "tool-result-call-result" }
+        reference: { type: "buffer", id: "tool-result-run-result-turn-0-attempt-1-batch-result-call-result" },
+        rereadInstruction: expect.stringContaining("tool-result-run-result")
       }
     });
+    expect(store.get("tool-result-run-result-turn-0-attempt-1-batch-result-call-result")?.content).toBe("abcdef");
   });
 
   it("builds synthetic cancelled, skipped, denied, and timed-out results", () => {

@@ -36,4 +36,14 @@ describe("ConversationState", () => {
       isError: true
     });
   });
+
+  it("can replace messages after compaction without sharing mutable references", () => {
+    const state = new ConversationState([{ role: "user", content: "old" }]);
+    const messages = [{ role: "user" as const, content: "summary" }];
+
+    state.replaceMessages(messages);
+    messages[0].content = "mutated";
+
+    expect(state.snapshot()).toEqual([{ role: "user", content: "summary" }]);
+  });
 });

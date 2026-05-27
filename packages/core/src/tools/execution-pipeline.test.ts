@@ -233,8 +233,12 @@ describe("ExecutionPipeline", () => {
 
     expect(result.result).toMatchObject({
       ok: true,
-      content: expect.stringContaining("Tool output truncated"),
-      budget: { applied: true, originalContentChars: 10 }
+      content: expect.stringContaining("Tool output preview omitted"),
+      budget: {
+        applied: true,
+        originalContentChars: 10,
+        reference: expect.objectContaining({ type: "buffer" })
+      }
     });
   });
 

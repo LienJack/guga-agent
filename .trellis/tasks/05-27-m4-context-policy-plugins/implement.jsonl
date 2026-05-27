@@ -1,0 +1,9 @@
+{"file":"docs/roadmap.md","reason":"Primary milestone definition to implement or refine for M4 Context Policy Plugins."}
+{"file":"docs/brainstorms/2026-05-27-m4-context-policy-plugins-requirements.md","reason":"Primary ce-brainstorm requirements document for M4 planning and implementation handoff."}
+{"file":"docs/agent-context-management.md","reason":"Project-specific context management research and staged implementation guidance."}
+{"file":"docs/research/context-packs/context-compression.md","reason":"Reference-project synthesis for compaction, tool result handling, session persistence, and post-compact reinjection."}
+{"file":"docs/research/context-packs/agent-loop.md","reason":"Agent loop recovery, overflow retry, tool pairing, and budget behavior that M4 must integrate with."}
+{"file":"docs/research/context-packs/tool-registry.md","reason":"Tool result budget, visibility, permission, and hook context needed for context policy integration."}
+{"file":"docs/research/context-packs/provider-abstraction.md","reason":"Provider context window, usage, auxiliary summarization model, and overflow normalization assumptions."}
+{"file":"docs/research/context-packs/multi-agent.md","reason":"Context isolation and delegated-agent boundaries to avoid over-scoping M4 into memory or multi-agent state."}
+{"file": "docs/plans/2026-05-27-001-feat-context-policy-plugins-plan.md", "reason": "Primary implementation plan for M4 units, sequencing, files, and tests."}

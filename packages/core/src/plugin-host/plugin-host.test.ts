@@ -303,4 +303,37 @@ describe("PluginHost", () => {
 
     expect(registry.getProvider("plugin-provider")).toBeDefined();
   });
+
+  it("registers and cleans up context policy capabilities", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    const plugin: LocalPlugin = {
+      id: "context-plugin",
+      init(context) {
+        context.registerContextPolicy?.({
+          id: "default-context",
+          phases: ["context.assemble", "context.budget"],
+          auditIdentity: { label: "Default context", packageName: "@guga-agent/plugin-context-default" }
+        });
+      }
+    };
+    const host = new PluginHost({ plugins: [plugin], registry, hookKernel, eventBus });
+
+    await host.initialize({ runId: "run-context-policy" });
+
+    expect(registry.listContextPolicies()).toContainEqual(expect.objectContaining({
+      id: "default-context",
+      auditIdentity: expect.objectContaining({ pluginId: "context-plugin" })
+    }));
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.PluginCapabilityRegistered,
+      capability: "context-policy",
+      name: "default-context"
+    }));
+
+    await host.shutdown({ runId: "run-context-policy-shutdown" });
+
+    expect(registry.listContextPolicies()).toEqual([]);
+  });
 });

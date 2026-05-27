@@ -1,5 +1,6 @@
 import { CoreError } from "../contracts/errors";
 import { AgentEventType } from "../contracts/events";
+import type { ContextPolicy } from "../contracts/context";
 import type { HookRegistration } from "../contracts/hooks";
 import {
   type LocalPlugin,
@@ -43,6 +44,7 @@ type PluginContribution = {
   models: Array<Pick<ModelMetadata, "providerId" | "modelId">>;
   tools: PluginToolContribution[];
   hooks: string[];
+  contextPolicies: string[];
 };
 
 type PluginToolContribution =
@@ -83,7 +85,8 @@ export class PluginHost {
         providers: [],
         models: [],
         tools: [],
-        hooks: []
+        hooks: [],
+        contextPolicies: []
       };
       this.contributions.push(contribution);
 
@@ -94,7 +97,8 @@ export class PluginHost {
           registerModel: (model) => this.registerModel(options.runId, plugin.id, model, contribution),
           registerTool: (tool, toolOptions) => this.registerTool(options.runId, plugin.id, tool, contribution, toolOptions),
           registerHook: (hook) =>
-            this.registerHook(options.runId, plugin.id, pluginLoadIndex, hook, contribution)
+            this.registerHook(options.runId, plugin.id, pluginLoadIndex, hook, contribution),
+          registerContextPolicy: (policy) => this.registerContextPolicy(options.runId, plugin.id, policy, contribution)
         });
         this.initializedPlugins.push(plugin);
         this.eventBus.publish({
@@ -225,6 +229,31 @@ export class PluginHost {
     });
   }
 
+  private registerContextPolicy(
+    runId: string,
+    pluginId: string,
+    policy: ContextPolicy,
+    contribution: PluginContribution
+  ): void {
+    const registeredPolicy = {
+      ...policy,
+      auditIdentity: {
+        ...policy.auditIdentity,
+        pluginId: policy.auditIdentity.pluginId ?? pluginId
+      }
+    };
+    this.registry.registerContextPolicy(registeredPolicy);
+    this.hookKernel.registerContextPolicy(pluginId, registeredPolicy);
+    contribution.contextPolicies.push(policy.id);
+    this.eventBus.publish({
+      type: AgentEventType.PluginCapabilityRegistered,
+      runId,
+      pluginId,
+      capability: "context-policy",
+      name: policy.id
+    });
+  }
+
   private async shutdownInitializedPlugins(options: PluginHostShutdownOptions): Promise<PluginShutdownResult["failures"]> {
     const failures: PluginShutdownResult["failures"] = [];
 
@@ -279,6 +308,10 @@ export class PluginHost {
           this.registry.removeTool(tool.name);
         }
       }
+      for (const policyId of contribution.contextPolicies) {
+        this.registry.removeContextPolicy(policyId);
+      }
+      this.hookKernel.removeContextPolicy(contribution.pluginId);
     }
     this.contributions.length = 0;
     this.hookKernel.clear();

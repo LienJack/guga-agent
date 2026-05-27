@@ -49,6 +49,22 @@ describe("ProviderRouter", () => {
     expect(result).toMatchObject({ ok: true, model: { providerId: "mock", modelId: "summarizer" } });
   });
 
+  it("exposes selected model metadata for projection budgeting", () => {
+    const registry = new CapabilityRegistry();
+    registry.registerModel({ providerId: "mock", modelId: "primary", contextWindow: 100 });
+    registry.registerModel({ providerId: "mock", modelId: "summarizer", contextWindow: 200 });
+    const router = new ProviderRouter({
+      registry,
+      policy: {
+        primary: { providerId: "mock", modelId: "primary" },
+        purposes: [{ purpose: "summarizer", candidates: [{ providerId: "mock", modelId: "summarizer" }] }]
+      }
+    });
+
+    expect(router.metadataFor()).toMatchObject({ modelId: "primary", contextWindow: 100 });
+    expect(router.metadataFor("summarizer")).toMatchObject({ modelId: "summarizer", contextWindow: 200 });
+  });
+
   it("falls back after a non-retryable rate-limit failure", async () => {
     const registry = new CapabilityRegistry();
     registry.registerProvider(

@@ -266,7 +266,13 @@ export class ExecutionPipeline {
     reason?: ToolRuntimeResult["reason"],
     tool?: ToolDefinition
   ): ToolRuntimeResult {
-    const budgeted = this.resultPolicy.apply({ call, correlation, result, ...(tool?.runtime?.resultBudget ? { budget: tool.runtime.resultBudget } : {}) });
+    const budgeted = this.resultPolicy.apply({
+      call,
+      correlation,
+      result,
+      ...(tool ? { tool } : {}),
+      ...(tool?.runtime?.resultBudget ? { budget: tool.runtime.resultBudget } : {})
+    });
     this.eventBus.publish({
       type: AgentEventType.ToolResult,
       runId: correlation.runId,

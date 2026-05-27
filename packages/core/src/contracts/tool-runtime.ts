@@ -105,6 +105,13 @@ export type BudgetedToolResult = ToolResult & {
     originalContentChars?: number;
     notice?: string;
     reference?: ToolResultReference;
+    rereadInstruction?: string;
+    omittedContentChars?: number;
+    view?: {
+      llmPreview: string;
+      uiProjection?: string;
+      auditMetadata?: Record<string, unknown>;
+    };
   };
 };
 
