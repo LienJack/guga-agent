@@ -6,49 +6,43 @@
 
 ## Overview
 
-<!--
-Document your project's frontend directory structure here.
-
-Questions to answer:
-- Where do components live?
-- How are features/modules organized?
-- Where are shared utilities?
-- How are assets organized?
--->
-
-(To be filled by the team)
+There is no React/Web/Desktop frontend app in the repository today. The current user-facing surface is `packages/cli`, and frontend-facing contracts live in host protocol/runtime packages. Future Web or desktop UI must consume the host protocol and runtime event/projection contracts rather than reimplementing the agent loop.
 
 ---
 
 ## Directory Layout
 
 ```
-<!-- Replace with your actual structure -->
-src/
-├── ...
-└── ...
+packages/
+  cli/                 # command-line host surface
+  host-protocol/       # typed protocol/event contracts
+  host-runtime/        # runtime-to-host projection/adaptation
+  host-local-server/   # local server adapter
+  host-sdk/            # typed client
 ```
 
 ---
 
 ## Module Organization
 
-<!-- How should new features be organized? -->
-
-(To be filled by the team)
+- Put protocol contracts in `packages/host-protocol`.
+- Put runtime orchestration and host adapter logic in `packages/host-runtime` or a host package.
+- Keep UI-specific rendering out of `packages/core`.
+- Future Web/Desktop packages should be app packages under `packages/` or `apps/`, consuming `@guga-agent/host-sdk` and typed events.
 
 ---
 
 ## Naming Conventions
 
-<!-- File and folder naming rules -->
-
-(To be filled by the team)
+- Use kebab-case file names for TypeScript modules.
+- Use `*.test.ts` beside host/protocol implementation files.
+- Name event/projection files by protocol concept, not component shape.
 
 ---
 
 ## Examples
 
-<!-- Link to well-organized modules as examples -->
-
-(To be filled by the team)
+- `packages/cli/src/cli.ts`: CLI surface.
+- `packages/host-protocol/src/index.ts`: host-facing protocol exports.
+- `packages/host-runtime/src/host-runtime.ts`: runtime host orchestration.
+- `packages/host-sdk/src/index.ts`: typed SDK entrypoint.
