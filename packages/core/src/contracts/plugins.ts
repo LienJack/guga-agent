@@ -13,6 +13,7 @@ export type ToolRegistrationOptions = {
   source?: CapabilitySource;
   namespace?: string;
   ownerPluginId?: string;
+  trust?: TrustDescriptor;
 };
 
 export type CapabilitySource = "host" | "plugin" | "mcp" | "built-in";
@@ -67,6 +68,7 @@ export type PluginContext = {
   registerSessionStore?(store: SessionStore): void;
   registerArtifactStore?(store: ArtifactStore): void;
   registerReplayCapability?(capability: ReplayCapability): void;
+  registerOperation?(name: string, options?: CapabilityRegistrationOptions): void;
   getEventStore?(): EventStore | undefined;
   getSessionStore?(): SessionStore | undefined;
   getArtifactStore?(): ArtifactStore | undefined;
@@ -97,7 +99,8 @@ export type PluginCapabilityKind =
   | "event-store"
   | "session-store"
   | "artifact-store"
-  | "replay";
+  | "replay"
+  | "operation";
 
 export type PluginFailureKind = "init" | "hook" | "shutdown";
 

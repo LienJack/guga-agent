@@ -31,7 +31,8 @@ type CapabilityKindForRegistry =
   | "event-store"
   | "session-store"
   | "artifact-store"
-  | "replay";
+  | "replay"
+  | "operation";
 
 type DescriptorInput = CapabilityRegistrationOptions & {
   reason?: string;
@@ -266,6 +267,14 @@ export class CapabilityRegistry {
 
   removeHookCapability(id: string, options: CapabilityRegistrationOptions = {}): void {
     this.removeDescriptor("hook", id, options);
+  }
+
+  registerOperationCapability(id: string, options: CapabilityRegistrationOptions = {}): void {
+    this.recordDescriptor("operation", id, options);
+  }
+
+  removeOperationCapability(id: string, options: CapabilityRegistrationOptions = {}): void {
+    this.removeDescriptor("operation", id, options);
   }
 
   requireEventStore(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): EventStore {

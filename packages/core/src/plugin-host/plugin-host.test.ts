@@ -513,4 +513,48 @@ describe("PluginHost", () => {
     expect(registry.getArtifactStore()).toBeUndefined();
     expect(registry.getReplayCapability()).toBeUndefined();
   });
+
+  it("registers and cleans up operation capabilities", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    const plugin: LocalPlugin = {
+      id: "ops-plugin",
+      init(context) {
+        context.registerOperation?.("provider.health", {
+          trust: {
+            level: "first-party",
+            scopes: [{ kind: "provider", access: "read" }]
+          }
+        });
+      }
+    };
+    const host = new PluginHost({ plugins: [plugin], registry, hookKernel, eventBus });
+
+    await host.initialize({ runId: "run-ops-plugin" });
+
+    expect(registry.listCapabilityDescriptors()).toContainEqual({
+      type: "operation",
+      name: "provider.health",
+      source: "plugin",
+      status: "registered",
+      ownerPluginId: "ops-plugin",
+      trust: {
+        level: "first-party",
+        scopes: [{ kind: "provider", access: "read" }]
+      }
+    });
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.PluginCapabilityRegistered,
+      capability: "operation",
+      name: "provider.health"
+    }));
+
+    await host.shutdown({ runId: "run-ops-plugin-shutdown" });
+
+    expect(registry.listCapabilityDescriptors()).not.toContainEqual(expect.objectContaining({
+      type: "operation",
+      name: "provider.health"
+    }));
+  });
 });

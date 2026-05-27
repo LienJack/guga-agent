@@ -5,6 +5,7 @@ import type { HookRegistration } from "../contracts/hooks";
 import type { ArtifactStore, EventStore, ReplayCapability, SessionStore } from "../contracts/persistence";
 import {
   type LocalPlugin,
+  type CapabilityRegistrationOptions,
   type PluginFailure,
   type PluginShutdownResult,
   type SkillMetadata,
@@ -54,6 +55,7 @@ type PluginContribution = {
   sessionStores: string[];
   artifactStores: string[];
   replayCapabilities: string[];
+  operations: string[];
 };
 
 type PluginToolContribution =
@@ -102,7 +104,8 @@ export class PluginHost {
         eventStores: [],
         sessionStores: [],
         artifactStores: [],
-        replayCapabilities: []
+        replayCapabilities: [],
+        operations: []
       };
       this.contributions.push(contribution);
 
@@ -121,6 +124,8 @@ export class PluginHost {
           registerArtifactStore: (store) => this.registerArtifactStore(options.runId, plugin.id, store, contribution),
           registerReplayCapability: (capability) =>
             this.registerReplayCapability(options.runId, plugin.id, capability, contribution),
+          registerOperation: (name, operationOptions) =>
+            this.registerOperation(options.runId, plugin.id, name, contribution, operationOptions),
           getEventStore: () => this.persistence?.eventStore ?? this.registry.getEventStore(),
           getSessionStore: () => this.persistence?.sessionStore ?? this.registry.getSessionStore(),
           getArtifactStore: () => this.persistence?.artifactStore ?? this.registry.getArtifactStore()
@@ -369,6 +374,28 @@ export class PluginHost {
     });
   }
 
+  private registerOperation(
+    runId: string,
+    pluginId: string,
+    name: string,
+    contribution: PluginContribution,
+    options: CapabilityRegistrationOptions = {}
+  ): void {
+    this.registry.registerOperationCapability(name, {
+      ...options,
+      source: options.source ?? "plugin",
+      ownerPluginId: options.ownerPluginId ?? pluginId
+    });
+    contribution.operations.push(name);
+    this.eventBus.publish({
+      type: AgentEventType.PluginCapabilityRegistered,
+      runId,
+      pluginId,
+      capability: "operation",
+      name
+    });
+  }
+
   private async shutdownInitializedPlugins(options: PluginHostShutdownOptions): Promise<PluginShutdownResult["failures"]> {
     const failures: PluginShutdownResult["failures"] = [];
 
@@ -443,6 +470,9 @@ export class PluginHost {
       }
       for (const replayCapabilityId of contribution.replayCapabilities) {
         this.registry.removeReplayCapability(replayCapabilityId);
+      }
+      for (const operationId of contribution.operations) {
+        this.registry.removeOperationCapability(operationId, { ownerPluginId: contribution.pluginId });
       }
       this.hookKernel.removeContextPolicy(contribution.pluginId);
     }
