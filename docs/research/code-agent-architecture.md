@@ -39,6 +39,13 @@ M9 应采用 **profile/bundle-first code agent**：Guga 的 code-agent 是一个
 5. Add test discovery helpers that inspect package scripts and changed file paths.
 6. Teach CLI `--profile code` to use this bundle.
 
+## 实施结果
+
+- `packages/profile-code-agent`: added profile metadata, system prompt helper, permission policy, plugin bundle factory, repo context helper, and test discovery helper.
+- CLI now accepts `--profile code`, rejects unknown profiles, and keeps `--mock`, provider config, debug events, and `--ops` working through the same host SDK path.
+- The profile composes filesystem, shell, git, ops health, audit export, and eval runner plugins without importing host or CLI packages.
+- Permission defaults use `ask-on-write`, block destructive shell commands before delegation, and require host approval for write/execute actions.
+
 ## 证据
 
 - Fact: `docs/research/context-packs/agent-loop.md` recommends iteration budgets, safe tool execution, and event-based loop facts.
@@ -47,3 +54,4 @@ M9 应采用 **profile/bundle-first code agent**：Guga 的 code-agent 是一个
 - Fact: `docs/research/context-packs/ui-protocol.md` recommends server/host surfaces as the shared product boundary.
 - Fact: `docs/research/context-packs/multi-agent.md` recommends single-layer delegation first and defers swarm.
 - Inference: Because Guga already shipped M6-M8 substrates, the smallest high-value M9 is composition rather than new core control flow.
+- Fact: M9 implementation kept `packages/core` unchanged and added code-agent behavior as a profile package.
