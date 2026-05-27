@@ -12,6 +12,7 @@
 - [参考项目省 Token 工作流](./reference-project-workflow.md)：组合 Graphify、Understand-Anything、GitNexus、LLM Context Pack 与 repomix 的查询协议。
 - [参考项目索引建设状态](./index-build-status.md)：记录 Repomix token tree、GitNexus、Graphify、Understand-Anything 的当前建设状态。
 - [Context Packs](./context-packs/)：用于沉淀高频主题的小型 LLM 上下文包。
+- [Memory Systems Context Pack](./context-packs/memory-systems.md)：`graphiti` / `mem0` / `zep` 的长期记忆、图谱、检索和 context injection 研究入口。
 
 ## 查询方式
 
@@ -42,4 +43,6 @@
 | `source-analysis/hermes-wiki` | 按子系统直接查询 Hermes 概念页，适合 LLM 快速定位。 |
 | `source-analysis/learn-opencode` | OpenCode 学习/源码分析文档，覆盖 monorepo 架构、internals、flows、packages、ACP/LSP/MCP、permissions、tools、SDK、UI 和 clients。 |
 | `repomix/pi-*` | `pi` 源码级验证，适合查 TypeScript coding agent harness、JSONL session、compaction、provider/OAuth、CLI/TUI、skills 和 extension 主链路。 |
+| `repomix/graphiti-*`, `repomix/mem0-*`, `repomix/zep-*` | memory 参考项目源码级验证，适合查 graph memory、vector memory、user graph、thread context、SDK/tool integration 和 turn-time context injection。 |
+| `graphs/graphiti`, `graphs/mem0`, `graphs/zep` | memory 参考项目 Graphify 图谱，适合先定位核心类、社区和跨文件关系。 |
 | `repomix` | 用于源码级实现规划的 packed source context 和 token tree。 |
