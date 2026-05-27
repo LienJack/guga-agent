@@ -6,6 +6,8 @@ export type MemoryJsonlPluginOptions = {
 
 export const MEMORY_JSONL_OPERATION_NAME = "memory.jsonl" as const;
 
+export const MEMORY_JSONL_OPERATION_NAMESPACE = "memory-jsonl" as const;
+
 export const MEMORY_JSONL_READ_OPERATION_NAMES = [
   "memory.jsonl.review",
   "memory.jsonl.review_report",
@@ -42,12 +44,14 @@ export function createMemoryJsonlPlugin(options: MemoryJsonlPluginOptions = {}):
     init(context) {
       context.registerOperation?.(MEMORY_JSONL_OPERATION_NAME, {
         source: "plugin",
+        namespace: MEMORY_JSONL_OPERATION_NAMESPACE,
         ownerPluginId: pluginId,
         trust: readWriteTrust
       });
       for (const name of MEMORY_JSONL_READ_OPERATION_NAMES) {
         context.registerOperation?.(name, {
           source: "plugin",
+          namespace: MEMORY_JSONL_OPERATION_NAMESPACE,
           ownerPluginId: pluginId,
           trust: readTrust
         });

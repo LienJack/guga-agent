@@ -18,6 +18,7 @@ export type {
 export {
   createMemoryJsonlPlugin,
   MEMORY_JSONL_OPERATION_NAME,
+  MEMORY_JSONL_OPERATION_NAMESPACE,
   MEMORY_JSONL_OPERATION_NAMES,
   MEMORY_JSONL_READ_OPERATION_NAMES
 } from "./memory-jsonl-plugin";

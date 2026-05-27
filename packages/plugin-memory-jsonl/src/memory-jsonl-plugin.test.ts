@@ -3,6 +3,7 @@ import { createAgentRuntime, type CapabilityDescriptor } from "@guga-agent/core"
 import {
   createMemoryJsonlPlugin,
   MEMORY_JSONL_OPERATION_NAME,
+  MEMORY_JSONL_OPERATION_NAMESPACE,
   MEMORY_JSONL_OPERATION_NAMES,
   MEMORY_JSONL_READ_OPERATION_NAMES
 } from "./memory-jsonl-plugin";
@@ -10,6 +11,7 @@ import {
 describe("createMemoryJsonlPlugin", () => {
   it("exports stable memory JSONL operation names", () => {
     expect(MEMORY_JSONL_OPERATION_NAME).toBe("memory.jsonl");
+    expect(MEMORY_JSONL_OPERATION_NAMESPACE).toBe("memory-jsonl");
     expect(MEMORY_JSONL_READ_OPERATION_NAMES).toEqual([
       "memory.jsonl.review",
       "memory.jsonl.review_report",
@@ -38,6 +40,7 @@ describe("createMemoryJsonlPlugin", () => {
         type: "operation",
         name: MEMORY_JSONL_OPERATION_NAME,
         source: "plugin",
+        namespace: MEMORY_JSONL_OPERATION_NAMESPACE,
         ownerPluginId: "memory-jsonl-test",
         trust: expect.objectContaining({
           level: "first-party",
@@ -54,6 +57,7 @@ describe("createMemoryJsonlPlugin", () => {
           type: "operation",
           name,
           source: "plugin",
+          namespace: MEMORY_JSONL_OPERATION_NAMESPACE,
           ownerPluginId: "memory-jsonl-test",
           trust: expect.objectContaining({
             level: "first-party",
