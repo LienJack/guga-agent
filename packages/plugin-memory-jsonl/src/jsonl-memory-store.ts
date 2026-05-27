@@ -86,6 +86,17 @@ export type JsonlMemoryCuratedMarkdownResult =
   | { ok: true; ledger: MemoryGovernanceLedger; markdown: string; diagnostics: JsonlMemoryDiagnostic[] }
   | { ok: false; status: "corrupt"; diagnostics: JsonlMemoryDiagnostic[] };
 
+export type JsonlMemoryAuditSnapshotResult =
+  | {
+      ok: true;
+      ledger: MemoryGovernanceLedger;
+      report: MemoryReviewReport;
+      health: MemoryReviewHealth;
+      markdown: string;
+      diagnostics: JsonlMemoryDiagnostic[];
+    }
+  | { ok: false; status: "corrupt"; diagnostics: JsonlMemoryDiagnostic[] };
+
 export class JsonlMemoryStore {
   readonly rootDir: string;
   readonly fileName: string;
@@ -238,6 +249,22 @@ export class JsonlMemoryStore {
       ok: true,
       ledger: read.ledger,
       markdown: renderCuratedMemoryMarkdown(read.ledger.items, options),
+      diagnostics: read.diagnostics
+    };
+  }
+
+  async readAuditSnapshot(options: RenderMemoryReviewReportOptions = {}): Promise<JsonlMemoryAuditSnapshotResult> {
+    const read = await this.readGovernanceLedger();
+    if (!read.ok) {
+      return { ok: false, status: "corrupt", diagnostics: read.diagnostics };
+    }
+    const report = createMemoryReviewReport(read.ledger);
+    return {
+      ok: true,
+      ledger: read.ledger,
+      report,
+      health: createMemoryReviewHealth(report),
+      markdown: renderMemoryReviewReport(report, options),
       diagnostics: read.diagnostics
     };
   }

@@ -113,6 +113,24 @@ describe("JsonlMemoryStore", () => {
         counts: { active: 1, undecided: 0, unsafe: 0, diagnostics: 0 }
       }
     });
+    await expect(reopened.readAuditSnapshot({ title: "Durable Memory Snapshot", maxContentChars: 36 })).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [],
+      ledger: { counts: { active: 1, superseded: 0, rejected: 0 } },
+      report: { counts: { active: 1, undecided: 0, unsafe: 0, diagnostics: 0 } },
+      health: {
+        status: "healthy",
+        reasons: [],
+        counts: { active: 1, undecided: 0, unsafe: 0, diagnostics: 0 }
+      },
+      markdown: expect.stringContaining("# Durable Memory Snapshot")
+    });
+    const snapshot = await reopened.readAuditSnapshot({ title: "Durable Memory Snapshot", maxContentChars: 36 });
+    expect(snapshot).toMatchObject({ ok: true });
+    if (snapshot.ok) {
+      expect(snapshot.markdown).toContain("memory-1");
+      expect(snapshot.markdown).toContain("Persist governed memory records a...");
+    }
     await expect(reopened.readRetrieval("append jsonl memory", { scope: "project" })).resolves.toMatchObject({
       ok: true,
       diagnostics: [],
@@ -219,6 +237,14 @@ describe("JsonlMemoryStore", () => {
       ledger: { counts: { active: 0, superseded: 0, rejected: 0 } },
       markdown: "# Durable Curated Memory\n\nNo active safe memory items."
     });
+    await expect(store.readAuditSnapshot({ title: "Durable Memory Snapshot" })).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [],
+      ledger: { counts: { active: 0, superseded: 0, rejected: 0 } },
+      report: { counts: { candidates: 0, decisions: 0, active: 0, undecided: 0 } },
+      health: { status: "healthy", reasons: [] },
+      markdown: expect.stringContaining("# Durable Memory Snapshot")
+    });
   });
 
   it("rejects invalid candidates and decisions before append", async () => {
@@ -270,6 +296,19 @@ describe("JsonlMemoryStore", () => {
         counts: { active: 0, undecided: 1, unsafe: 0, diagnostics: 0 }
       }
     });
+    await expect(store.readAuditSnapshot()).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [{ kind: "partial_tail", recoverable: true }],
+      report: {
+        counts: { candidates: 1, decisions: 0, active: 0, undecided: 1 },
+        undecidedCandidates: [{ id: "candidate-1" }]
+      },
+      health: {
+        status: "needs_review",
+        reasons: ["undecided-candidates"]
+      },
+      markdown: expect.stringContaining("candidate-1")
+    });
     await expect(store.readReviewMarkdown()).resolves.toMatchObject({
       ok: true,
       diagnostics: [{ kind: "partial_tail", recoverable: true }],
@@ -319,6 +358,11 @@ describe("JsonlMemoryStore", () => {
       diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]
     });
     await expect(store.readReviewHealth()).resolves.toMatchObject({
+      ok: false,
+      status: "corrupt",
+      diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]
+    });
+    await expect(store.readAuditSnapshot()).resolves.toMatchObject({
       ok: false,
       status: "corrupt",
       diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]

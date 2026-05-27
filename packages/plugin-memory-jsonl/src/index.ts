@@ -3,6 +3,7 @@ export {
 } from "./jsonl-memory-store";
 export type {
   JsonlMemoryAppendResult,
+  JsonlMemoryAuditSnapshotResult,
   JsonlMemoryCuratedMarkdownResult,
   JsonlMemoryDiagnostic,
   JsonlMemoryRecord,
