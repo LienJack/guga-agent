@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify tests, type safety, and no core/provider leakage."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify retrieval stays in the memory plugin package."}
+{"file": "docs/research/memory-scoped-retrieval.md", "reason": "Verify no embeddings or automatic prompt injection slipped in."}
+{"file": "docs/research/memory-governance-store.md", "reason": "Verify only active safe governed memory can be returned."}
