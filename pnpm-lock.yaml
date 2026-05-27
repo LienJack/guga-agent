@@ -216,6 +216,12 @@ importers:
 
   packages/profile-deep-research-agent: {}
 
+  packages/profile-review-agent:
+    devDependencies:
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.7(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(vite@8.0.14(@types/node@25.9.1))
+
   packages/provider-ai-sdk:
     dependencies:
       '@ai-sdk/anthropic':
