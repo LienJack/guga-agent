@@ -1,4 +1,5 @@
 import { CoreError } from "../contracts/errors";
+import type { ContextPolicy } from "../contracts/context";
 import type { ModelMetadata, Provider } from "../contracts/provider";
 import type { ToolDefinition } from "../contracts/tools";
 
@@ -13,6 +14,7 @@ export class CapabilityRegistry {
   private readonly providers = new Map<string, Provider>();
   private readonly models = new Map<string, ModelMetadata>();
   private readonly tools = new Map<string, ToolDefinition>();
+  private readonly contextPolicies = new Map<string, ContextPolicy>();
 
   registerProvider(provider: Provider): void {
     if (this.providers.has(provider.id)) {
@@ -47,6 +49,15 @@ export class CapabilityRegistry {
     this.models.set(key, model);
   }
 
+  registerContextPolicy(policy: ContextPolicy): void {
+    if (this.contextPolicies.has(policy.id)) {
+      throw new CoreError("CAPABILITY_ALREADY_REGISTERED", `Context policy already registered: ${policy.id}`, {
+        contextPolicyId: policy.id
+      });
+    }
+    this.contextPolicies.set(policy.id, policy);
+  }
+
   getProvider(id: string): Provider | undefined {
     return this.providers.get(id);
   }
@@ -79,6 +90,10 @@ export class CapabilityRegistry {
     this.tools.delete(name);
   }
 
+  removeContextPolicy(id: string): void {
+    this.contextPolicies.delete(id);
+  }
+
   requireTool(name: string): ToolDefinition {
     const tool = this.getTool(name);
     if (!tool) {
@@ -93,6 +108,10 @@ export class CapabilityRegistry {
 
   listModels(): ModelMetadata[] {
     return [...this.models.values()];
+  }
+
+  listContextPolicies(): ContextPolicy[] {
+    return [...this.contextPolicies.values()].sort((left, right) => (left.priority ?? 0) - (right.priority ?? 0));
   }
 }
 

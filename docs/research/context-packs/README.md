@@ -12,6 +12,7 @@
 | LLM provider abstraction | `provider-abstraction.md` | 比较 provider routing、fallback、streaming |
 | UI / protocol / remote clients | `ui-protocol.md` | 比较 CLI/TUI/server/ACP/LSP/remote bridge |
 | Multi-agent / delegation | `multi-agent.md` | 比较 subagent、worker、coordinator、trace 隔离 |
+| Memory systems | `memory-systems.md` | 比较 graph memory、vector memory、user graph、thread context、SDK/tool integration |
 
 ## Pack 模板
 

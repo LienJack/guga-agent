@@ -27,6 +27,11 @@ export class ConversationState {
     this.messages.push(toToolMessage(call, result));
   }
 
+  replaceMessages(messages: CoreMessage[]): void {
+    this.messages.length = 0;
+    this.messages.push(...structuredClone(messages));
+  }
+
   snapshot(): CoreMessage[] {
     return this.messages.map((message) => structuredClone(message));
   }

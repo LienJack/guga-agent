@@ -186,4 +186,143 @@ describe("HookKernel", () => {
     expect(result.failures).toEqual([]);
     expect(order).toEqual(["a", "b"]);
   });
+
+  it("runs context hooks and records auditable decisions", async () => {
+    const eventBus = new EventBus();
+    const kernel = new HookKernel({ eventBus });
+    kernel.registerHook("context-plugin", 0, {
+      id: "compact-gate",
+      phase: HookPhase.ContextCompactBefore,
+      effect: HookEffect.Gate,
+      handler() {
+        return {
+          id: "compact-denied",
+          kind: "gate",
+          phase: HookPhase.ContextCompactBefore,
+          pluginId: "context-plugin",
+          allowed: false,
+          reason: "compaction disabled for test"
+        };
+      }
+    });
+
+    const result = await kernel.runContextHook(HookPhase.ContextCompactBefore, {
+      runId: "run-context-hook",
+      turn: 0,
+      runtimeContextId: "runtime-1"
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      decisions: [expect.objectContaining({ kind: "gate", allowed: false })]
+    });
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ContextHookDecision,
+      runId: "run-context-hook",
+      pluginId: "context-plugin",
+      hookId: "compact-gate"
+    }));
+  });
+
+  it("applies context policy timeout and permission scope to registered hooks", async () => {
+    const eventBus = new EventBus();
+    const kernel = new HookKernel({ eventBus });
+    kernel.registerContextPolicy("read-only-plugin", {
+      id: "read-only-policy",
+      phases: ["context.assemble"],
+      timeoutMs: 50,
+      permissionScope: "read-only",
+      auditIdentity: { label: "read only" }
+    });
+    kernel.registerHook("read-only-plugin", 0, {
+      id: "bad-source",
+      phase: HookPhase.ContextAssemble,
+      effect: HookEffect.Patch,
+      handler() {
+        return {
+          id: "bad-source",
+          kind: "source-contribution",
+          phase: HookPhase.ContextAssemble,
+          sourceIds: ["source"]
+        };
+      }
+    });
+
+    const denied = await kernel.runContextHook(HookPhase.ContextAssemble, {
+      runId: "run-policy-scope",
+      runtimeContextId: "runtime"
+    });
+
+    expect(denied).toMatchObject({
+      ok: false,
+      error: { message: expect.stringContaining("outside its permission scope") }
+    });
+
+    const timeoutKernel = new HookKernel({ eventBus: new EventBus() });
+    timeoutKernel.registerContextPolicy("slow-plugin", {
+      id: "slow-policy",
+      phases: ["context.assemble"],
+      timeoutMs: 1,
+      permissionScope: "context-write",
+      auditIdentity: { label: "slow" }
+    });
+    timeoutKernel.registerHook("slow-plugin", 0, {
+      id: "slow-hook",
+      phase: HookPhase.ContextAssemble,
+      effect: HookEffect.Annotate,
+      async handler() {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    });
+
+    const timedOut = await timeoutKernel.runContextHook(HookPhase.ContextAssemble, {
+      runId: "run-policy-timeout",
+      runtimeContextId: "runtime"
+    });
+
+    expect(timedOut).toMatchObject({
+      ok: false,
+      error: { message: "Tool hook timed out" }
+    });
+  });
+
+  it("orders context hooks by context policy priority before plugin load order", async () => {
+    const kernel = new HookKernel();
+    const order: string[] = [];
+    kernel.registerContextPolicy("plugin-late", {
+      id: "late-policy",
+      phases: ["context.assemble"],
+      priority: 20,
+      auditIdentity: { label: "late" }
+    });
+    kernel.registerContextPolicy("plugin-early", {
+      id: "early-policy",
+      phases: ["context.assemble"],
+      priority: -10,
+      auditIdentity: { label: "early" }
+    });
+    kernel.registerHook("plugin-late", 0, {
+      id: "late",
+      phase: HookPhase.ContextAssemble,
+      effect: HookEffect.Annotate,
+      handler() {
+        order.push("late");
+      }
+    });
+    kernel.registerHook("plugin-early", 1, {
+      id: "early",
+      phase: HookPhase.ContextAssemble,
+      effect: HookEffect.Annotate,
+      handler() {
+        order.push("early");
+      }
+    });
+
+    await kernel.runContextHook(HookPhase.ContextAssemble, {
+      runId: "run-context-priority",
+      runtimeContextId: "runtime"
+    });
+
+    expect(order).toEqual(["early", "late"]);
+  });
 });

@@ -1,4 +1,10 @@
 import { describe, expect, it } from "vitest";
+import {
+  ContextSourceKind,
+  ContextSourcePriority,
+  type ContextPolicy,
+  type ModelInputProjection
+} from "./context";
 import { AgentEventType, type AgentEvent } from "./events";
 import {
   HookEffect,
@@ -176,6 +182,59 @@ describe("core contracts", () => {
 
     expect(patch.messages?.[0]).toMatchObject({ role: "user", content: "patched" });
     expect(annotation.annotations.policy).toBe("observed");
+  });
+
+  it("can express context projections, policies, and pressure events", () => {
+    const policy: ContextPolicy = {
+      id: "default-context",
+      phases: ["context.assemble"],
+      auditIdentity: { label: "Default context policy" }
+    };
+    const projection: ModelInputProjection = {
+      id: "projection-contract",
+      runId: "run-context",
+      turn: 0,
+      messages: [{ role: "user", content: "hello" }],
+      tools: [],
+      sourceDescriptors: [{
+        id: "message-0",
+        kind: ContextSourceKind.PendingTurn,
+        priority: ContextSourcePriority.High,
+        provenance: { origin: "core" },
+        tokenEstimate: { status: "estimated", tokens: 2 },
+        modelVisible: true
+      }],
+      budget: {
+        reservedOutputTokens: 1024,
+        estimatedInputTokens: 2,
+        estimateStatus: "partial",
+        warningThreshold: 0.7,
+        compactThreshold: 0.85
+      },
+      pressure: {
+        id: "pressure-contract",
+        level: "none",
+        reason: "model context window is unknown",
+        budget: {
+          reservedOutputTokens: 1024,
+          estimatedInputTokens: 2,
+          estimateStatus: "partial",
+          warningThreshold: 0.7,
+          compactThreshold: 0.85
+        },
+        sourceIds: ["message-0"]
+      },
+      policyDecisions: []
+    };
+    const event: AgentEvent = {
+      type: AgentEventType.ContextProjectionCreated,
+      runId: "run-context",
+      turn: 0,
+      projection
+    };
+
+    expect(policy.phases).toEqual(["context.assemble"]);
+    expect(event.projection.sourceDescriptors[0]?.kind).toBe(ContextSourceKind.PendingTurn);
   });
 
   it("can express a local plugin that registers provider, tool, and hook capabilities", () => {

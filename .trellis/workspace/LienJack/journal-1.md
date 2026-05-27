@@ -149,3 +149,38 @@ Implemented core-owned tool execution pipeline, permission kernel, conservative 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: M4 context policy plugins and memory research corpus
+
+**Date**: 2026-05-27
+**Task**: M4 context policy plugins and memory research corpus
+**Branch**: `codex/feat-context-policy-plugins`
+
+### Summary
+
+Implemented the M4 context policy plugin runtime, wrote the M4 series article, and committed reusable memory-system research artifacts for graphiti, mem0, and zep.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `859e728` | (see git log) |
+| `db5fb11` | (see git log) |
+| `ebec016` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,6 +1,6 @@
 import type { CoreMessage } from "./messages";
 import type { ModelEvent } from "./model-events";
-import type { ModelIdentifier, ModelPurpose, ProviderResponse } from "./provider";
+import type { ModelIdentifier, ModelPurpose, ProviderError, ProviderResponse } from "./provider";
 import type { ToolDefinition } from "./tools";
 
 export type ProviderRouterModelCandidate = ModelIdentifier;
@@ -38,6 +38,7 @@ export type ProviderRouterFailure = {
     code: "MODEL_NOT_FOUND" | "PROVIDER_NOT_FOUND" | "PROVIDER_FAILED" | "ROUTER_FAILED";
     message: string;
     details?: unknown;
+    providerError?: ProviderError;
   };
   events: ModelEvent[];
 };

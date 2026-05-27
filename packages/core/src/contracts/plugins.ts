@@ -1,4 +1,5 @@
 import type { HookRegistration } from "./hooks";
+import type { ContextPolicy } from "./context";
 import type { ModelIdentifier, ModelMetadata, Provider } from "./provider";
 import type { ToolDefinition } from "./tools";
 
@@ -15,6 +16,7 @@ export type PluginContext = {
   registerModel?(model: ModelMetadata): void;
   registerTool(tool: ToolDefinition, options?: ToolRegistrationOptions): void;
   registerHook(hook: HookRegistration): void;
+  registerContextPolicy?(policy: ContextPolicy): void;
 };
 
 export type PluginShutdownContext = {
@@ -32,7 +34,7 @@ export type LocalModelPlugin = LocalPlugin & {
   model: ModelIdentifier;
 };
 
-export type PluginCapabilityKind = "provider" | "model" | "tool" | "hook";
+export type PluginCapabilityKind = "provider" | "model" | "tool" | "hook" | "context-policy";
 
 export type PluginFailureKind = "init" | "hook" | "shutdown";
 

@@ -2,17 +2,23 @@ import { AgentEventType } from "../contracts/events";
 import type { BudgetedToolResult, ToolCallCorrelation, ToolResultBudget } from "../contracts/tool-runtime";
 import type { ToolCall } from "../contracts/messages";
 import type { ToolFailure, ToolResult } from "../contracts/tools";
+import type { ToolDefinition } from "../contracts/tools";
+import type { ToolResultReference } from "../contracts/tool-runtime";
+import { InMemoryToolResultStore, type ToolResultStore } from "../context/tool-result-store";
+import { createToolResultPreview } from "../context/tool-result-views";
 import { EventBus } from "../events/event-bus";
 
 export type ResultPolicyOptions = {
   eventBus?: EventBus;
   defaultBudget?: ToolResultBudget;
+  store?: ToolResultStore;
 };
 
 export type ResultPolicyApplyOptions = {
   call: ToolCall;
   correlation: ToolCallCorrelation;
   result: ToolResult;
+  tool?: ToolDefinition;
   budget?: ToolResultBudget;
 };
 
@@ -21,10 +27,12 @@ export type SyntheticResultReason = "cancelled" | "skipped" | "denied" | "timeou
 export class ResultPolicy {
   private readonly eventBus: EventBus;
   private readonly defaultBudget: ToolResultBudget;
+  private readonly store: ToolResultStore;
 
   constructor(options: ResultPolicyOptions = {}) {
     this.eventBus = options.eventBus ?? new EventBus();
     this.defaultBudget = options.defaultBudget ?? {};
+    this.store = options.store ?? new InMemoryToolResultStore();
   }
 
   apply(options: ResultPolicyApplyOptions): BudgetedToolResult {
@@ -39,9 +47,25 @@ export class ResultPolicy {
       return options.result;
     }
 
+    const reference = this.store.store({
+      correlation: options.correlation,
+      toolName: options.call.name,
+      result: options.result,
+      content,
+      metadata: { budgetStrategy: budget.strategy ?? "truncate" }
+    });
+    const preview = createToolResultPreview({
+      call: options.call,
+      result: options.result,
+      ...(options.tool ? { tool: options.tool } : {}),
+      content,
+      maxContentChars,
+      reference
+    });
+
     const result = budget.strategy === "reference"
-      ? referenceResult(options.result, options.correlation, content.length)
-      : truncateResult(options.result, maxContentChars, content.length);
+      ? referenceResult(options.result, reference, content.length, preview.llmPreview, preview.notice, preview.rereadInstruction)
+      : truncateResult(options.result, maxContentChars, content.length, preview.llmPreview, preview.notice, reference, preview.rereadInstruction);
 
     this.eventBus.publish({
       type: AgentEventType.ToolResultBudgeted,
@@ -88,16 +112,27 @@ function resultContent(result: ToolResult): string {
     : result.error.message;
 }
 
-function truncateResult(result: ToolResult, maxContentChars: number, originalContentChars: number): BudgetedToolResult {
-  const notice = `Tool output truncated: ${originalContentChars} characters exceeded ${maxContentChars} character budget`;
+function truncateResult(
+  result: ToolResult,
+  maxContentChars: number,
+  originalContentChars: number,
+  previewContent: string,
+  notice: string,
+  reference: ToolResultReference,
+  rereadInstruction: string | undefined
+): BudgetedToolResult {
   if (result.ok) {
     return {
       ...result,
-      content: `${result.content.slice(0, maxContentChars)}\n\n[${notice}]`,
+      content: previewContent,
       budget: {
         applied: true,
         originalContentChars,
-        notice
+        notice,
+        reference,
+        ...(rereadInstruction ? { rereadInstruction } : {}),
+        omittedContentChars: Math.max(0, originalContentChars - maxContentChars),
+        view: { llmPreview: previewContent, auditMetadata: { strategy: "truncate" } }
       }
     };
   }
@@ -109,35 +144,44 @@ function truncateResult(result: ToolResult, maxContentChars: number, originalCon
       details: {
         truncated: true,
         originalContentChars,
-        content: resultContent(result).slice(0, maxContentChars)
+        content: previewContent,
+        reference
       }
     },
     budget: {
       applied: true,
       originalContentChars,
-      notice
+      notice,
+      reference,
+      ...(rereadInstruction ? { rereadInstruction } : {}),
+      omittedContentChars: Math.max(0, originalContentChars - maxContentChars),
+      view: { llmPreview: previewContent, auditMetadata: { strategy: "truncate" } }
     }
   };
 }
 
-function referenceResult(result: ToolResult, correlation: ToolCallCorrelation, originalContentChars: number): BudgetedToolResult {
-  const reference = {
-    type: "buffer" as const,
-    id: `tool-result-${correlation.toolCallId}`,
-    label: "Tool result output",
-    metadata: { originalContentChars }
-  };
+function referenceResult(
+  result: ToolResult,
+  reference: ToolResultReference,
+  originalContentChars: number,
+  previewContent: string,
+  previewNotice: string,
+  rereadInstruction: string | undefined
+): BudgetedToolResult {
   const notice = `Tool output stored as reference: ${reference.id}`;
 
   if (result.ok) {
     return {
       ...result,
-      content: `[${notice}]`,
+      content: `${previewContent}\n\n[${notice}]`,
       budget: {
         applied: true,
         originalContentChars,
-        notice,
-        reference
+        notice: `${notice}. ${previewNotice}`,
+        reference,
+        ...(rereadInstruction ? { rereadInstruction } : {}),
+        omittedContentChars: originalContentChars,
+        view: { llmPreview: previewContent, auditMetadata: { strategy: "reference" } }
       }
     };
   }
@@ -154,8 +198,11 @@ function referenceResult(result: ToolResult, correlation: ToolCallCorrelation, o
     budget: {
       applied: true,
       originalContentChars,
-      notice,
-      reference
+      notice: `${notice}. ${previewNotice}`,
+      reference,
+      ...(rereadInstruction ? { rereadInstruction } : {}),
+      omittedContentChars: originalContentChars,
+      view: { llmPreview: previewContent, auditMetadata: { strategy: "reference" } }
     }
   };
 }

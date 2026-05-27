@@ -3,6 +3,8 @@ import { ModelEventType, type ModelEvent } from "../contracts/model-events";
 import {
   ProviderErrorCategory,
   type ModelIdentifier,
+  type ModelMetadata,
+  type ModelPurpose,
   type LegacyProviderError,
   type ProviderError,
   type ProviderResponse
@@ -33,6 +35,7 @@ export class ProviderRouter {
     const events: ModelEvent[] = [];
     const candidates = this.candidatesFor(request);
     const maxRetries = this.policy?.maxRetries ?? 0;
+    let terminalProviderError: ProviderError | undefined;
 
     events.push({
       type: ModelEventType.Requested,
@@ -121,6 +124,7 @@ export class ProviderRouter {
         }
 
         const providerError = normalizeProviderError(response.error, candidate);
+        terminalProviderError = providerError;
 
         if (shouldRetry(providerError, attempt, maxRetries)) {
           events.push({
@@ -161,13 +165,22 @@ export class ProviderRouter {
       error: {
         code: "PROVIDER_FAILED",
         message: "All provider router candidates failed",
-        details: { purpose: request.purpose }
+        details: {
+          purpose: request.purpose,
+          ...(terminalProviderError ? { providerError: terminalProviderError } : {})
+        },
+        ...(terminalProviderError ? { providerError: terminalProviderError } : {})
       },
       events
     };
   }
 
-  private candidatesFor(request: ProviderRouterRequest): ModelIdentifier[] {
+  metadataFor(purpose?: ModelPurpose): ModelMetadata | undefined {
+    const [candidate] = this.candidatesFor(purpose ? { purpose } : {});
+    return candidate ? this.registry.getModel(candidate.providerId, candidate.modelId) : undefined;
+  }
+
+  private candidatesFor(request: Pick<ProviderRouterRequest, "purpose">): ModelIdentifier[] {
     const purpose = request.purpose ?? "primary";
     const purposePolicy = this.policy?.purposes?.find((policy) => policy.purpose === purpose);
     if (purposePolicy) {

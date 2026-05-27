@@ -1,4 +1,11 @@
 import type { CoreMessage, ToolCall } from "./messages";
+import type {
+  CompactionResult,
+  ContextPolicyDecision,
+  ContextPressureDecision,
+  ModelInputProjection,
+  ReinjectionSource
+} from "./context";
 import type { HookPhase, PreToolGateDecision, ToolHookDecision } from "./hooks";
 import type { ModelEvent } from "./model-events";
 import type { PermissionDecision, PermissionRequest } from "./permissions";
@@ -27,6 +34,13 @@ export const AgentEventType = {
   PermissionRequested: "tool.permission.requested",
   PermissionResolved: "tool.permission.resolved",
   UsageRecorded: "usage.recorded",
+  ContextProjectionCreated: "context.projection.created",
+  ContextPressure: "context.pressure",
+  ContextCompactStarted: "context.compact.started",
+  ContextCompactCompleted: "context.compact.completed",
+  ContextCompactFailed: "context.compact.failed",
+  ContextReinjected: "context.reinjected",
+  ContextHookDecision: "context.hook.decision",
   PluginInitialized: "plugin.initialized",
   PluginShutdown: "plugin.shutdown",
   PluginCapabilityRegistered: "plugin.capability_registered",
@@ -169,6 +183,56 @@ export type AgentEvent =
       runId: string;
       turn: number;
       usage: Usage;
+    }
+  | {
+      type: typeof AgentEventType.ContextProjectionCreated;
+      runId: string;
+      turn: number;
+      projection: ModelInputProjection;
+    }
+  | {
+      type: typeof AgentEventType.ContextPressure;
+      runId: string;
+      turn: number;
+      projectionId: string;
+      decision: ContextPressureDecision;
+    }
+  | {
+      type: typeof AgentEventType.ContextCompactStarted;
+      runId: string;
+      turn: number;
+      projectionId: string;
+      trigger: CompactionResult["trigger"];
+    }
+  | {
+      type: typeof AgentEventType.ContextCompactCompleted;
+      runId: string;
+      turn: number;
+      projectionId: string;
+      result: CompactionResult;
+    }
+  | {
+      type: typeof AgentEventType.ContextCompactFailed;
+      runId: string;
+      turn: number;
+      projectionId: string;
+      result: CompactionResult;
+    }
+  | {
+      type: typeof AgentEventType.ContextReinjected;
+      runId: string;
+      turn: number;
+      projectionId: string;
+      sources: ReinjectionSource[];
+    }
+  | {
+      type: typeof AgentEventType.ContextHookDecision;
+      runId: string;
+      turn?: number;
+      phase: HookPhase;
+      pluginId: string;
+      hookId: string;
+      decision: ContextPolicyDecision;
     }
   | {
       type: typeof AgentEventType.PluginInitialized;

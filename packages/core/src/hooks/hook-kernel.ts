@@ -4,6 +4,9 @@ import {
   type HookFailure,
   type HookGateResult,
   type HookRegistration,
+  type ContextHookContext,
+  type ContextHookDecision,
+  type ContextHookRegistration,
   type ToolExecuteAfterHookContext,
   type ToolExecuteBeforeHookContext,
   type ToolCallBeforeHookContext,
@@ -16,6 +19,7 @@ import {
   type RuntimeShutdownHookContext
 } from "../contracts/hooks";
 import { EventBus } from "../events/event-bus";
+import type { ContextPolicy } from "../contracts/context";
 
 export type HookKernelOptions = {
   eventBus?: EventBus;
@@ -41,9 +45,21 @@ export type ToolHookRunResult =
       failedHook: RegisteredHook;
     };
 
+export type ContextHookRunResult =
+  | {
+      ok: true;
+      decisions: ContextHookDecision[];
+    }
+  | {
+      ok: false;
+      error: HookFailure;
+      failedHook: RegisteredHook;
+    };
+
 export class HookKernel {
   private readonly eventBus: EventBus;
   private readonly hooks: RegisteredHook[] = [];
+  private readonly contextPolicies = new Map<string, ContextPolicy>();
   private nextRegistrationIndex = 0;
 
   constructor(options: HookKernelOptions = {}) {
@@ -51,8 +67,9 @@ export class HookKernel {
   }
 
   registerHook(pluginId: string, pluginLoadIndex: number, hook: HookRegistration): RegisteredHook {
+    const contextPolicy = isContextHookRegistration(hook) ? this.contextPolicies.get(pluginId) : undefined;
     const registered = {
-      ...hook,
+      ...applyContextPolicyDefaults(hook, contextPolicy),
       pluginId,
       pluginLoadIndex,
       registrationIndex: this.nextRegistrationIndex
@@ -60,6 +77,14 @@ export class HookKernel {
     this.nextRegistrationIndex += 1;
     this.hooks.push(registered);
     return registered;
+  }
+
+  registerContextPolicy(pluginId: string, policy: ContextPolicy): void {
+    this.contextPolicies.set(pluginId, policy);
+  }
+
+  removeContextPolicy(pluginId: string): void {
+    this.contextPolicies.delete(pluginId);
   }
 
   async runRuntimeStart(context: RuntimeLifecycleHookContext): Promise<HookShutdownResult> {
@@ -160,8 +185,66 @@ export class HookKernel {
     return this.runObserveHooks(HookPhase.RuntimeShutdown, context);
   }
 
+  async runContextHook(
+    phase:
+      | typeof HookPhase.ResourcesDiscover
+      | typeof HookPhase.ContextAssemble
+      | typeof HookPhase.ContextBudget
+      | typeof HookPhase.ContextTruncate
+      | typeof HookPhase.ContextCompactBefore
+      | typeof HookPhase.ContextCompactAfter
+      | typeof HookPhase.ContextReinject,
+    context: ContextHookContext
+  ): Promise<ContextHookRunResult> {
+    const decisions: ContextHookDecision[] = [];
+    for (const hook of this.orderedHooks(phase)) {
+      if (!isContextHook(hook)) {
+        continue;
+      }
+      try {
+        const decision = await runWithTimeout(
+          Promise.resolve(hook.handler(context)),
+          hook.control?.timeoutMs ?? context.control?.timeoutMs,
+          context.control?.signal
+        );
+        const normalized = Array.isArray(decision) ? decision : decision ? [decision] : [];
+        const invalidDecision = normalized.find((item) => !decisionAllowedForPolicy(item, hook));
+        if (invalidDecision) {
+          const failure: HookFailure = {
+            code: "HOOK_FAILED",
+            message: `Context hook ${hook.id} returned a decision outside its permission scope`,
+            details: {
+              permissionScope: hook.control?.permissionScope,
+              decision: invalidDecision
+            }
+          };
+          this.publishHookFailure(context.runId, hook, failure);
+          return { ok: false, error: failure, failedHook: hook };
+        }
+        decisions.push(...normalized);
+        for (const item of normalized) {
+          this.eventBus.publish({
+            type: AgentEventType.ContextHookDecision,
+            runId: context.runId,
+            ...(context.turn !== undefined ? { turn: context.turn } : {}),
+            phase,
+            pluginId: hook.pluginId,
+            hookId: hook.id,
+            decision: item
+          });
+        }
+      } catch (error) {
+        const failure = toHookFailure(error);
+        this.publishHookFailure(context.runId, hook, failure);
+        return { ok: false, error: failure, failedHook: hook };
+      }
+    }
+    return { ok: true, decisions };
+  }
+
   clear(): void {
     this.hooks.length = 0;
+    this.contextPolicies.clear();
   }
 
   private async runObserveHooks(
@@ -192,6 +275,7 @@ export class HookKernel {
       .filter((hook) => hook.phase === phase)
       .sort(
         (left, right) =>
+          contextHookPriority(left, this.contextPolicies) - contextHookPriority(right, this.contextPolicies) ||
           left.pluginLoadIndex - right.pluginLoadIndex ||
           left.registrationIndex - right.registrationIndex
       );
@@ -221,6 +305,65 @@ export class HookKernel {
       decision
     });
   }
+}
+
+function isContextHook(hook: RegisteredHook): hook is ContextHookRegistration & RegisteredHook {
+  return [
+    HookPhase.ResourcesDiscover,
+    HookPhase.ContextAssemble,
+    HookPhase.ContextBudget,
+    HookPhase.ContextTruncate,
+    HookPhase.ContextCompactBefore,
+    HookPhase.ContextCompactAfter,
+    HookPhase.ContextReinject
+  ].includes(hook.phase as typeof HookPhase.ResourcesDiscover);
+}
+
+function isContextHookRegistration(hook: HookRegistration): hook is ContextHookRegistration {
+  return [
+    HookPhase.ResourcesDiscover,
+    HookPhase.ContextAssemble,
+    HookPhase.ContextBudget,
+    HookPhase.ContextTruncate,
+    HookPhase.ContextCompactBefore,
+    HookPhase.ContextCompactAfter,
+    HookPhase.ContextReinject
+  ].includes(hook.phase as typeof HookPhase.ResourcesDiscover);
+}
+
+function applyContextPolicyDefaults(hook: HookRegistration, policy: ContextPolicy | undefined): HookRegistration {
+  if (!policy || !isContextHookRegistration(hook)) {
+    return hook;
+  }
+  return {
+    ...hook,
+    control: {
+      ...(policy.timeoutMs !== undefined ? { timeoutMs: policy.timeoutMs } : {}),
+      permissionScope: policy.permissionScope ?? "read-only",
+      ...(hook.control ?? {})
+    }
+  };
+}
+
+function decisionAllowedForPolicy(decision: ContextHookDecision, hook: ContextHookRegistration & RegisteredHook): boolean {
+  const scope = hook.control?.permissionScope;
+  if (!scope) {
+    return true;
+  }
+  if (scope === "compaction-gate") {
+    return true;
+  }
+  if (decision.kind === "gate") {
+    return false;
+  }
+  if (scope === "read-only") {
+    return decision.kind === "annotation";
+  }
+  return true;
+}
+
+function contextHookPriority(hook: RegisteredHook, policies: Map<string, ContextPolicy>): number {
+  return isContextHook(hook) ? policies.get(hook.pluginId)?.priority ?? 0 : 0;
 }
 
 function hookTimeoutMs(hook: RegisteredHook): number | undefined {

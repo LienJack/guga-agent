@@ -1,4 +1,11 @@
 import type { CoreMessage, ToolCall } from "./messages";
+import type {
+  CompactionResult,
+  ContextPolicyDecision,
+  ContextSourceDescriptor,
+  ModelInputProjection,
+  ReinjectionSource
+} from "./context";
 import type { ModelEvent } from "./model-events";
 import type { ModelIdentifier, ModelPurpose, ProviderError } from "./provider";
 import type { ToolCallCorrelation } from "./tool-runtime";
@@ -14,6 +21,13 @@ export const HookPhase = {
   ToolResultBefore: "tool.result.before",
   ModelRequestBefore: "model.request.before",
   ModelResponseAfter: "model.response.after",
+  ResourcesDiscover: "resources.discover",
+  ContextAssemble: "context.assemble",
+  ContextBudget: "context.budget",
+  ContextTruncate: "context.truncate",
+  ContextCompactBefore: "context.compact.before",
+  ContextCompactAfter: "context.compact.after",
+  ContextReinject: "context.reinject",
   RuntimeShutdown: "runtime.shutdown"
 } as const;
 
@@ -102,6 +116,25 @@ export type ModelResponseAnnotation = {
   annotations: Record<string, unknown>;
 };
 
+export type ContextHookControl = {
+  timeoutMs?: number;
+  permissionScope?: "read-only" | "context-write" | "compaction-gate";
+  signal?: AbortSignal;
+};
+
+export type ContextHookContext = {
+  runId: string;
+  turn?: number;
+  runtimeContextId: string;
+  projection?: ModelInputProjection;
+  sources?: readonly ContextSourceDescriptor[];
+  compaction?: CompactionResult;
+  reinjectionSources?: readonly ReinjectionSource[];
+  control?: ContextHookControl;
+};
+
+export type ContextHookDecision = ContextPolicyDecision;
+
 export type HookAllowDecision = {
   type: "allow";
   reason?: string;
@@ -175,6 +208,10 @@ export type ModelResponseAfterHook = (
   context: ModelResponseAfterHookContext
 ) => Promise<ModelResponseAnnotation | void> | ModelResponseAnnotation | void;
 
+export type ContextHook = (
+  context: ContextHookContext
+) => Promise<ContextHookDecision | ContextHookDecision[] | void> | ContextHookDecision | ContextHookDecision[] | void;
+
 export type RuntimeStartHookRegistration = {
   id: string;
   phase: typeof HookPhase.RuntimeStart;
@@ -242,6 +279,21 @@ export type ModelResponseAfterHookRegistration = {
   handler: ModelResponseAfterHook;
 };
 
+export type ContextHookRegistration = {
+  id: string;
+  phase:
+    | typeof HookPhase.ResourcesDiscover
+    | typeof HookPhase.ContextAssemble
+    | typeof HookPhase.ContextBudget
+    | typeof HookPhase.ContextTruncate
+    | typeof HookPhase.ContextCompactBefore
+    | typeof HookPhase.ContextCompactAfter
+    | typeof HookPhase.ContextReinject;
+  effect: typeof HookEffect.Observe | typeof HookEffect.Patch | typeof HookEffect.Gate | typeof HookEffect.Annotate;
+  handler: ContextHook;
+  control?: ContextHookControl;
+};
+
 export type HookRegistration =
   | RuntimeStartHookRegistration
   | PreToolGateHookRegistration
@@ -251,6 +303,7 @@ export type HookRegistration =
   | ToolResultBeforeHookRegistration
   | ModelRequestBeforeHookRegistration
   | ModelResponseAfterHookRegistration
+  | ContextHookRegistration
   | RuntimeShutdownHookRegistration;
 
 export type RegisteredHook = HookRegistration & {
