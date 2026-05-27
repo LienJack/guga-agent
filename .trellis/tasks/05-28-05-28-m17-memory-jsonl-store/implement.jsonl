@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Keep filesystem persistence outside core in a plugin package."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Validation, dependency boundary, and package test expectations."}
+{"file": "docs/research/memory-governance-store.md", "reason": "Storage must preserve M16 governance semantics."}
+{"file": "docs/research/memory-jsonl-store.md", "reason": "M17 research boundary and non-goals."}
+{"file": "docs/research/agent-memo.md", "reason": "Long-term memory storage must remain separate from retrieval/injection."}
