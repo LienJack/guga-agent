@@ -3,12 +3,14 @@ import { join } from "node:path";
 import {
   createMemoryGovernanceLedger,
   createMemoryReviewReport,
+  renderMemoryReviewReport,
   validateMemoryCandidate,
   validateMemoryDecision,
   type MemoryCandidate,
   type MemoryDecision,
   type MemoryGovernanceLedger,
-  type MemoryReviewReport
+  type MemoryReviewReport,
+  type RenderMemoryReviewReportOptions
 } from "@guga-agent/plugin-memory-candidates";
 
 export type JsonlMemoryStoreOptions = {
@@ -59,6 +61,10 @@ export type JsonlMemoryReadResult =
 
 export type JsonlMemoryReviewReportResult =
   | { ok: true; report: MemoryReviewReport; diagnostics: JsonlMemoryDiagnostic[] }
+  | { ok: false; status: "corrupt"; diagnostics: JsonlMemoryDiagnostic[] };
+
+export type JsonlMemoryReviewMarkdownResult =
+  | { ok: true; report: MemoryReviewReport; markdown: string; diagnostics: JsonlMemoryDiagnostic[] }
   | { ok: false; status: "corrupt"; diagnostics: JsonlMemoryDiagnostic[] };
 
 export class JsonlMemoryStore {
@@ -162,6 +168,19 @@ export class JsonlMemoryStore {
     return {
       ok: true,
       report: createMemoryReviewReport(read.ledger),
+      diagnostics: read.diagnostics
+    };
+  }
+
+  async readReviewMarkdown(options: RenderMemoryReviewReportOptions = {}): Promise<JsonlMemoryReviewMarkdownResult> {
+    const read = await this.readReviewReport();
+    if (!read.ok) {
+      return { ok: false, status: "corrupt", diagnostics: read.diagnostics };
+    }
+    return {
+      ok: true,
+      report: read.report,
+      markdown: renderMemoryReviewReport(read.report, options),
       diagnostics: read.diagnostics
     };
   }
