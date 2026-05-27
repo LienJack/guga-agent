@@ -44,6 +44,22 @@ importers:
         specifier: workspace:*
         version: link:../host-protocol
 
+  packages/host-sdk:
+    dependencies:
+      '@guga-agent/host-local-server':
+        specifier: workspace:*
+        version: link:../host-local-server
+      '@guga-agent/host-protocol':
+        specifier: workspace:*
+        version: link:../host-protocol
+    devDependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@guga-agent/host-runtime':
+        specifier: workspace:*
+        version: link:../host-runtime
+
   packages/plugin-artifact-filesystem:
     dependencies:
       '@guga-agent/core':

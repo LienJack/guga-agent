@@ -1,0 +1,95 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { createAgentRuntime, createMockProvider, createTestTool } from "@guga-agent/core";
+import { HostRuntime } from "@guga-agent/host-runtime";
+import { HostClientError, connectHost } from "./client";
+import { createLocalGugaHost, type LocalGugaHost } from "./server-launcher";
+import { parseSsePayload } from "./sse-client";
+
+const hosts: LocalGugaHost[] = [];
+
+afterEach(async () => {
+  await Promise.all(hosts.splice(0).map((host) => host.close()));
+});
+
+describe("host SDK", () => {
+  it("creates sessions, starts runs, parses event streams, and reads final state", async () => {
+    const host = await startSdkHost();
+    const client = connectHost({ baseUrl: host.baseUrl });
+
+    const session = await client.createSession({ title: "SDK" });
+    const run = await client.startRun(session.id, { input: "hello", providerId: "mock" });
+
+    const events: string[] = [];
+    for await (const event of client.streamRunEvents(run.id)) {
+      events.push(event.type);
+    }
+
+    expect(events).toEqual([
+      "run.started",
+      "message.delta",
+      "message.completed",
+      "usage.recorded",
+      "run.completed"
+    ]);
+    await expect(client.getRun(run.id)).resolves.toMatchObject({
+      status: "completed",
+      finalAnswer: "hello from sdk"
+    });
+  });
+
+  it("covers JSON event listing, cancel, capabilities, and typed errors", async () => {
+    const host = await startSdkHost();
+    const session = await host.client.createSession();
+    const run = await host.client.startRun(session.id, { input: "hello", providerId: "mock" });
+
+    await expect(host.client.listRunEvents(run.id)).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "run.started" }),
+      expect.objectContaining({ type: "run.completed" })
+    ]));
+    await expect(host.client.cancelRun(run.id)).resolves.toMatchObject({ status: "completed" });
+    await expect(host.client.listCapabilities()).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "tool", name: "echo" })
+    ]));
+    await expect(host.client.getRun("missing")).rejects.toBeInstanceOf(HostClientError);
+  });
+
+  it("parses buffered SSE payloads", () => {
+    expect(parseSsePayload([
+      "id: run-1:1",
+      "event: guga.host-event",
+      "data: {\"type\":\"run.started\",\"seq\":1,\"occurredAt\":\"now\",\"sessionId\":\"s\",\"runId\":\"run-1\",\"input\":\"hi\"}",
+      "",
+      ""
+    ].join("\n")).map((envelope) => envelope.data.type)).toEqual(["run.started"]);
+  });
+});
+
+async function startSdkHost(): Promise<LocalGugaHost> {
+  const runtime = createAgentRuntime();
+  runtime.registerProvider(createMockProvider([
+    { type: "final", content: "hello from sdk", usage: { totalTokens: 11 } }
+  ]));
+  runtime.registerTool(createTestTool({ name: "echo", content: "ok" }));
+  const host = await createLocalGugaHost({
+    hostRuntime: new HostRuntime({
+      runtime,
+      now: () => new Date("2026-05-27T00:00:00.000Z"),
+      idFactory: deterministicIds(["session-1", "run-1", "session-2", "run-2"])
+    }),
+    pollIntervalMs: 1
+  });
+  hosts.push(host);
+  return host;
+}
+
+function deterministicIds(values: string[]): () => string {
+  let index = 0;
+  return () => {
+    const value = values[index];
+    index += 1;
+    if (!value) {
+      throw new Error("No deterministic id left");
+    }
+    return value;
+  };
+}
