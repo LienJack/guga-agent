@@ -198,6 +198,8 @@ importers:
         specifier: workspace:*
         version: link:../plugin-tools-shell
 
+  packages/profile-deep-research-agent: {}
+
   packages/provider-ai-sdk:
     dependencies:
       '@ai-sdk/anthropic':
