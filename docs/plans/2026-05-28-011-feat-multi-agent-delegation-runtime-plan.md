@@ -2,7 +2,7 @@
 
 ## Objective
 
-Build the first multi-agent delegation slice as a first-party package that exposes a hermetic `delegateTask` tool factory, ledger helpers, validation, and tests.
+Build the first multi-agent delegation slice as a first-party tool package that exposes a hermetic `delegate_task` tool, a `createDelegateTaskTool()` factory, ledger helpers, validation, and tests.
 
 ## Scope Boundaries
 
@@ -16,9 +16,9 @@ Build the first multi-agent delegation slice as a first-party package that expos
 
 Files:
 
-- Create `packages/plugin-agent-delegation/package.json`
-- Create `packages/plugin-agent-delegation/tsconfig.json`
-- Create `packages/plugin-agent-delegation/src/index.ts`
+- Create `packages/plugin-tools-delegation/package.json`
+- Create `packages/plugin-tools-delegation/tsconfig.json`
+- Create `packages/plugin-tools-delegation/src/index.ts`
 
 Verification:
 
@@ -29,8 +29,8 @@ Verification:
 
 Files:
 
-- Create `packages/plugin-agent-delegation/src/delegation-types.ts`
-- Create `packages/plugin-agent-delegation/src/delegation-ledger.ts`
+- Create `packages/plugin-tools-delegation/src/delegation-types.ts`
+- Create `packages/plugin-tools-delegation/src/delegation-ledger.ts`
 
 Behavior:
 
@@ -46,7 +46,7 @@ Verification:
 
 Files:
 
-- Create `packages/plugin-agent-delegation/src/delegate-task-tool.ts`
+- Create `packages/plugin-tools-delegation/src/delegate-task-tool.ts`
 
 Behavior:
 
@@ -72,9 +72,9 @@ Verification:
 
 ## Test Commands
 
-- `pnpm --filter @guga-agent/plugin-agent-delegation test`
-- `pnpm --filter @guga-agent/plugin-agent-delegation typecheck`
-- `pnpm --filter @guga-agent/plugin-agent-delegation build`
+- `pnpm --filter @guga-agent/plugin-tools-delegation test`
+- `pnpm --filter @guga-agent/plugin-tools-delegation typecheck`
+- `pnpm --filter @guga-agent/plugin-tools-delegation build`
 - `pnpm -r --workspace-concurrency=1 test`
 - `pnpm -r typecheck`
 - `pnpm -r build`

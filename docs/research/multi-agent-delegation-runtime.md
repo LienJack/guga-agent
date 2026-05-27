@@ -4,11 +4,11 @@ Date: 2026-05-28
 
 ## 一句话结论
 
-M14 should adopt the P1 design from the current multi-agent research: a single-layer `delegateTask` tool implemented as a first-party plugin/profile helper package. It should not move multi-agent orchestration into core yet.
+M14 should adopt the P1 design from the current multi-agent research: a single-layer `delegate_task` tool implemented as a first-party tool plugin package. It should not move multi-agent orchestration into core yet.
 
 ## Evidence
 
-- `Fact`: `docs/research/current-multi-agent-collaboration-2026.md` compares current multi-agent projects and recommends `delegateTask` before handoff/team/workflow/A2A.
+- `Fact`: `docs/research/current-multi-agent-collaboration-2026.md` compares current multi-agent projects and recommends delegate-as-tool before handoff/team/workflow/A2A.
 - `Fact`: `docs/research/context-packs/multi-agent.md` shows Claude Code, Hermes, and DeerFlow all constrain subagent recursion or nesting depth.
 - `Fact`: `packages/core/src/contracts/tools.ts` already exposes `ToolDefinition`, `ToolResult`, `ToolExecutionContext`, tool effect, permission metadata, scheduler metadata, and runtime metadata.
 - `Fact`: `packages/core/src/contracts/runtime.ts` already exposes `AgentRuntime.run()` with `input`, `maxTurns`, `runId`, session identity, and abort signal.
@@ -27,9 +27,9 @@ M14 should adopt the P1 design from the current multi-agent research: a single-l
 
 ## Guga Landing
 
-Create a package such as `packages/plugin-agent-delegation` that exports:
+Create `packages/plugin-tools-delegation` with exports:
 
-- `createDelegateTaskTool(options)`
+- `createDelegateTaskTool(options)` / `createDelegationPlugin(options)`
 - `buildDelegationInput(input, context)`
 - `createDelegationLedger(...)`
 - `renderDelegationResult(...)`
@@ -39,7 +39,7 @@ The package should depend on `@guga-agent/core` types and implement the tool as 
 
 ## Adopt
 
-- Single tool entry point: `delegateTask`.
+- Single model-visible tool entry point: `delegate_task`.
 - Child input is self-contained and compact.
 - Child toolset is a filtered subset of parent-visible tools.
 - Child cannot receive delegation tools by default.

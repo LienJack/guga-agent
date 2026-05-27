@@ -10,7 +10,7 @@ import {
 
 const call = { id: "call-1", name: "delegate_task", input: {} };
 
-describe("plugin-agent-delegation", () => {
+describe("plugin-tools-delegation", () => {
   it("runs an isolated child task and returns compact correlation metadata", async () => {
     const runner = vi.fn(async (request) => ({
       status: "completed" as const,

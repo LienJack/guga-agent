@@ -1,5 +1,5 @@
 {"file": ".trellis/spec/backend/index.md", "reason": "Backend/package implementation quality checklist for the new first-party package."}
 {"file": ".trellis/spec/guides/index.md", "reason": "Cross-layer and code reuse thinking guides for package boundary decisions."}
-{"file": "docs/research/current-multi-agent-collaboration-2026.md", "reason": "Primary M14 product and architecture research for delegateTask P1."}
+{"file": "docs/research/current-multi-agent-collaboration-2026.md", "reason": "Primary M14 product and architecture research for delegate-as-tool P1."}
 {"file": "docs/research/context-packs/multi-agent.md", "reason": "Reference-project context pack covering subagent isolation, permissions, and trace propagation."}
 {"file": "docs/plans/2026-05-28-011-feat-multi-agent-delegation-runtime-plan.md", "reason": "Execution plan and verification checklist for this task."}

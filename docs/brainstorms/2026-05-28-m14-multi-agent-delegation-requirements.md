@@ -4,7 +4,7 @@ Date: 2026-05-28
 
 ## Goal
 
-Ship the first multi-agent substrate for Guga as a narrow, testable `delegateTask` capability. The feature should let a parent agent delegate one self-contained task to an isolated child run and receive a compact result, without introducing swarm, handoff, group chat, or a workflow engine.
+Ship the first multi-agent substrate for Guga as a narrow, testable delegation capability. The model-visible tool should be `delegate_task`; the TypeScript factory remains `createDelegateTaskTool()`. The feature should let a parent agent delegate one self-contained task to an isolated child run and receive a compact result, without introducing swarm, handoff, group chat, or a workflow engine.
 
 ## Product Boundary
 
@@ -12,9 +12,9 @@ M14 is a runtime/profile building block, not a user-facing team product. It must
 
 ## Requirements
 
-- Provide a first-party delegation package that can create a `delegateTask` tool definition.
+- Provide a first-party delegation package that can create a `delegate_task` tool definition.
 - Keep child context isolated: the child receives only `goal`, optional `context`, and generated child instructions.
-- Enforce single-layer delegation by default so a child toolset cannot include `delegateTask`.
+- Enforce single-layer delegation by default so a child toolset cannot include `delegate_task` or the legacy `delegateTask` spelling.
 - Enforce tool inheritance by allowlist: child tools are selected from a provided parent-visible tool catalog and cannot invent new tools.
 - Carry parent/child correlation in structured metadata and a compact ledger.
 - Render a deterministic, model-friendly result summary for the parent agent.

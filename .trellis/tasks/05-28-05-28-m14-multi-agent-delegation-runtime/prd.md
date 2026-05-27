@@ -2,17 +2,17 @@
 
 ## Goal
 
-Implement the first Guga multi-agent substrate as a single-layer `delegateTask` tool package that can run an isolated child task through an injected runner and return a compact, auditable result to the parent.
+Implement the first Guga multi-agent substrate as a single-layer `delegate_task` tool package that can run an isolated child task through an injected runner and return a compact, auditable result to the parent.
 
 ## Context
 
-- `docs/research/current-multi-agent-collaboration-2026.md` recommends P1 `delegateTask` before handoff/team/workflow/A2A.
+- `docs/research/current-multi-agent-collaboration-2026.md` recommends P1 delegate-as-tool before handoff/team/workflow/A2A.
 - `docs/research/context-packs/multi-agent.md` shows mature systems limit recursion and isolate child context.
 - Guga now has stable tool, permission, session, replay, profile, and eval packages, so a first-party delegation helper can live outside core.
 
 ## Requirements
 
-1. Create a first-party `@guga-agent/plugin-agent-delegation` package.
+1. Create a first-party `@guga-agent/plugin-tools-delegation` package.
 2. Export a `createDelegateTaskTool()` factory that returns a core `ToolDefinition`.
 3. Use an injected child runner so tests do not need real providers or nested runtime bootstrapping.
 4. Validate input shape and report deterministic diagnostics.
