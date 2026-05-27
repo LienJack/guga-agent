@@ -47,6 +47,12 @@ export type {
   RenderMemoryRetrievalOptions
 } from "./memory-retrieval";
 export {
+  renderCuratedMemoryMarkdown
+} from "./memory-markdown";
+export type {
+  RenderCuratedMemoryMarkdownOptions
+} from "./memory-markdown";
+export {
   createMemoryCandidatesPlugin,
   createMemoryGovernancePlugin
 } from "./memory-candidates-plugin";
