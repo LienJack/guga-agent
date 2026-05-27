@@ -21,3 +21,21 @@ export function createMemoryCandidatesPlugin(options: MemoryCandidatesPluginOpti
     }
   };
 }
+
+export function createMemoryGovernancePlugin(options: MemoryCandidatesPluginOptions = {}): LocalPlugin {
+  const pluginId = options.pluginId ?? "memory-governance";
+  return {
+    id: pluginId,
+    name: "Memory Governance",
+    init(context) {
+      context.registerOperation?.("memory.governance", {
+        source: "plugin",
+        ownerPluginId: pluginId,
+        trust: {
+          level: "first-party",
+          scopes: [{ kind: "memory", access: "read" }]
+        }
+      });
+    }
+  };
+}

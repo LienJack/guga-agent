@@ -18,7 +18,26 @@ export type {
   RenderMemoryContextOptions
 } from "./memory-candidates";
 export {
-  createMemoryCandidatesPlugin
+  createMemoryGovernanceLedger,
+  listMemoryItemsByScope,
+  renderGovernedMemoryBlock,
+  validateMemoryDecision
+} from "./memory-governance";
+export type {
+  GovernedMemoryItem,
+  MemoryDecision,
+  MemoryDecisionAction,
+  MemoryDecisionReviewer,
+  MemoryGovernanceDiagnostic,
+  MemoryGovernanceLedger,
+  MemoryItemStatus,
+  MemoryReviewerType,
+  MemoryScopeFilter,
+  RenderGovernedMemoryOptions
+} from "./memory-governance";
+export {
+  createMemoryCandidatesPlugin,
+  createMemoryGovernancePlugin
 } from "./memory-candidates-plugin";
 export type {
   MemoryCandidatesPluginOptions
