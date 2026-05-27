@@ -96,6 +96,12 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/plugin-ops-health:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/plugin-replay-audit:
     dependencies:
       '@guga-agent/core':
