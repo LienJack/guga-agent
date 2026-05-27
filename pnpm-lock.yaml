@@ -20,7 +20,25 @@ importers:
 
   packages/core: {}
 
+  packages/plugin-artifact-filesystem:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/plugin-context-default:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-replay-audit:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-session-jsonl:
     dependencies:
       '@guga-agent/core':
         specifier: workspace:*

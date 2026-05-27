@@ -41,6 +41,11 @@ export const AgentEventType = {
   ContextCompactFailed: "context.compact.failed",
   ContextReinjected: "context.reinjected",
   ContextHookDecision: "context.hook.decision",
+  ProviderInputCommitted: "provider.input.committed",
+  SessionForked: "session.forked",
+  SessionLeafMoved: "session.leaf_moved",
+  SessionResumed: "session.resumed",
+  ReplayDiagnostic: "replay.diagnostic",
   PluginInitialized: "plugin.initialized",
   PluginShutdown: "plugin.shutdown",
   PluginCapabilityRegistered: "plugin.capability_registered",
@@ -233,6 +238,49 @@ export type AgentEvent =
       pluginId: string;
       hookId: string;
       decision: ContextPolicyDecision;
+    }
+  | {
+      type: typeof AgentEventType.ProviderInputCommitted;
+      runId: string;
+      turn: number;
+      projectionId: string;
+      projectionHash?: ModelInputProjection["hash"];
+      artifactIds?: string[];
+    }
+  | {
+      type: typeof AgentEventType.SessionForked;
+      runId: string;
+      sessionId: string;
+      branchId: string;
+      fromBranchId: string;
+      fromEventId: string;
+    }
+  | {
+      type: typeof AgentEventType.SessionLeafMoved;
+      runId: string;
+      sessionId: string;
+      branchId: string;
+      eventId: string | null;
+      reason: "session-created" | "host-selected" | "fork-created" | "resume-selected" | "repair-selected";
+    }
+  | {
+      type: typeof AgentEventType.SessionResumed;
+      runId: string;
+      sessionId: string;
+      branchId: string;
+      eventId?: string;
+      interruptedCount: number;
+      corruptionCount: number;
+    }
+  | {
+      type: typeof AgentEventType.ReplayDiagnostic;
+      runId: string;
+      sessionId: string;
+      branchId?: string;
+      severity: "info" | "warning" | "error";
+      code: string;
+      message: string;
+      eventId?: string;
     }
   | {
       type: typeof AgentEventType.PluginInitialized;

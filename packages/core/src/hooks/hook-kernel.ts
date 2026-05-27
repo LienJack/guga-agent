@@ -103,8 +103,18 @@ export class HookKernel {
       }
 
       try {
+        const start = await this.appendHookStart(context.runId, hook, context.turn, context.call.id);
+        if (!start.ok) {
+          const failure: HookFailure = {
+            code: "HOOK_FAILED",
+            message: `Hook start marker could not be durably recorded: ${start.message}`,
+            details: start
+          };
+          this.publishHookFailure(context.runId, hook, failure);
+          return { ok: false, error: failure, failedHook: hook };
+        }
         const decision = (await hook.handler(context)) ?? { type: "allow" };
-        this.eventBus.publish({
+        const terminal = await this.eventBus.publishDurable({
           type: AgentEventType.HookDecision,
           runId: context.runId,
           phase: HookPhase.PreToolGate,
@@ -112,7 +122,21 @@ export class HookKernel {
           hookId: hook.id,
           call: context.call,
           decision
+        }, {
+          idempotencyKey: durableHookKey(context.runId, HookPhase.PreToolGate, hook, context.turn, context.call.id, "decision")
         });
+        if (!terminal.ok) {
+          const failure: HookFailure = {
+            code: "HOOK_FAILED",
+            message: `Hook decision marker could not be durably recorded: ${terminal.message}`,
+            details: {
+              persistenceStatus: "interrupted",
+              durableResult: terminal
+            }
+          };
+          this.publishHookFailure(context.runId, hook, failure);
+          return { ok: false, error: failure, failedHook: hook };
+        }
 
         if (decision.type === "deny") {
           return { ok: true, decision, deniedBy: hook };
@@ -137,17 +161,43 @@ export class HookKernel {
 
     for (const hook of this.orderedHooks(phase)) {
       try {
+        const start = await this.appendHookStart(context.runId, hook, context.turn, context.call.id);
+        if (!start.ok) {
+          return {
+            ok: false,
+            error: {
+              code: "HOOK_FAILED",
+              message: `Hook start marker could not be durably recorded: ${start.message}`,
+              details: start
+            },
+            failedHook: hook
+          };
+        }
         const decision = await runWithTimeout(
           runRegisteredToolHook(hook, context, input),
           hookTimeoutMs(hook) ?? context.control?.timeoutMs,
           context.control?.signal
         );
         if (!decision || decision.type === "allow") {
-          this.publishToolHookDecision(context.runId, context, hook, decision ?? { type: "allow" });
+          const terminal = await this.publishToolHookDecision(context.runId, context, hook, decision ?? { type: "allow" });
+          if (!terminal.ok) {
+            return {
+              ok: false,
+              error: terminal.error,
+              failedHook: hook
+            };
+          }
           continue;
         }
 
-        this.publishToolHookDecision(context.runId, context, hook, decision);
+        const terminal = await this.publishToolHookDecision(context.runId, context, hook, decision);
+        if (!terminal.ok) {
+          return {
+            ok: false,
+            error: terminal.error,
+            failedHook: hook
+          };
+        }
 
         if (decision.type === "block") {
           return {
@@ -223,7 +273,7 @@ export class HookKernel {
         }
         decisions.push(...normalized);
         for (const item of normalized) {
-          this.eventBus.publish({
+          const published = await this.eventBus.publishDurable({
             type: AgentEventType.ContextHookDecision,
             runId: context.runId,
             ...(context.turn !== undefined ? { turn: context.turn } : {}),
@@ -231,7 +281,21 @@ export class HookKernel {
             pluginId: hook.pluginId,
             hookId: hook.id,
             decision: item
+          }, {
+            idempotencyKey: durableContextHookKey(context.runId, phase, hook, context.turn, item.id)
           });
+          if (!published.ok) {
+            const failure: HookFailure = {
+              code: "HOOK_FAILED",
+              message: `Context hook decision marker could not be durably recorded: ${published.message}`,
+              details: {
+                persistenceStatus: "interrupted",
+                durableResult: published
+              }
+            };
+            this.publishHookFailure(context.runId, hook, failure);
+            return { ok: false, error: failure, failedHook: hook };
+          }
         }
       } catch (error) {
         const failure = toHookFailure(error);
@@ -293,8 +357,8 @@ export class HookKernel {
     });
   }
 
-  private publishToolHookDecision(runId: string, context: ToolHookContext, hook: RegisteredHook, decision: ToolHookDecision): void {
-    this.eventBus.publish({
+  private async publishToolHookDecision(runId: string, context: ToolHookContext, hook: RegisteredHook, decision: ToolHookDecision): Promise<{ ok: true } | { ok: false; error: HookFailure }> {
+    const published = await this.eventBus.publishDurable({
       type: AgentEventType.HookDecision,
       runId,
       phase: hook.phase,
@@ -303,6 +367,36 @@ export class HookKernel {
       call: context.call,
       ...("correlation" in context ? { correlation: context.correlation } : {}),
       decision
+    }, {
+      idempotencyKey: durableHookKey(runId, hook.phase, hook, context.turn, context.call.id, "decision")
+    });
+    if (!published.ok) {
+      const failure: HookFailure = {
+        code: "HOOK_FAILED",
+        message: `Hook decision marker could not be durably recorded: ${published.message}`,
+        details: {
+          persistenceStatus: "interrupted",
+          durableResult: published
+        }
+      };
+      this.publishHookFailure(runId, hook, failure);
+      return { ok: false, error: failure };
+    }
+    return { ok: true };
+  }
+
+  private appendHookStart(runId: string, hook: RegisteredHook, turn: number | undefined, toolCallId?: string) {
+    return this.eventBus.appendDurableRecord({
+      type: "hook.started",
+      runId,
+      ...(turn !== undefined ? { turn } : {}),
+      phase: hook.phase,
+      pluginId: hook.pluginId,
+      hookId: hook.id,
+      ...(toolCallId ? { toolCallId } : {})
+    }, {
+      eventType: "hook.started",
+      idempotencyKey: durableHookKey(runId, hook.phase, hook, turn, toolCallId, "started")
     });
   }
 }
@@ -429,4 +523,41 @@ function toHookFailure(error: unknown): HookFailure {
     message: error instanceof Error ? error.message : "Hook failed",
     details: error
   };
+}
+
+function durableHookKey(
+  runId: string,
+  phase: HookPhase,
+  hook: RegisteredHook,
+  turn: number | undefined,
+  toolCallId: string | undefined,
+  boundary = "hook"
+): string {
+  return [
+    runId,
+    turn ?? "turnless",
+    phase,
+    hook.pluginId,
+    hook.id,
+    toolCallId ?? "callless",
+    boundary
+  ].join(":");
+}
+
+function durableContextHookKey(
+  runId: string,
+  phase: HookPhase,
+  hook: RegisteredHook,
+  turn: number | undefined,
+  decisionId: string
+): string {
+  return [
+    runId,
+    turn ?? "turnless",
+    phase,
+    hook.pluginId,
+    hook.id,
+    decisionId,
+    "context-hook-decision"
+  ].join(":");
 }

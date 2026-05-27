@@ -2,11 +2,115 @@ import { describe, expect, it } from "vitest";
 import { AgentEventType } from "../contracts/events";
 import { HookEffect, HookPhase } from "../contracts/hooks";
 import { ModelEventType } from "../contracts/model-events";
+import type { ArtifactStore, DurableEventEnvelope, EventStore, ReplayCapability, SessionStore } from "../contracts/persistence";
 import { ProviderErrorCategory } from "../contracts/provider";
+import { createDurableEventEnvelope } from "../persistence/durable-event-envelope";
 import { createAgentRuntime } from "./create-agent-runtime";
 import { createExamplePlugin } from "../testing/example-plugin";
 import { createMockProvider } from "../testing/mock-provider";
 import { createTestTool } from "../testing/test-tool";
+
+const eventStore: EventStore = {
+  append() {
+    return { ok: false, status: "unavailable", reason: "test" };
+  },
+  readStream() {
+    return { ok: true, events: [], nextRevision: 0 };
+  }
+};
+
+const sessionStore: SessionStore = {
+  createSession() {
+    return { ok: false, diagnostic: { status: "unavailable", message: "test" } };
+  },
+  getSessionTree(sessionId) {
+    return {
+      ok: true,
+      session: {
+        id: sessionId,
+        createdAt: "2026-05-27T00:00:00.000Z",
+        updatedAt: "2026-05-27T00:00:00.000Z",
+        activeBranchId: "main",
+        rootBranchId: "main"
+      },
+      branches: [{
+        id: "main",
+        sessionId,
+        createdAt: "2026-05-27T00:00:00.000Z",
+        createdFrom: { type: "root" },
+        visibleEventIds: []
+      }],
+      activeLeaf: {
+        sessionId,
+        branchId: "main",
+        eventId: null,
+        updatedAt: "2026-05-27T00:00:00.000Z",
+        reason: "resume-selected"
+      }
+    };
+  },
+  forkBranch(options) {
+    return {
+      ok: true,
+      branch: {
+        id: options.branchId,
+        sessionId: options.sessionId,
+        parentBranchId: options.fromBranchId,
+        createdAt: "2026-05-27T00:00:00.000Z",
+        createdFrom: {
+          type: "event",
+          branchId: options.fromBranchId,
+          eventId: options.fromEventId
+        },
+        visibleEventIds: [options.fromEventId]
+      }
+    };
+  },
+  setActiveLeaf(options) {
+    return {
+      ok: true,
+      leaf: {
+        sessionId: options.sessionId,
+        branchId: options.branchId,
+        eventId: options.eventId,
+        updatedAt: "2026-05-27T00:00:00.000Z",
+        reason: options.reason
+      }
+    };
+  }
+};
+
+const artifactStore: ArtifactStore = {
+  putArtifact() {
+    return { ok: false, status: "unavailable", reason: "test" };
+  },
+  readArtifact() {
+    return {
+      ok: false,
+      status: "unavailable",
+      diagnostic: { kind: "unknown", message: "test", recoverable: true }
+    };
+  },
+  tombstoneArtifact() {
+    return {
+      ok: false,
+      status: "unavailable",
+      diagnostic: { kind: "unknown", message: "test", recoverable: true }
+    };
+  }
+};
+
+const replayCapability: ReplayCapability = {
+  replayConversation() {
+    return { ok: true, messages: [{ role: "user", content: "recorded" }], diagnostics: [] };
+  },
+  replayModelInput() {
+    return { ok: true, projection: undefined, diagnostics: [] };
+  },
+  replayAudit() {
+    return { ok: true, timeline: [], diagnostics: [] };
+  }
+};
 
 describe("AgentRuntime", () => {
   it("lets a host register capabilities, run a turn, and observe events", async () => {
@@ -53,6 +157,129 @@ describe("AgentRuntime", () => {
     });
 
     expect(result).toMatchObject({ ok: true, finalAnswer: "mocked" });
+  });
+
+  it("keeps plain runtimes usable while persistence and replay are explicitly unavailable", async () => {
+    const runtime = createAgentRuntime();
+    runtime.registerProvider(createMockProvider([{ type: "final", content: "mocked" }]));
+
+    await expect(runtime.resumeSession({ sessionId: "missing-session" })).resolves.toMatchObject({
+      ok: false,
+      status: "unavailable"
+    });
+    await expect(
+      runtime.forkSession({
+        sessionId: "missing-session",
+        branchId: "branch-2",
+        fromBranchId: "main",
+        fromEventId: "event-1"
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      diagnostic: { status: "unavailable" }
+    });
+    await expect(runtime.replayConversation({ sessionId: "missing-session" })).resolves.toMatchObject({
+      ok: false,
+      status: "unavailable"
+    });
+
+    const result = await runtime.run({
+      input: "hello",
+      providerId: "mock",
+      runId: "runtime-without-store"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "mocked" });
+  });
+
+  it("resumes sessions through configured event and session stores", async () => {
+    const events = [
+      durableRuntimeEvent({ type: AgentEventType.RunStarted, runId: "run-resume", input: "hello" }, "event-1"),
+      durableRuntimeEvent({
+        type: AgentEventType.ModelResponded,
+        runId: "run-resume",
+        turn: 0,
+        response: { type: "final", content: "resumed answer" }
+      }, "event-2")
+    ];
+    const runtime = createAgentRuntime({
+      stores: {
+        events: eventStoreWith(events),
+        sessions: sessionStoreWithVisibleEvents(events.map((event) => event.eventId))
+      }
+    });
+
+    await expect(runtime.resumeSession({ sessionId: "session-1" })).resolves.toMatchObject({
+      ok: true,
+      conversation: [
+        { role: "user", content: "hello" },
+        { role: "assistant", content: "resumed answer" }
+      ],
+      interrupted: [expect.objectContaining({ kind: "run", status: "interrupted" })]
+    });
+  });
+
+  it("forks sessions through append-only branch and leaf services", async () => {
+    const events = [
+      durableRuntimeEvent({ type: AgentEventType.RunStarted, runId: "run-fork", input: "hello" }, "event-1")
+    ];
+    const sessions = sessionStoreWithVisibleEvents(["event-1"]);
+    const runtime = createAgentRuntime({
+      stores: { events: eventStoreWith(events), sessions }
+    });
+
+    await expect(
+      runtime.forkSession({
+        sessionId: "session-1",
+        branchId: "branch-fork",
+        fromBranchId: "main",
+        fromEventId: "event-1"
+      })
+    ).resolves.toMatchObject({
+      ok: true,
+      branch: { id: "branch-fork", parentBranchId: "main", visibleEventIds: ["event-1"] }
+    });
+    expect(await sessions.getSessionTree("session-1")).toMatchObject({
+      ok: true,
+      activeLeaf: { branchId: "branch-fork", eventId: "event-1", reason: "fork-created" }
+    });
+  });
+
+  it("uses the forked branch as the active durable session for subsequent runs", async () => {
+    const events = [
+      durableRuntimeEvent({ type: AgentEventType.RunStarted, runId: "run-fork", input: "hello" }, "event-1")
+    ];
+    const sessions = sessionStoreWithVisibleEvents(["event-1"]);
+    const runtime = createAgentRuntime({
+      stores: { events: eventStoreWith(events), sessions }
+    });
+    const observed: string[] = [];
+    runtime.onEvent((event) => observed.push(event.type));
+    runtime.registerProvider(createMockProvider([{ type: "final", content: "branch answer" }]));
+
+    await expect(
+      runtime.forkSession({
+        sessionId: "session-1",
+        branchId: "branch-fork",
+        fromBranchId: "main",
+        fromEventId: "event-1"
+      })
+    ).resolves.toMatchObject({ ok: true });
+    await expect(runtime.run({ input: "after fork", providerId: "mock", runId: "run-after-fork" })).resolves.toMatchObject({
+      ok: true,
+      finalAnswer: "branch answer"
+    });
+
+    expect(observed).toEqual(expect.arrayContaining([
+      AgentEventType.SessionForked,
+      AgentEventType.SessionLeafMoved
+    ]));
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        branchId: "branch-fork",
+        payload: expect.objectContaining({ type: AgentEventType.ModelRequested, runId: "run-after-fork" })
+      })
+    ]));
   });
 
   it("surfaces missing provider failures through the runtime facade", async () => {
@@ -120,6 +347,125 @@ describe("AgentRuntime", () => {
     expect(runtime.listModels()).toEqual([
       expect.objectContaining({ providerId: "plugin-provider", modelId: "plugin-primary" })
     ]);
+  });
+
+  it("resolves plugin-registered persistence capabilities after lazy initialization", async () => {
+    const runtime = createAgentRuntime({
+      plugins: [
+        {
+          id: "runtime-persistence-plugin",
+          init(context) {
+            context.registerProvider(createMockProvider([{ type: "final", content: "plugin final" }], { id: "plugin-provider" }));
+            context.registerEventStore(eventStore);
+            context.registerSessionStore(sessionStore);
+            context.registerArtifactStore(artifactStore);
+            context.registerReplayCapability(replayCapability);
+          }
+        }
+      ]
+    });
+
+    expect(runtime.getPersistenceCapabilities()).toEqual({
+      eventStore: undefined,
+      sessionStore: undefined,
+      artifactStore: undefined,
+      replay: undefined
+    });
+
+    await runtime.run({
+      input: "hello",
+      providerId: "plugin-provider",
+      runId: "runtime-persistence-plugin-run"
+    });
+
+    expect(runtime.getPersistenceCapabilities()).toEqual({
+      eventStore,
+      sessionStore,
+      artifactStore,
+      replay: replayCapability
+    });
+    await expect(runtime.resumeSession({ sessionId: "session-plugin" })).resolves.toMatchObject({
+      ok: true,
+      session: { id: "session-plugin" }
+    });
+    await expect(runtime.replayConversation({ sessionId: "session-plugin" })).resolves.toMatchObject({
+      ok: true,
+      messages: [{ role: "user", content: "recorded" }]
+    });
+  });
+
+  it("prefers directly configured persistence capabilities over plugin registrations", async () => {
+    const pluginEventStore: EventStore = { ...eventStore };
+    const pluginSessionStore: SessionStore = { ...sessionStore };
+    const pluginArtifactStore: ArtifactStore = { ...artifactStore };
+    const pluginReplay: ReplayCapability = { ...replayCapability };
+    const runtime = createAgentRuntime({
+      stores: {
+        events: eventStore,
+        sessions: sessionStore,
+        artifacts: artifactStore
+      },
+      replay: replayCapability,
+      plugins: [
+        {
+          id: "lower-priority-persistence-plugin",
+          init(context) {
+            context.registerProvider(createMockProvider([{ type: "final", content: "plugin final" }], { id: "plugin-provider" }));
+            context.registerEventStore(pluginEventStore);
+            context.registerSessionStore(pluginSessionStore);
+            context.registerArtifactStore(pluginArtifactStore);
+            context.registerReplayCapability(pluginReplay);
+          }
+        }
+      ]
+    });
+
+    await runtime.run({
+      input: "hello",
+      providerId: "plugin-provider",
+      runId: "runtime-direct-persistence-run"
+    });
+
+    expect(runtime.getPersistenceCapabilities()).toEqual({
+      eventStore,
+      sessionStore,
+      artifactStore,
+      replay: replayCapability
+    });
+  });
+
+  it("exposes directly configured stores to plugins during initialization", async () => {
+    let observedEventStore: EventStore | undefined;
+    let observedSessionStore: SessionStore | undefined;
+    let observedArtifactStore: ArtifactStore | undefined;
+    const runtime = createAgentRuntime({
+      stores: {
+        events: eventStore,
+        sessions: sessionStore,
+        artifacts: artifactStore
+      },
+      plugins: [
+        {
+          id: "store-observer",
+          init(context) {
+            context.registerProvider(createMockProvider([{ type: "final", content: "plugin final" }], { id: "plugin-provider" }));
+            observedEventStore = context.getEventStore?.();
+            observedSessionStore = context.getSessionStore?.();
+            observedArtifactStore = context.getArtifactStore?.();
+          }
+        }
+      ]
+    });
+
+    await runtime.run({
+      input: "hello",
+      providerId: "plugin-provider",
+      runId: "runtime-direct-store-observer"
+    });
+
+    expect(observedEventStore).toBe(eventStore);
+    expect(observedSessionStore).toBe(sessionStore);
+    expect(observedArtifactStore).toBe(artifactStore);
   });
 
   it("surfaces plugin initialization failures as structured run failures", async () => {
@@ -507,3 +853,92 @@ describe("AgentRuntime", () => {
     );
   });
 });
+
+function durableRuntimeEvent(payload: DurableEventEnvelope["payload"], eventId: string): DurableEventEnvelope {
+  const runId = typeof payload.runId === "string" ? payload.runId : undefined;
+  const turn = typeof payload.turn === "number" ? payload.turn : undefined;
+  return createDurableEventEnvelope({
+    schemaVersion: 1,
+    eventId,
+    streamId: "session/session-1",
+    streamRevision: Number(eventId.replace("event-", "")) - 1,
+    sessionId: "session-1",
+    branchId: "main",
+    ...(runId ? { runId } : {}),
+    ...(turn !== undefined ? { turn } : {}),
+    parentEventId: null,
+    previousEventHash: null,
+    createdAt: "2026-05-27T00:00:00.000Z",
+    actor: { type: "runtime", id: "test" },
+    source: { type: "runtime", id: "core-test" },
+    payload
+  });
+}
+
+function eventStoreWith(events: DurableEventEnvelope[]): EventStore {
+  return {
+    append(event) {
+      events.push(event);
+      return { ok: true, status: "appended", event, streamRevision: event.streamRevision };
+    },
+    readStream() {
+      return { ok: true, events, nextRevision: events.length };
+    }
+  };
+}
+
+function sessionStoreWithVisibleEvents(visibleEventIds: string[]): SessionStore {
+  const session = {
+    id: "session-1",
+    createdAt: "2026-05-27T00:00:00.000Z",
+    updatedAt: "2026-05-27T00:00:00.000Z",
+    activeBranchId: "main",
+    rootBranchId: "main"
+  };
+  const branches = [{
+    id: "main",
+    sessionId: "session-1",
+    createdAt: "2026-05-27T00:00:00.000Z",
+    createdFrom: { type: "root" as const },
+    visibleEventIds
+  }];
+  let activeLeaf = {
+    sessionId: "session-1",
+    branchId: "main",
+    eventId: visibleEventIds.at(-1) ?? null,
+    updatedAt: "2026-05-27T00:00:00.000Z",
+    reason: "resume-selected" as const
+  };
+
+  return {
+    createSession() {
+      return { ok: true, session, branch: branches[0] };
+    },
+    getSessionTree() {
+      return { ok: true, session, branches, activeLeaf };
+    },
+    forkBranch(options) {
+      const through = visibleEventIds.indexOf(options.fromEventId);
+      const branch = {
+        id: options.branchId,
+        sessionId: options.sessionId,
+        parentBranchId: options.fromBranchId,
+        createdAt: "2026-05-27T00:00:00.000Z",
+        createdFrom: { type: "event" as const, branchId: options.fromBranchId, eventId: options.fromEventId },
+        visibleEventIds: through === -1 ? [] : visibleEventIds.slice(0, through + 1)
+      };
+      branches.push(branch);
+      return { ok: true, branch };
+    },
+    setActiveLeaf(options) {
+      activeLeaf = {
+        sessionId: options.sessionId,
+        branchId: options.branchId,
+        eventId: options.eventId,
+        updatedAt: "2026-05-27T00:00:00.000Z",
+        reason: options.reason
+      };
+      return { ok: true, leaf: activeLeaf };
+    }
+  };
+}

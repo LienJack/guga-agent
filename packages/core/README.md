@@ -11,8 +11,9 @@ provider tool intent -> core pipeline -> hooks -> permission -> tool -> result p
 ## What The Core Includes
 
 - Core message, provider, model metadata, tool runtime, permission, result budget, usage, runtime, model event, router, and hook contracts.
+- Durable session, event, artifact, resume, fork, and replay contracts. Concrete storage remains in plugin packages.
 - In-memory `CapabilityRegistry` for registering providers, model metadata, and tools.
-- In-memory `EventBus` for observing runtime facts during tests or host integration.
+- In-memory `EventBus` for observing runtime facts during tests or host integration, plus an optional durable append/publish lane for recovery-sensitive facts.
 - `ConversationState` for preserving assistant tool calls and matching tool results.
 - Minimal `AgentLoop` for tool-calling runs through either direct mock providers or the provider router.
 - `ProviderRouter` for Guga-owned model selection, retry, fallback, and observable model-call facts.
@@ -30,7 +31,7 @@ provider tool intent -> core pipeline -> hooks -> permission -> tool -> result p
 - Provider marketplace, credential pools, provider health scoring, or pricing tables.
 - Plugin manifests, directory scanning, remote install, sandboxing, signing, namespaces, reload, or stale context guard.
 - Full host UI permission dialogs, durable result stores, enterprise policy engines, or remote sandbox backends.
-- Durable session store, replay, artifact store, or UI projection.
+- Concrete durable session store, replay plugin, artifact store implementation, or UI projection.
 - Context compaction, skills, long-term memory, multi-agent orchestration, or eval infrastructure.
 
 ## Minimal Usage Shape
@@ -95,3 +96,15 @@ const runtime = createAgentRuntime({ plugins: [plugin] });
 Plugins initialize lazily before the first `run()`, so hosts can subscribe to `onEvent()` before plugin lifecycle and capability registration events are emitted. `dispose()` is async and returns shutdown failures before listeners and in-memory plugin state are cleared.
 
 For tests and examples, `createExamplePlugin()` returns a single plugin that registers a mock provider, a test tool, a pre-tool gate hook, and shutdown behavior. It is not auto-loaded by plain runtimes.
+
+## Durable Workbench Boundary
+
+Core defines the public `EventStore`, `SessionStore`, `ArtifactStore`, and replay capability contracts. Hosts may provide stores directly through `createAgentRuntime({ stores, replay })`, or first-party and third-party plugins may register them through the same plugin context as tools and providers.
+
+The first-party local implementations live outside core:
+
+- `@guga-agent/plugin-session-jsonl`: append-only JSONL event/session storage.
+- `@guga-agent/plugin-artifact-filesystem`: filesystem-backed artifact storage for large results.
+- `@guga-agent/plugin-replay-audit`: replay views derived from durable facts.
+
+Replay is fact-based by default. It reconstructs conversation, model-input, and audit views from durable events, provider-input committed facts, projection records, and artifact references; it does not rerun providers, tools, or mutating hooks.

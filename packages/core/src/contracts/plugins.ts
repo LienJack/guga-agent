@@ -1,5 +1,6 @@
 import type { HookRegistration } from "./hooks";
 import type { ContextPolicy } from "./context";
+import type { ArtifactStore, EventStore, ReplayCapability, SessionStore } from "./persistence";
 import type { ModelIdentifier, ModelMetadata, Provider } from "./provider";
 import type { ToolDefinition } from "./tools";
 
@@ -17,6 +18,13 @@ export type PluginContext = {
   registerTool(tool: ToolDefinition, options?: ToolRegistrationOptions): void;
   registerHook(hook: HookRegistration): void;
   registerContextPolicy?(policy: ContextPolicy): void;
+  registerEventStore?(store: EventStore): void;
+  registerSessionStore?(store: SessionStore): void;
+  registerArtifactStore?(store: ArtifactStore): void;
+  registerReplayCapability?(capability: ReplayCapability): void;
+  getEventStore?(): EventStore | undefined;
+  getSessionStore?(): SessionStore | undefined;
+  getArtifactStore?(): ArtifactStore | undefined;
 };
 
 export type PluginShutdownContext = {
@@ -34,7 +42,16 @@ export type LocalModelPlugin = LocalPlugin & {
   model: ModelIdentifier;
 };
 
-export type PluginCapabilityKind = "provider" | "model" | "tool" | "hook" | "context-policy";
+export type PluginCapabilityKind =
+  | "provider"
+  | "model"
+  | "tool"
+  | "hook"
+  | "context-policy"
+  | "event-store"
+  | "session-store"
+  | "artifact-store"
+  | "replay";
 
 export type PluginFailureKind = "init" | "hook" | "shutdown";
 

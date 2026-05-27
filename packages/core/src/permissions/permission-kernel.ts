@@ -45,7 +45,10 @@ export class PermissionKernel {
     const remembered = this.remembered.get(scopeKey(request));
     if (remembered) {
       const decision = { ...remembered, source: "remembered" as const };
-      this.publishResolved(request, decision);
+      const durable = await this.publishResolved(request, decision);
+      if (durable) {
+        return denyResolution(unavailableDecision(durable.message), "TOOL_PERMISSION_UNAVAILABLE");
+      }
       return decision.action === "allow"
         ? { ok: true, decision }
         : denyResolution(decision, "TOOL_PERMISSION_DENIED");
@@ -58,7 +61,10 @@ export class PermissionKernel {
         remember: "once",
         source: "profile"
       };
-      this.publishResolved(request, decision);
+      const durable = await this.publishResolved(request, decision);
+      if (durable) {
+        return denyResolution(unavailableDecision(durable.message), "TOOL_PERMISSION_UNAVAILABLE");
+      }
       return { ok: true, decision };
     }
 
@@ -69,7 +75,7 @@ export class PermissionKernel {
         source: options.tool.runtime?.permission?.defaultAction === "deny" ? "plugin" : "profile",
         reason: options.tool.runtime?.permission?.reason ?? `${request.profile} profile denies this tool`
       };
-      this.publishResolved(request, decision);
+      await this.publishResolved(request, decision);
       return denyResolution(decision, "TOOL_PERMISSION_DENIED");
     }
 
@@ -80,7 +86,7 @@ export class PermissionKernel {
         source: "profile",
         reason: `${request.profile} profile cannot ask for permission`
       };
-      this.publishResolved(request, decision);
+      await this.publishResolved(request, decision);
       return denyResolution(decision, "TOOL_PERMISSION_UNAVAILABLE");
     }
 
@@ -91,20 +97,28 @@ export class PermissionKernel {
         source: "profile",
         reason: "Permission resolver is unavailable"
       };
-      this.publishResolved(request, decision);
+      await this.publishResolved(request, decision);
       return denyResolution(decision, "TOOL_PERMISSION_UNAVAILABLE");
     }
 
-    this.eventBus.publish({
+    const requested = await this.eventBus.publishDurable({
       type: AgentEventType.PermissionRequested,
       runId: request.runId,
       turn: request.turn,
       request
+    }, {
+      idempotencyKey: durablePermissionKey(request, "tool.permission.requested")
     });
+    if (!requested.ok) {
+      return denyResolution(unavailableDecision(requested.message), "TOOL_PERMISSION_UNAVAILABLE");
+    }
 
     const decision = await this.resolveWithTimeout(request, options.signal);
     this.remember(request, decision);
-    this.publishResolved(request, decision);
+    const durable = await this.publishResolved(request, decision);
+    if (durable) {
+      return denyResolution(unavailableDecision(durable.message), "TOOL_PERMISSION_UNAVAILABLE");
+    }
 
     return decision.action === "allow"
       ? { ok: true, decision }
@@ -191,14 +205,17 @@ export class PermissionKernel {
     this.remembered.set(scopeKey(request), decision);
   }
 
-  private publishResolved(request: PermissionRequest, decision: PermissionDecision): void {
-    this.eventBus.publish({
+  private async publishResolved(request: PermissionRequest, decision: PermissionDecision): Promise<{ message: string } | undefined> {
+    const result = await this.eventBus.publishDurable({
       type: AgentEventType.PermissionResolved,
       runId: request.runId,
       turn: request.turn,
       request,
       decision
+    }, {
+      idempotencyKey: durablePermissionKey(request, "tool.permission.resolved")
     });
+    return result.ok ? undefined : { message: result.message };
   }
 }
 
@@ -287,4 +304,27 @@ function deniedMetadata(decision: PermissionDenyDecision): Record<string, unknow
 function scopeKey(request: PermissionRequest): string {
   const scope = request.subject.resourceSummary ?? request.subject.commandSummary ?? request.subject.toolName;
   return `${request.subject.toolName}:${request.subject.effect}:${scope}`;
+}
+
+function unavailableDecision(reason: string): PermissionDenyDecision {
+  return {
+    action: "deny",
+    remember: "once",
+    source: "host",
+    reason: `Permission durability unavailable: ${reason}`,
+    metadata: {
+      persistenceStatus: "unavailable"
+    }
+  };
+}
+
+function durablePermissionKey(request: PermissionRequest, boundary: string): string {
+  return [
+    request.runId,
+    request.turn,
+    request.toolCallId,
+    request.attempt,
+    request.batchId ?? "batchless",
+    boundary
+  ].join(":");
 }

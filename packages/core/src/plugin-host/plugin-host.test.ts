@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CoreError } from "../contracts/errors";
 import { AgentEventType } from "../contracts/events";
 import { HookEffect, HookPhase } from "../contracts/hooks";
+import type { ArtifactStore, EventStore, ReplayCapability, SessionStore } from "../contracts/persistence";
 import type { LocalPlugin } from "../contracts/plugins";
 import { EventBus } from "../events/event-bus";
 import { HookKernel } from "../hooks/hook-kernel";
@@ -9,6 +10,62 @@ import { CapabilityRegistry } from "../registry/capability-registry";
 import { createMockProvider } from "../testing/mock-provider";
 import { createTestTool } from "../testing/test-tool";
 import { PluginHost } from "./plugin-host";
+
+const eventStore: EventStore = {
+  append() {
+    return { ok: false, status: "unavailable", reason: "test" };
+  },
+  readStream() {
+    return { ok: false, status: "unavailable", diagnostics: [] };
+  }
+};
+
+const sessionStore: SessionStore = {
+  createSession() {
+    return { ok: false, diagnostic: { status: "unavailable", message: "test" } };
+  },
+  getSessionTree() {
+    return { ok: false, diagnostic: { status: "unavailable", message: "test" } };
+  },
+  forkBranch() {
+    return { ok: false, diagnostic: { status: "unavailable", message: "test" } };
+  },
+  setActiveLeaf() {
+    return { ok: false, diagnostic: { status: "unavailable", message: "test" } };
+  }
+};
+
+const artifactStore: ArtifactStore = {
+  putArtifact() {
+    return { ok: false, status: "unavailable", reason: "test" };
+  },
+  readArtifact() {
+    return {
+      ok: false,
+      status: "unavailable",
+      diagnostic: { kind: "unknown", message: "test", recoverable: true }
+    };
+  },
+  tombstoneArtifact() {
+    return {
+      ok: false,
+      status: "unavailable",
+      diagnostic: { kind: "unknown", message: "test", recoverable: true }
+    };
+  }
+};
+
+const replayCapability: ReplayCapability = {
+  replayConversation() {
+    return { ok: false, status: "unavailable", diagnostics: [] };
+  },
+  replayModelInput() {
+    return { ok: false, status: "unavailable", diagnostics: [] };
+  },
+  replayAudit() {
+    return { ok: false, status: "unavailable", diagnostics: [] };
+  }
+};
 
 describe("PluginHost", () => {
   it("initializes plugins through a restricted context and registers capabilities", async () => {
@@ -335,5 +392,58 @@ describe("PluginHost", () => {
     await host.shutdown({ runId: "run-context-policy-shutdown" });
 
     expect(registry.listContextPolicies()).toEqual([]);
+  });
+
+  it("registers and cleans up persistence and replay capabilities", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    const plugin: LocalPlugin = {
+      id: "persistence-plugin",
+      init(context) {
+        context.registerEventStore(eventStore);
+        context.registerSessionStore(sessionStore);
+        context.registerArtifactStore(artifactStore);
+        context.registerReplayCapability(replayCapability);
+      }
+    };
+    const host = new PluginHost({ plugins: [plugin], registry, hookKernel, eventBus });
+
+    await host.initialize({ runId: "run-persistence-plugin" });
+
+    expect(registry.getEventStore()).toBe(eventStore);
+    expect(registry.getSessionStore()).toBe(sessionStore);
+    expect(registry.getArtifactStore()).toBe(artifactStore);
+    expect(registry.getReplayCapability()).toBe(replayCapability);
+    expect(eventBus.events).toEqual([
+      expect.objectContaining({
+        type: AgentEventType.PluginCapabilityRegistered,
+        capability: "event-store",
+        name: "default"
+      }),
+      expect.objectContaining({
+        type: AgentEventType.PluginCapabilityRegistered,
+        capability: "session-store",
+        name: "default"
+      }),
+      expect.objectContaining({
+        type: AgentEventType.PluginCapabilityRegistered,
+        capability: "artifact-store",
+        name: "default"
+      }),
+      expect.objectContaining({
+        type: AgentEventType.PluginCapabilityRegistered,
+        capability: "replay",
+        name: "default"
+      }),
+      expect.objectContaining({ type: AgentEventType.PluginInitialized })
+    ]);
+
+    await host.shutdown({ runId: "run-persistence-plugin-shutdown" });
+
+    expect(registry.getEventStore()).toBeUndefined();
+    expect(registry.getSessionStore()).toBeUndefined();
+    expect(registry.getArtifactStore()).toBeUndefined();
+    expect(registry.getReplayCapability()).toBeUndefined();
   });
 });

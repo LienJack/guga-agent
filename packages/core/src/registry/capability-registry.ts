@@ -1,7 +1,10 @@
 import { CoreError } from "../contracts/errors";
 import type { ContextPolicy } from "../contracts/context";
+import type { ArtifactStore, EventStore, ReplayCapability, SessionStore } from "../contracts/persistence";
 import type { ModelMetadata, Provider } from "../contracts/provider";
 import type { ToolDefinition } from "../contracts/tools";
+
+const DEFAULT_PERSISTENCE_CAPABILITY_ID = "default";
 
 export type ToolRegistryOptions = {
   override?: false | {
@@ -15,6 +18,10 @@ export class CapabilityRegistry {
   private readonly models = new Map<string, ModelMetadata>();
   private readonly tools = new Map<string, ToolDefinition>();
   private readonly contextPolicies = new Map<string, ContextPolicy>();
+  private readonly eventStores = new Map<string, EventStore>();
+  private readonly sessionStores = new Map<string, SessionStore>();
+  private readonly artifactStores = new Map<string, ArtifactStore>();
+  private readonly replayCapabilities = new Map<string, ReplayCapability>();
 
   registerProvider(provider: Provider): void {
     if (this.providers.has(provider.id)) {
@@ -58,6 +65,42 @@ export class CapabilityRegistry {
     this.contextPolicies.set(policy.id, policy);
   }
 
+  registerEventStore(store: EventStore, id = DEFAULT_PERSISTENCE_CAPABILITY_ID): void {
+    if (this.eventStores.has(id)) {
+      throw new CoreError("CAPABILITY_ALREADY_REGISTERED", `Event store already registered: ${id}`, {
+        eventStoreId: id
+      });
+    }
+    this.eventStores.set(id, store);
+  }
+
+  registerSessionStore(store: SessionStore, id = DEFAULT_PERSISTENCE_CAPABILITY_ID): void {
+    if (this.sessionStores.has(id)) {
+      throw new CoreError("CAPABILITY_ALREADY_REGISTERED", `Session store already registered: ${id}`, {
+        sessionStoreId: id
+      });
+    }
+    this.sessionStores.set(id, store);
+  }
+
+  registerArtifactStore(store: ArtifactStore, id = DEFAULT_PERSISTENCE_CAPABILITY_ID): void {
+    if (this.artifactStores.has(id)) {
+      throw new CoreError("CAPABILITY_ALREADY_REGISTERED", `Artifact store already registered: ${id}`, {
+        artifactStoreId: id
+      });
+    }
+    this.artifactStores.set(id, store);
+  }
+
+  registerReplayCapability(capability: ReplayCapability, id = DEFAULT_PERSISTENCE_CAPABILITY_ID): void {
+    if (this.replayCapabilities.has(id)) {
+      throw new CoreError("CAPABILITY_ALREADY_REGISTERED", `Replay capability already registered: ${id}`, {
+        replayCapabilityId: id
+      });
+    }
+    this.replayCapabilities.set(id, capability);
+  }
+
   getProvider(id: string): Provider | undefined {
     return this.providers.get(id);
   }
@@ -94,12 +137,84 @@ export class CapabilityRegistry {
     this.contextPolicies.delete(id);
   }
 
+  getEventStore(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): EventStore | undefined {
+    return this.eventStores.get(id);
+  }
+
+  getSessionStore(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): SessionStore | undefined {
+    return this.sessionStores.get(id);
+  }
+
+  getArtifactStore(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): ArtifactStore | undefined {
+    return this.artifactStores.get(id);
+  }
+
+  getReplayCapability(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): ReplayCapability | undefined {
+    return this.replayCapabilities.get(id);
+  }
+
+  removeEventStore(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): void {
+    this.eventStores.delete(id);
+  }
+
+  removeSessionStore(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): void {
+    this.sessionStores.delete(id);
+  }
+
+  removeArtifactStore(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): void {
+    this.artifactStores.delete(id);
+  }
+
+  removeReplayCapability(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): void {
+    this.replayCapabilities.delete(id);
+  }
+
   requireTool(name: string): ToolDefinition {
     const tool = this.getTool(name);
     if (!tool) {
       throw new CoreError("TOOL_NOT_FOUND", `Tool not registered: ${name}`, { toolName: name });
     }
     return tool;
+  }
+
+  requireEventStore(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): EventStore {
+    const store = this.getEventStore(id);
+    if (!store) {
+      throw new CoreError("PERSISTENCE_CAPABILITY_NOT_FOUND", `Event store not registered: ${id}`, {
+        eventStoreId: id
+      });
+    }
+    return store;
+  }
+
+  requireSessionStore(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): SessionStore {
+    const store = this.getSessionStore(id);
+    if (!store) {
+      throw new CoreError("PERSISTENCE_CAPABILITY_NOT_FOUND", `Session store not registered: ${id}`, {
+        sessionStoreId: id
+      });
+    }
+    return store;
+  }
+
+  requireArtifactStore(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): ArtifactStore {
+    const store = this.getArtifactStore(id);
+    if (!store) {
+      throw new CoreError("PERSISTENCE_CAPABILITY_NOT_FOUND", `Artifact store not registered: ${id}`, {
+        artifactStoreId: id
+      });
+    }
+    return store;
+  }
+
+  requireReplayCapability(id = DEFAULT_PERSISTENCE_CAPABILITY_ID): ReplayCapability {
+    const capability = this.getReplayCapability(id);
+    if (!capability) {
+      throw new CoreError("PERSISTENCE_CAPABILITY_NOT_FOUND", `Replay capability not registered: ${id}`, {
+        replayCapabilityId: id
+      });
+    }
+    return capability;
   }
 
   listTools(): ToolDefinition[] {
@@ -112,6 +227,22 @@ export class CapabilityRegistry {
 
   listContextPolicies(): ContextPolicy[] {
     return [...this.contextPolicies.values()].sort((left, right) => (left.priority ?? 0) - (right.priority ?? 0));
+  }
+
+  listEventStores(): EventStore[] {
+    return [...this.eventStores.values()];
+  }
+
+  listSessionStores(): SessionStore[] {
+    return [...this.sessionStores.values()];
+  }
+
+  listArtifactStores(): ArtifactStore[] {
+    return [...this.artifactStores.values()];
+  }
+
+  listReplayCapabilities(): ReplayCapability[] {
+    return [...this.replayCapabilities.values()];
   }
 }
 

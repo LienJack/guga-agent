@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AgentEventType } from "../contracts/events";
 import { HookEffect, HookPhase } from "../contracts/hooks";
+import type { DurableEventEnvelope, EventStore } from "../contracts/persistence";
 import { EventBus } from "../events/event-bus";
 import { HookKernel } from "./hook-kernel";
 
@@ -79,6 +80,32 @@ describe("HookKernel", () => {
       deniedBy: { pluginId: "plugin-a", id: "deny-a" }
     });
     expect(order).toEqual(["a"]);
+  });
+
+  it("does not run mutating pre-tool gate hooks when the durable hook start marker fails", async () => {
+    const eventBus = durableEventBus({ failTypes: new Set(["hook.started"]) });
+    const kernel = new HookKernel({ eventBus });
+    let ran = false;
+    kernel.registerHook("plugin-a", 0, {
+      id: "gate-a",
+      phase: HookPhase.PreToolGate,
+      effect: HookEffect.Gate,
+      handler() {
+        ran = true;
+        return { type: "allow" };
+      }
+    });
+
+    const result = await kernel.runPreToolGate({
+      runId: "run-hook-durable",
+      turn: 0,
+      call,
+      tools: []
+    });
+
+    expect(result).toMatchObject({ ok: false, error: { code: "HOOK_FAILED" } });
+    expect(ran).toBe(false);
+    expect(eventBus.events.map((event) => event.type)).toContain(AgentEventType.HookFailure);
   });
 
   it("allows pre-tool execution when no gate hooks are registered", async () => {
@@ -326,3 +353,25 @@ describe("HookKernel", () => {
     expect(order).toEqual(["early", "late"]);
   });
 });
+
+function durableEventBus(options: { failTypes?: Set<string> } = {}): EventBus {
+  const events: DurableEventEnvelope[] = [];
+  const store: EventStore = {
+    append(event) {
+      if (options.failTypes?.has(event.eventType)) {
+        return { ok: false, status: "unavailable", reason: `failed ${event.eventType}` };
+      }
+      events.push(event);
+      return { ok: true, status: "appended", event, streamRevision: event.streamRevision };
+    },
+    readStream() {
+      return { ok: true, events, nextRevision: events.length };
+    }
+  };
+  return new EventBus({
+    durableContext: () => ({
+      eventStore: store,
+      session: { sessionId: "session-1", branchId: "main" }
+    })
+  });
+}
