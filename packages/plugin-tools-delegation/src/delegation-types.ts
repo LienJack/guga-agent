@@ -1,5 +1,3 @@
-import type { ToolDefinition } from "@guga-agent/core";
-
 export const DEFAULT_DELEGATE_TASK_TOOL_NAME = "delegate_task";
 export const LEGACY_DELEGATE_TASK_TOOL_NAME = "delegateTask";
 
@@ -30,7 +28,9 @@ export type DelegateTaskOutput = {
   metadata?: Record<string, unknown>;
 };
 
-export type DelegationToolCatalogItem = Pick<ToolDefinition, "name" | "description" | "effect" | "runtime">;
+export type DelegationToolCatalogItem = {
+  name: string;
+};
 
 export type DelegationChildRunRequest = {
   input: string;

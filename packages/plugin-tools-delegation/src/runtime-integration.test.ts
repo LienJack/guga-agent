@@ -11,7 +11,7 @@ describe("delegation plugin runtime integration", () => {
           pluginId: "delegation",
           childRunner,
           parentRunId: "parent-run",
-          toolCatalog: [{ name: "fs_read", description: "Read file", effect: "read" }],
+          toolCatalog: [{ name: "fs_read" }],
           defaultToolAllowlist: ["fs_read"]
         })
       ],
@@ -61,6 +61,30 @@ describe("delegation plugin runtime integration", () => {
     expect(childRunner).not.toHaveBeenCalled();
     expect(projectedTools[0]).not.toContain("delegate_task");
     expect(result).toMatchObject({ ok: true, finalAnswer: "" });
+    await runtime.dispose();
+  });
+
+  it("does not execute delegate_task if a headless provider emits the hidden tool anyway", async () => {
+    const childRunner = vi.fn(async () => ({ status: "completed" as const, summary: "no" }));
+    const runtime = createAgentRuntime({
+      plugins: [createDelegationPlugin({ childRunner })],
+      permissions: { profile: "headless" }
+    });
+    runtime.registerProvider(createMockProvider([
+      { type: "tool_calls", toolCalls: [{ id: "delegate", name: "delegate_task", input: { goal: "should not run" } }] },
+      (request) => ({
+        type: "final",
+        content: request.messages.at(-1)?.role === "tool" ? request.messages.at(-1)!.content : "missing tool result"
+      })
+    ]));
+
+    const result = await runtime.run({ input: "delegate", providerId: "mock", runId: "run-delegate-headless-call" });
+
+    expect(childRunner).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: true,
+      finalAnswer: expect.stringContaining("TOOL_UNAVAILABLE: Tool is not model-visible: delegate_task")
+    });
     await runtime.dispose();
   });
 });

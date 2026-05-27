@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createAgentRuntime } from "@guga-agent/core";
 import {
   buildDelegationInput,
-  createAgentDelegationPlugin,
+  createDelegationPlugin,
   createDelegateTaskTool,
   createDelegationLedger,
   validateDelegationConfig
@@ -24,8 +24,8 @@ describe("plugin-tools-delegation", () => {
       childRunner: runner,
       parentRunId: "parent-run",
       toolCatalog: [
-        { name: "read_file", description: "Read", effect: "read" },
-        { name: "run_tests", description: "Test", effect: "execute" }
+        { name: "read_file" },
+        { name: "run_tests" }
       ]
     });
 
@@ -85,7 +85,7 @@ describe("plugin-tools-delegation", () => {
   it("blocks recursive delegation tools by default", async () => {
     const tool = createDelegateTaskTool({
       childRunner: vi.fn(),
-      toolCatalog: [{ name: "delegate_task", description: "Delegate", effect: "external" }]
+      toolCatalog: [{ name: "delegate_task" }]
     });
 
     const result = await tool.execute({ goal: "loop", toolAllowlist: ["delegate_task"] }, { call });
@@ -102,7 +102,7 @@ describe("plugin-tools-delegation", () => {
   it("rejects unavailable allowlisted tools when a parent catalog is provided", async () => {
     const tool = createDelegateTaskTool({
       childRunner: vi.fn(),
-      toolCatalog: [{ name: "read_file", description: "Read", effect: "read" }]
+      toolCatalog: [{ name: "read_file" }]
     });
 
     const result = await tool.execute({ goal: "test", toolAllowlist: ["shell"] }, { call });
@@ -114,6 +114,22 @@ describe("plugin-tools-delegation", () => {
         details: { unavailable: ["shell"] }
       }
     });
+  });
+
+  it("rejects invented child tools when no parent catalog is provided", async () => {
+    const runner = vi.fn();
+    const tool = createDelegateTaskTool({ childRunner: runner });
+
+    const result = await tool.execute({ goal: "test", toolAllowlist: ["shell_exec"] }, { call });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "DELEGATION_TOOL_UNAVAILABLE",
+        details: { unavailable: ["shell_exec"] }
+      }
+    });
+    expect(runner).not.toHaveBeenCalled();
   });
 
   it("returns failure output from the child as a tool failure with metadata", async () => {
@@ -137,6 +153,102 @@ describe("plugin-tools-delegation", () => {
         delegation: {
           parentRunId: "parent",
           status: "failed"
+        }
+      }
+    });
+  });
+
+  it("keeps child metadata from overwriting delegation correlation", async () => {
+    const tool = createDelegateTaskTool({
+      parentRunId: "parent",
+      childRunner: async () => ({
+        status: "completed",
+        summary: "ok",
+        metadata: {
+          delegation: { parentRunId: "forged" },
+          note: "from child"
+        }
+      })
+    });
+
+    const result = await tool.execute({ goal: "review" }, { call });
+
+    expect(result).toMatchObject({
+      ok: true,
+      metadata: {
+        childMetadata: {
+          delegation: { parentRunId: "forged" },
+          note: "from child"
+        },
+        delegation: {
+          parentRunId: "parent",
+          parentToolCallId: "call-1"
+        }
+      }
+    });
+  });
+
+  it("rejects invalid child output before surfacing delegation metadata", async () => {
+    const tool = createDelegateTaskTool({
+      childRunner: async () => ({
+        status: "completed",
+        summary: "",
+        events: [{ type: "run.started", count: -1 }]
+      })
+    });
+
+    const result = await tool.execute({ goal: "review" }, { call });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "DELEGATION_OUTPUT_INVALID",
+        details: expect.arrayContaining([
+          expect.objectContaining({ code: "DELEGATION_SUMMARY_EMPTY" }),
+          expect.objectContaining({ code: "DELEGATION_EVENT_COUNT_INVALID" })
+        ])
+      }
+    });
+    expect(result.metadata).toBeUndefined();
+  });
+
+  it("normalizes runner exceptions into tool failures", async () => {
+    const tool = createDelegateTaskTool({
+      childRunner: async () => {
+        throw new Error("child runtime unavailable");
+      }
+    });
+
+    const result = await tool.execute({ goal: "review" }, { call });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "DELEGATION_RUNNER_FAILED",
+        message: "child runtime unavailable"
+      }
+    });
+  });
+
+  it("normalizes abort errors into cancelled delegation failures", async () => {
+    const controller = new AbortController();
+    const tool = createDelegateTaskTool({
+      childRunner: async () => {
+        controller.abort();
+        throw new DOMException("Aborted", "AbortError");
+      }
+    });
+
+    const result = await tool.execute({ goal: "review" }, { call, signal: controller.signal });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "DELEGATION_CANCELLED"
+      },
+      metadata: {
+        delegation: {
+          status: "cancelled"
         }
       }
     });
@@ -208,7 +320,7 @@ describe("plugin-tools-delegation", () => {
   it("registers the delegate tool through a local plugin", async () => {
     const runtime = createAgentRuntime({
       plugins: [
-        createAgentDelegationPlugin({
+        createDelegationPlugin({
           pluginId: "delegation",
           childRunner: async () => ({ status: "completed", summary: "ok" })
         })
@@ -232,8 +344,8 @@ describe("plugin-tools-delegation", () => {
     expect(validateDelegationConfig({
       childRunner: async () => ({ status: "completed", summary: "ok" }),
       toolCatalog: [
-        { name: "read", description: "Read", effect: "read" },
-        { name: "read", description: "Read again", effect: "read" }
+        { name: "read" },
+        { name: "read" }
       ],
       defaultToolAllowlist: ["delegateTask"]
     })).toEqual(expect.arrayContaining([

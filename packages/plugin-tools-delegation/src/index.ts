@@ -1,12 +1,11 @@
 export {
-  createAgentDelegationPlugin,
   createDelegationPlugin,
   createDelegateTaskTool,
   buildDelegationInput,
   validateDelegationConfig
 } from "./delegate-task-tool";
 export type {
-  AgentDelegationPluginOptions
+  DelegationPluginOptions
 } from "./delegate-task-tool";
 export {
   createDelegationLedger,

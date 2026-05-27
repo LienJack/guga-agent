@@ -32,7 +32,14 @@ export function createDelegateTaskTool(options: DelegateTaskToolOptions): ToolDe
       executionMode: "interactive",
       scheduler: {
         concurrency: "serial",
-        resources: { mode: "none" }
+        resources: {
+          mode: "extractor",
+          extract: (input) => [{
+            kind: "custom",
+            access: "execute",
+            value: delegationResourceValue(input)
+          }]
+        }
       },
       resultBudget: {
         maxContentChars: 12_000,
@@ -70,6 +77,14 @@ export function createDelegateTaskTool(options: DelegateTaskToolOptions): ToolDe
       if (!toolSelection.ok) {
         return failure(toolSelection.code, toolSelection.message, toolSelection.details);
       }
+      const baseMetadata = {
+        parentRunId,
+        parentToolCallId,
+        childRunId,
+        childSessionId,
+        agentType,
+        tools: toolSelection.tools
+      };
 
       try {
         const childResult = await options.childRunner({
@@ -86,49 +101,71 @@ export function createDelegateTaskTool(options: DelegateTaskToolOptions): ToolDe
           childSessionId,
           ...(context.signal ? { signal: context.signal } : {})
         });
-        const output: DelegateTaskOutput = {
+        const rawOutput: DelegateTaskOutput = {
           status: childResult.status,
           summary: childResult.summary,
           childRunId,
           childSessionId,
-          events: sortEventCounts(childResult.events ?? []),
+          events: childResult.events ?? [],
           ...(childResult.metadata ? { metadata: childResult.metadata } : {})
         };
-        const diagnostics = validateDelegationOutput(output);
+        const diagnostics = validateDelegationOutput(rawOutput);
         if (diagnostics.length > 0) {
           return failure("DELEGATION_OUTPUT_INVALID", "Delegate task output is invalid", diagnostics);
         }
-        return {
-          ok: output.status === "completed",
-          ...(output.status === "completed"
-            ? { content: renderDelegationResult(output) }
-            : { error: { code: `DELEGATION_${output.status.toUpperCase()}`, message: output.summary } }),
-          metadata: {
-            delegation: {
-              parentRunId,
-              parentToolCallId,
-              childRunId,
-              childSessionId,
-              agentType,
-              status: output.status,
-              tools: toolSelection.tools,
-              events: output.events
-            },
-            ...(output.metadata ?? {})
+        const output = {
+          ...rawOutput,
+          events: sortEventCounts(rawOutput.events ?? [])
+        };
+        const metadata = {
+          ...(output.metadata ? { childMetadata: output.metadata } : {}),
+          delegation: {
+            ...baseMetadata,
+            status: output.status,
+            events: output.events
           }
-        } as ToolResult;
+        };
+        if (output.status === "completed") {
+          return {
+            ok: true,
+            content: renderDelegationResult(output),
+            metadata
+          };
+        }
+        return {
+          ok: false,
+          error: { code: `DELEGATION_${output.status.toUpperCase()}`, message: output.summary },
+          metadata
+        };
       } catch (error) {
+        if (context.signal?.aborted || isAbortError(error)) {
+          return {
+            ok: false,
+            error: {
+              code: "DELEGATION_CANCELLED",
+              message: "Delegation was cancelled",
+              details: error
+            },
+            metadata: {
+              delegation: {
+                ...baseMetadata,
+                status: "cancelled",
+                events: []
+              }
+            }
+          };
+        }
         return failure("DELEGATION_RUNNER_FAILED", error instanceof Error ? error.message : "Delegation runner failed", error);
       }
     }
   };
 }
 
-export type AgentDelegationPluginOptions = DelegateTaskToolOptions & {
+export type DelegationPluginOptions = DelegateTaskToolOptions & {
   pluginId?: string;
 };
 
-export function createAgentDelegationPlugin(options: AgentDelegationPluginOptions): LocalPlugin {
+export function createDelegationPlugin(options: DelegationPluginOptions): LocalPlugin {
   const pluginId = options.pluginId ?? "agent-delegation";
   return {
     id: pluginId,
@@ -145,8 +182,6 @@ export function createAgentDelegationPlugin(options: AgentDelegationPluginOption
     }
   };
 }
-
-export const createDelegationPlugin = createAgentDelegationPlugin;
 
 export function buildDelegationInput(input: DelegateTaskInput, agentType: DelegationAgentType, tools: readonly string[]): string {
   const sections = [
@@ -236,7 +271,7 @@ function selectChildTools(input: DelegateTaskInput, options: DelegateTaskToolOpt
       details: { blocked }
     };
   }
-  const unavailable = catalog.size > 0 ? unique.filter((tool) => !catalog.has(tool)) : [];
+  const unavailable = unique.filter((tool) => !catalog.has(tool));
   if (unavailable.length > 0) {
     return {
       ok: false,
@@ -259,6 +294,27 @@ function sanitizeId(value: string): string {
 
 function isRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === "object" && input !== null && !Array.isArray(input);
+}
+
+function delegationResourceValue(input: unknown): string {
+  if (!isRecord(input)) {
+    return "invalid";
+  }
+  const goal = typeof input.goal === "string" ? input.goal.trim() : "";
+  const agentType = typeof input.agentType === "string" ? input.agentType.trim() : "general";
+  const tools = Array.isArray(input.toolAllowlist)
+    ? input.toolAllowlist.filter((tool): tool is string => typeof tool === "string").map((tool) => tool.trim()).sort()
+    : [];
+  return JSON.stringify({
+    agentType,
+    goal: goal.slice(0, 200),
+    tools
+  });
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError" ||
+    error instanceof Error && (error.name === "AbortError" || error.message.toLowerCase().includes("abort"));
 }
 
 function failure(code: string, message: string, details?: unknown): ToolResult {

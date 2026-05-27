@@ -16,7 +16,6 @@ The package exports:
 
 - `createDelegateTaskTool()`
 - `createDelegationPlugin()`
-- `createAgentDelegationPlugin()`
 - `buildDelegationInput()`
 - `createDelegationLedger()`
 - `renderDelegationResult()`
