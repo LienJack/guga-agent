@@ -38,6 +38,26 @@ M10 应采用 **evidence-ledger-first deep research profile**：先把研究任�
 5. Export Markdown report writer and quality checks.
 6. Teach CLI `--profile deep-research`.
 
+## 实现结果
+
+M10 shipped the research profile as a narrow package boundary instead of a runtime fork.
+
+`@guga-agent/profile-deep-research-agent` now owns:
+
+- profile metadata and a system prompt for evidence-led research;
+- `classifyResearchSource()` and `sortSourcesByPolicy()` for the project-approved 7-layer funnel;
+- evidence ledger helpers for `Fact`, `Inference`, and `Pending Verification`;
+- report rendering for the required Guga research sections;
+- quality diagnostics for empty evidence, missing comparison, and weak recommendation sections.
+
+The CLI accepts:
+
+```bash
+guga run "compare agent memory strategies" --mock --profile deep-research
+```
+
+The profile intentionally does not add automatic web search, subagent spawning, vector storage, or code editing. Those should arrive only after the typed evidence and report contract becomes stable.
+
 ## 证据
 
 - Fact: `docs/research/source-analysis/deerflow-book/chapters/05-lead-agent.md` shows workflow composition through model/tools/middleware/prompt/state.
