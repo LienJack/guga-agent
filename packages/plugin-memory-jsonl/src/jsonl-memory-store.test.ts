@@ -113,6 +113,22 @@ describe("JsonlMemoryStore", () => {
         counts: { active: 1, undecided: 0, unsafe: 0, diagnostics: 0 }
       }
     });
+    await expect(reopened.readReviewHealthMarkdown({ title: "Durable Memory Health" })).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [],
+      report: { counts: { active: 1, undecided: 0, unsafe: 0, diagnostics: 0 } },
+      health: { status: "healthy", reasons: [] },
+      markdown: [
+        "## Durable Memory Health",
+        "",
+        "- status: healthy",
+        "- active: 1",
+        "- undecided: 0",
+        "- unsafe: 0",
+        "- diagnostics: 0",
+        "- reasons: none"
+      ].join("\n")
+    });
     await expect(reopened.readAuditSnapshot({ title: "Durable Memory Snapshot", maxContentChars: 36 })).resolves.toMatchObject({
       ok: true,
       diagnostics: [],
@@ -237,6 +253,12 @@ describe("JsonlMemoryStore", () => {
       ledger: { counts: { active: 0, superseded: 0, rejected: 0 } },
       markdown: "# Durable Curated Memory\n\nNo active safe memory items."
     });
+    await expect(store.readReviewHealthMarkdown()).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [],
+      health: { status: "healthy", reasons: [] },
+      markdown: expect.stringContaining("- status: healthy")
+    });
     await expect(store.readAuditSnapshot({ title: "Durable Memory Snapshot" })).resolves.toMatchObject({
       ok: true,
       diagnostics: [],
@@ -295,6 +317,15 @@ describe("JsonlMemoryStore", () => {
         reasons: ["undecided-candidates"],
         counts: { active: 0, undecided: 1, unsafe: 0, diagnostics: 0 }
       }
+    });
+    await expect(store.readReviewHealthMarkdown()).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [{ kind: "partial_tail", recoverable: true }],
+      health: {
+        status: "needs_review",
+        reasons: ["undecided-candidates"]
+      },
+      markdown: expect.stringContaining("- status: needs_review")
     });
     await expect(store.readAuditSnapshot()).resolves.toMatchObject({
       ok: true,
@@ -358,6 +389,11 @@ describe("JsonlMemoryStore", () => {
       diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]
     });
     await expect(store.readReviewHealth()).resolves.toMatchObject({
+      ok: false,
+      status: "corrupt",
+      diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]
+    });
+    await expect(store.readReviewHealthMarkdown()).resolves.toMatchObject({
       ok: false,
       status: "corrupt",
       diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]

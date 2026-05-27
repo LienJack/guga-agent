@@ -9,6 +9,7 @@ export type {
   JsonlMemoryRecord,
   JsonlMemoryRetrievalResult,
   JsonlMemoryReviewHealthResult,
+  JsonlMemoryReviewHealthMarkdownResult,
   JsonlMemoryReviewMarkdownResult,
   JsonlMemoryReadResult,
   JsonlMemoryReviewReportResult,

@@ -5,6 +5,7 @@ import {
   createMemoryReviewHealth,
   createMemoryReviewReport,
   renderCuratedMemoryMarkdown,
+  renderMemoryReviewHealthBlock,
   renderMemoryReviewReport,
   searchGovernedMemoryItems,
   validateMemoryCandidate,
@@ -95,6 +96,10 @@ export type JsonlMemoryAuditSnapshotResult =
       markdown: string;
       diagnostics: JsonlMemoryDiagnostic[];
     }
+  | { ok: false; status: "corrupt"; diagnostics: JsonlMemoryDiagnostic[] };
+
+export type JsonlMemoryReviewHealthMarkdownResult =
+  | { ok: true; report: MemoryReviewReport; health: MemoryReviewHealth; markdown: string; diagnostics: JsonlMemoryDiagnostic[] }
   | { ok: false; status: "corrupt"; diagnostics: JsonlMemoryDiagnostic[] };
 
 export class JsonlMemoryStore {
@@ -224,6 +229,20 @@ export class JsonlMemoryStore {
       ok: true,
       report: read.report,
       health: createMemoryReviewHealth(read.report),
+      diagnostics: read.diagnostics
+    };
+  }
+
+  async readReviewHealthMarkdown(options: { title?: string } = {}): Promise<JsonlMemoryReviewHealthMarkdownResult> {
+    const read = await this.readReviewHealth();
+    if (!read.ok) {
+      return { ok: false, status: "corrupt", diagnostics: read.diagnostics };
+    }
+    return {
+      ok: true,
+      report: read.report,
+      health: read.health,
+      markdown: renderMemoryReviewHealthBlock(read.health, options.title),
       diagnostics: read.diagnostics
     };
   }
