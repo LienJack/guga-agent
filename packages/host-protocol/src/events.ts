@@ -95,7 +95,15 @@ export type PermissionResolvedHostEvent = RunScopedEvent<"permission.resolved"> 
 export type ContextCompactedHostEvent = RunScopedEvent<"context.compacted"> & {
   boundaryId: string;
   trigger: string;
-  summary?: string;
+  summary?: string | {
+    objective?: string;
+    completedWork?: string[];
+    currentBlockers?: string[];
+    nextSteps?: string[];
+    keyFilesAndSymbols?: string[];
+    unresolvedQuestions?: string[];
+    userConstraints?: string[];
+  };
 };
 
 export type ArtifactCreatedHostEvent = RunScopedEvent<"artifact.created"> & {
@@ -127,9 +135,9 @@ export type HostEvent =
   | ArtifactCreatedHostEvent
   | UsageRecordedHostEvent;
 
-export type HostEventInput<Event extends HostEvent = HostEvent> = Omit<Event, "seq" | "occurredAt"> & {
-  occurredAt?: string;
-};
+export type HostEventInput<Event extends HostEvent = HostEvent> = Event extends HostEvent
+  ? Omit<Event, "seq" | "occurredAt"> & { occurredAt?: string }
+  : never;
 
 export type HostEventSequencer = {
   next<Event extends HostEvent>(event: HostEventInput<Event>): Event;
@@ -150,7 +158,7 @@ export function createHostEventSequencer(options: {
         ...event,
         seq,
         occurredAt: event.occurredAt ?? now().toISOString()
-      } as Event;
+      } as unknown as Event;
     },
     currentSeq() {
       return seq;
