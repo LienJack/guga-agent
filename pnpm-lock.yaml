@@ -20,6 +20,19 @@ importers:
 
   packages/core: {}
 
+  packages/host-local-server:
+    dependencies:
+      '@guga-agent/host-protocol':
+        specifier: workspace:*
+        version: link:../host-protocol
+      '@guga-agent/host-runtime':
+        specifier: workspace:*
+        version: link:../host-runtime
+    devDependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/host-protocol: {}
 
   packages/host-runtime:

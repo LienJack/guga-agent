@@ -91,6 +91,41 @@ describe("HostRuntime", () => {
       status: "registered"
     });
   });
+
+  it("cancels an active run through the host controller", async () => {
+    const runtime = createAgentRuntime();
+    runtime.registerProvider({
+      id: "slow",
+      async generate(request) {
+        await new Promise<void>((resolve) => {
+          if (request.signal?.aborted) {
+            resolve();
+            return;
+          }
+          request.signal?.addEventListener("abort", () => resolve(), { once: true });
+        });
+        return {
+          type: "failure",
+          error: { code: "ABORTED", message: "aborted" }
+        };
+      }
+    });
+    const host = new HostRuntime({
+      runtime,
+      now: () => new Date("2026-05-27T00:00:00.000Z"),
+      idFactory: deterministicIds(["session-1", "run-1"])
+    });
+    const session = host.createSession();
+
+    const pendingRun = host.startRun({ sessionId: session.id, input: "wait", providerId: "slow" });
+    expect(host.cancelRun("run-run-1")).toMatchObject({ status: "cancelled" });
+
+    await expect(pendingRun).resolves.toMatchObject({
+      id: "run-run-1",
+      status: "cancelled",
+      error: { code: "RUN_CANCELLED" }
+    });
+  });
 });
 
 function deterministicIds(values: string[]): () => string {

@@ -35,6 +35,7 @@ export class HostRuntime {
   private readonly now: () => Date;
   private readonly idFactory: () => string;
   private readonly store = new InMemoryRunStore();
+  private readonly activeRunControllers = new Map<string, AbortController>();
 
   constructor(options: HostRuntimeOptions = {}) {
     this.runtime = options.runtime ?? createAgentRuntime(options.runtimeOptions ?? {});
@@ -81,6 +82,8 @@ export class HostRuntime {
     this.store.putRun(run);
 
     const sequencer = createHostEventSequencer({ now: this.now });
+    const controller = new AbortController();
+    this.activeRunControllers.set(runId, controller);
     const unsubscribe = this.runtime.onEvent((event) => {
       const hostEvents = projectAgentEvent(event, { sessionId: session.id, runId, sequencer });
       this.store.appendEvents(runId, hostEvents);
@@ -91,13 +94,29 @@ export class HostRuntime {
       input: options.input,
       runId,
       session: { sessionId: session.id, branchId: session.activeBranchId ?? "main" },
+      signal: controller.signal,
       ...(options.providerId ? { providerId: options.providerId } : {}),
       ...(options.modelId ? { modelId: options.modelId } : {}),
       ...(options.maxTurns !== undefined ? { maxTurns: options.maxTurns } : {})
-    });
-    unsubscribe();
+    })
+      .finally(() => {
+        unsubscribe();
+        this.activeRunControllers.delete(runId);
+      });
 
-    const terminalEvent = result.ok
+    const wasCancelled = controller.signal.aborted;
+    const cancelError = {
+      code: "RUN_CANCELLED",
+      message: "Run was cancelled"
+    };
+    const terminalEvent = wasCancelled
+      ? sequencer.next({
+          type: "run.failed",
+          sessionId: session.id,
+          runId,
+          error: cancelError
+        })
+      : result.ok
       ? sequencer.next({
           type: "run.completed",
           sessionId: session.id,
@@ -112,8 +131,31 @@ export class HostRuntime {
         });
     this.store.appendEvents(runId, [terminalEvent]);
     this.applyEventEffects(runId, [terminalEvent]);
+    if (wasCancelled) {
+      this.store.updateRun(runId, {
+        status: "cancelled",
+        error: cancelError,
+        updatedAt: terminalEvent.occurredAt
+      });
+    }
 
     return this.store.getRun(runId) ?? run;
+  }
+
+  cancelRun(runId: string): RunResource | undefined {
+    const run = this.store.getRun(runId);
+    if (!run) {
+      return undefined;
+    }
+    if (run.status === "completed" || run.status === "failed" || run.status === "cancelled") {
+      return run;
+    }
+    this.activeRunControllers.get(runId)?.abort("Run cancelled");
+    this.store.updateRun(runId, {
+      status: "cancelled",
+      updatedAt: this.now().toISOString()
+    });
+    return this.store.getRun(runId);
   }
 
   getRun(runId: string): RunResource | undefined {
