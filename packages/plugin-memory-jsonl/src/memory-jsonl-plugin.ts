@@ -4,6 +4,23 @@ export type MemoryJsonlPluginOptions = {
   pluginId?: string;
 };
 
+export const MEMORY_JSONL_OPERATION_NAME = "memory.jsonl" as const;
+
+export const MEMORY_JSONL_READ_OPERATION_NAMES = [
+  "memory.jsonl.review",
+  "memory.jsonl.review_report",
+  "memory.jsonl.review_markdown",
+  "memory.jsonl.health",
+  "memory.jsonl.audit_snapshot",
+  "memory.jsonl.retrieval",
+  "memory.jsonl.curated_markdown"
+] as const;
+
+export const MEMORY_JSONL_OPERATION_NAMES = [
+  MEMORY_JSONL_OPERATION_NAME,
+  ...MEMORY_JSONL_READ_OPERATION_NAMES
+] as const;
+
 const readTrust: TrustDescriptor = {
   level: "first-party",
   scopes: [{ kind: "memory", access: "read" }]
@@ -23,20 +40,12 @@ export function createMemoryJsonlPlugin(options: MemoryJsonlPluginOptions = {}):
     id: pluginId,
     name: "Memory JSONL",
     init(context) {
-      context.registerOperation?.("memory.jsonl", {
+      context.registerOperation?.(MEMORY_JSONL_OPERATION_NAME, {
         source: "plugin",
         ownerPluginId: pluginId,
         trust: readWriteTrust
       });
-      for (const name of [
-        "memory.jsonl.review",
-        "memory.jsonl.review_report",
-        "memory.jsonl.review_markdown",
-        "memory.jsonl.health",
-        "memory.jsonl.audit_snapshot",
-        "memory.jsonl.retrieval",
-        "memory.jsonl.curated_markdown"
-      ]) {
+      for (const name of MEMORY_JSONL_READ_OPERATION_NAMES) {
         context.registerOperation?.(name, {
           source: "plugin",
           ownerPluginId: pluginId,

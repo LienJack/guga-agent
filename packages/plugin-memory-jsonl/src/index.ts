@@ -16,7 +16,10 @@ export type {
   JsonlMemoryStoreOptions
 } from "./jsonl-memory-store";
 export {
-  createMemoryJsonlPlugin
+  createMemoryJsonlPlugin,
+  MEMORY_JSONL_OPERATION_NAME,
+  MEMORY_JSONL_OPERATION_NAMES,
+  MEMORY_JSONL_READ_OPERATION_NAMES
 } from "./memory-jsonl-plugin";
 export type {
   MemoryJsonlPluginOptions
