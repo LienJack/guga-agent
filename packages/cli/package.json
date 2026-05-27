@@ -1,0 +1,28 @@
+{
+  "name": "@guga-agent/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "guga": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm --filter @guga-agent/host-sdk build && tsc -p tsconfig.json && node ../../scripts/fix-esm-extensions.mjs dist",
+    "test": "pnpm --filter @guga-agent/host-sdk build && vitest run",
+    "typecheck": "pnpm --filter @guga-agent/host-sdk build && tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@guga-agent/core": "workspace:*",
+    "@guga-agent/host-protocol": "workspace:*",
+    "@guga-agent/host-runtime": "workspace:*",
+    "@guga-agent/host-sdk": "workspace:*"
+  }
+}

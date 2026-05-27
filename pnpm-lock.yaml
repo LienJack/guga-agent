@@ -18,6 +18,21 @@ importers:
         specifier: ^4.1.7
         version: 4.1.7(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(vite@8.0.14(@types/node@25.9.1))
 
+  packages/cli:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@guga-agent/host-protocol':
+        specifier: workspace:*
+        version: link:../host-protocol
+      '@guga-agent/host-runtime':
+        specifier: workspace:*
+        version: link:../host-runtime
+      '@guga-agent/host-sdk':
+        specifier: workspace:*
+        version: link:../host-sdk
+
   packages/core: {}
 
   packages/host-local-server:
