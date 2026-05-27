@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Quality checklist for behavior tests, focused gates, and full workspace gates."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Verify corrupt and partial JSONL behavior remains explicit."}
+{"file":"docs/research/memory-markdown-export.md","reason":"Check curated Markdown behavior against M19 active-safe export constraints."}
+{"file":"docs/research/memory-jsonl-curated-markdown.md","reason":"Check M27 acceptance criteria and non-goals."}
