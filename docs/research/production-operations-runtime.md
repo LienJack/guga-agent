@@ -49,6 +49,15 @@ M8 应采用 **plugin-first production substrate**：provider health、credentia
 - `packages/plugin-eval-runner`: local replay/eval fixtures。
 - `packages/host-runtime` / `host-protocol`: expose operational resources if needed by CLI/workbench。
 
+### 实施结果
+
+- `packages/core/src/contracts/operations.ts`: added `ProviderHealth`, `CredentialConfigView`, `AuditSummary`, `MetricsSnapshot`, and `TrustDescriptor`.
+- `packages/plugin-ops-health`: resolves env/static credential views with redaction and mockable provider health checks.
+- `packages/plugin-audit-export`: projects `AgentEvent[]` into audit summaries and metrics snapshots without copying prompts, tool inputs, or outputs.
+- `packages/plugin-eval-runner`: runs hermetic mock-provider fixtures and returns structured pass/fail diagnostics.
+- `packages/host-protocol` / `host-runtime` / `host-local-server` / `host-sdk`: expose operations health, audit, metrics, and status resources through typed DTOs and HTTP endpoints.
+- `packages/cli`: `guga run --ops` prints a compact operational status line without exposing credential material.
+
 ### 第一批 DTO
 
 - `ProviderHealthResource`: providerId, modelId, status, checkedAt, diagnostics。
@@ -72,4 +81,4 @@ M8 应采用 **plugin-first production substrate**：provider health、credentia
 - Fact: `docs/solutions/architecture-patterns/plugin-capability-discovery.md` documents Guga's current capability descriptor/diff design.
 - Fact: `docs/solutions/architecture-patterns/host-protocol-cli-workbench.md` documents Guga's host protocol and CLI surface.
 - Inference: M8 should be plugin-first because the roadmap explicitly keeps core small and makes CLI/desktop consume runtime events/protocol.
-- Pending Verification: Whether trust/scope belongs directly on `CapabilityDescriptor` or behind a generic metadata field should be decided during implementation planning.
+- Fact: M8 placed trust/scope directly on `CapabilityDescriptor` as optional metadata and preserved older descriptor callers.
