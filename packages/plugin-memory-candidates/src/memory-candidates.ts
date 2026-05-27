@@ -101,13 +101,17 @@ export function validateMemoryCandidate(candidate: unknown): MemoryCandidateDiag
     candidate.sourceRefs.forEach((source, index) => validateSourceRef(source, `sourceRefs[${index}]`, diagnostics));
   }
   validateSafety(candidate.safety, diagnostics);
+  if (typeof candidate.content === "string" && isRecord(candidate.safety)) {
+    validateSafetyMatchesContent(candidate.content, candidate.safety, diagnostics);
+  }
   return diagnostics;
 }
 
 export function createMemoryCandidate(input: Omit<MemoryCandidate, "safety"> & { safety?: MemorySafetyVerdict }): MemoryCandidate {
+  const scanned = scanMemoryCandidateContent(input.content);
   return {
     ...input,
-    safety: input.safety ?? scanMemoryCandidateContent(input.content)
+    safety: input.safety ? mergeSafetyVerdicts(input.safety, scanned) : scanned
   };
 }
 
@@ -131,7 +135,7 @@ export function renderMemoryContextBlock(candidates: readonly MemoryCandidate[],
   const maxContentChars = options.maxContentChars ?? 240;
   const title = options.title ?? "Memory Candidates";
   const safeAccepted = candidates
-    .filter((candidate) => candidate.status === "accepted" && candidate.safety.status === "safe")
+    .filter((candidate) => isRenderableMemoryCandidate(candidate))
     .sort(compareCandidates)
     .slice(0, maxItems);
 
@@ -156,6 +160,41 @@ function compareCandidates(left: MemoryCandidate, right: MemoryCandidate): numbe
     left.createdAt.localeCompare(right.createdAt) ||
     left.id.localeCompare(right.id)
   );
+}
+
+function isRenderableMemoryCandidate(candidate: MemoryCandidate): boolean {
+  return (
+    candidate.status === "accepted" &&
+    candidate.safety.status === "safe" &&
+    scanMemoryCandidateContent(candidate.content).status === "safe" &&
+    validateMemoryCandidate(candidate).length === 0
+  );
+}
+
+function mergeSafetyVerdicts(explicit: MemorySafetyVerdict, scanned: MemorySafetyVerdict): MemorySafetyVerdict {
+  const status = safetyRank(explicit.status) >= safetyRank(scanned.status) ? explicit.status : scanned.status;
+  return {
+    status,
+    reasons: Array.from(new Set([...explicit.reasons, ...scanned.reasons])).sort()
+  };
+}
+
+function validateSafetyMatchesContent(content: string, safety: Record<string, unknown>, diagnostics: MemoryCandidateDiagnostic[]): void {
+  if (!safetyStatuses.includes(safety.status as MemorySafetyStatus)) {
+    return;
+  }
+  const scanned = scanMemoryCandidateContent(content);
+  if (safetyRank(safety.status as MemorySafetyStatus) < safetyRank(scanned.status)) {
+    diagnostics.push({
+      code: "MEMORY_SAFETY_CONTENT_MISMATCH",
+      message: "Safety verdict is less restrictive than the candidate content scan",
+      path: "safety.status"
+    });
+  }
+}
+
+function safetyRank(status: MemorySafetyStatus): number {
+  return status === "safe" ? 0 : status === "needs_review" ? 1 : 2;
 }
 
 function statusRank(status: MemoryCandidateStatus): number {
