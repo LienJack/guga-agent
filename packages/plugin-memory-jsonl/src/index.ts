@@ -6,6 +6,7 @@ export type {
   JsonlMemoryDiagnostic,
   JsonlMemoryRecord,
   JsonlMemoryReadResult,
+  JsonlMemoryReviewReportResult,
   JsonlMemoryStoreOptions
 } from "./jsonl-memory-store";
 export {

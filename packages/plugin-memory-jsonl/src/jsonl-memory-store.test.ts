@@ -68,6 +68,24 @@ describe("JsonlMemoryStore", () => {
         items: [{ id: "memory-1", candidateId: "candidate-1", status: "active" }]
       }
     });
+
+    await expect(reopened.readReviewReport()).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [],
+      report: {
+        counts: {
+          candidates: 1,
+          decisions: 1,
+          active: 1,
+          superseded: 0,
+          rejected: 0,
+          undecided: 0,
+          unsafe: 0,
+          diagnostics: 0
+        },
+        activeItems: [{ id: "memory-1", candidateId: "candidate-1" }]
+      }
+    });
   });
 
   it("rejects invalid candidates and decisions before append", async () => {
@@ -97,6 +115,19 @@ describe("JsonlMemoryStore", () => {
       records: [{ kind: "candidate" }],
       diagnostics: [{ kind: "partial_tail", recoverable: true }]
     });
+    await expect(store.readReviewReport()).resolves.toMatchObject({
+      ok: true,
+      diagnostics: [{ kind: "partial_tail", recoverable: true }],
+      report: {
+        counts: {
+          candidates: 1,
+          decisions: 0,
+          active: 0,
+          undecided: 1
+        },
+        undecidedCandidates: [{ id: "candidate-1" }]
+      }
+    });
     await expect(store.appendDecision(decision)).resolves.toMatchObject({
       ok: false,
       status: "unavailable",
@@ -115,6 +146,11 @@ describe("JsonlMemoryStore", () => {
       ok: false,
       status: "corrupt",
       records: [{ kind: "candidate" }],
+      diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]
+    });
+    await expect(store.readReviewReport()).resolves.toMatchObject({
+      ok: false,
+      status: "corrupt",
       diagnostics: [expect.objectContaining({ kind: "invalid_json", recoverable: false })]
     });
   });

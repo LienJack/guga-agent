@@ -2,11 +2,13 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   createMemoryGovernanceLedger,
+  createMemoryReviewReport,
   validateMemoryCandidate,
   validateMemoryDecision,
   type MemoryCandidate,
   type MemoryDecision,
-  type MemoryGovernanceLedger
+  type MemoryGovernanceLedger,
+  type MemoryReviewReport
 } from "@guga-agent/plugin-memory-candidates";
 
 export type JsonlMemoryStoreOptions = {
@@ -54,6 +56,10 @@ export type JsonlMemoryReadResult =
       records: JsonlMemoryRecord[];
       diagnostics: JsonlMemoryDiagnostic[];
     };
+
+export type JsonlMemoryReviewReportResult =
+  | { ok: true; report: MemoryReviewReport; diagnostics: JsonlMemoryDiagnostic[] }
+  | { ok: false; status: "corrupt"; diagnostics: JsonlMemoryDiagnostic[] };
 
 export class JsonlMemoryStore {
   readonly rootDir: string;
@@ -144,6 +150,18 @@ export class JsonlMemoryStore {
     return {
       ok: true,
       ledger: createMemoryGovernanceLedger(read.candidates, read.decisions),
+      diagnostics: read.diagnostics
+    };
+  }
+
+  async readReviewReport(): Promise<JsonlMemoryReviewReportResult> {
+    const read = await this.readGovernanceLedger();
+    if (!read.ok) {
+      return { ok: false, status: "corrupt", diagnostics: read.diagnostics };
+    }
+    return {
+      ok: true,
+      report: createMemoryReviewReport(read.ledger),
       diagnostics: read.diagnostics
     };
   }
