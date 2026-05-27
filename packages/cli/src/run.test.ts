@@ -32,6 +32,23 @@ describe("CLI run command", () => {
     expect(io.stderr()).toBe("");
   });
 
+  it("runs with the code profile and mock provider", async () => {
+    const io = captureIo();
+
+    await expect(runCli(["run", "hello", "--mock", "--profile", "code"], io)).resolves.toBe(0);
+
+    expect(io.stdout()).toContain("mock: hello");
+    expect(io.stderr()).toBe("");
+  });
+
+  it("rejects unknown profiles", async () => {
+    const io = captureIo();
+
+    await expect(runCli(["run", "hello", "--mock", "--profile", "unknown"], io)).resolves.toBe(2);
+
+    expect(io.stderr()).toContain("Unknown profile: unknown");
+  });
+
   it("renders tool progress from host events", () => {
     expect(renderHostEvent({
       type: "tool.started",

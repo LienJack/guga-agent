@@ -4,6 +4,7 @@ import { createLocalGugaHost, type LocalGugaHost } from "@guga-agent/host-sdk";
 import { createAuditExportPlugin } from "@guga-agent/plugin-audit-export";
 import { createEvalRunnerPlugin } from "@guga-agent/plugin-eval-runner";
 import { createOpsHealthPlugin } from "@guga-agent/plugin-ops-health";
+import { CODE_AGENT_PROFILE_ID, createCodeAgentPlugins, createCodeAgentPermissionPolicy } from "@guga-agent/profile-code-agent";
 import { createAiSdkProviderPlugin } from "@guga-agent/provider-ai-sdk";
 import { readCliConfig } from "../config";
 import { renderHostEvent } from "../render/events";
@@ -24,6 +25,7 @@ type RunArgs = {
   debugEvents: boolean;
   mock: boolean;
   ops: boolean;
+  profile?: typeof CODE_AGENT_PROFILE_ID;
   providerId?: string;
   modelId?: string;
 };
@@ -31,7 +33,7 @@ type RunArgs = {
 export async function runCli(argv: string[], io: CliIO): Promise<number> {
   const [command, ...rest] = argv;
   if (command !== "run") {
-    io.stderr.write("usage: guga run <prompt> [--provider id] [--model id] [--mock] [--debug-events] [--ops]\n");
+    io.stderr.write("usage: guga run <prompt> [--provider id] [--model id] [--profile code] [--mock] [--debug-events] [--ops]\n");
     return 2;
   }
   const parsed = parseRunArgs(rest, io.env);
@@ -82,6 +84,7 @@ function parseRunArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): { o
   let debugEvents = false;
   let mock = false;
   let ops = false;
+  let profile: typeof CODE_AGENT_PROFILE_ID | undefined;
   const promptParts: string[] = [];
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -94,6 +97,13 @@ function parseRunArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): { o
       mock = true;
     } else if (arg === "--ops") {
       ops = true;
+    } else if (arg === "--profile") {
+      const value = argv[index + 1];
+      index += 1;
+      if (value !== CODE_AGENT_PROFILE_ID) {
+        return { ok: false, error: `Unknown profile: ${value ?? "(missing)"}` };
+      }
+      profile = value;
     } else if (arg === "--provider") {
       providerId = argv[index + 1];
       index += 1;
@@ -119,6 +129,7 @@ function parseRunArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): { o
       debugEvents,
       mock,
       ops,
+      ...(profile ? { profile } : {}),
       ...(providerId ? { providerId } : {}),
       ...(modelId ? { modelId } : {})
     }
@@ -131,6 +142,12 @@ async function createCliHost(args: RunArgs, env: NodeJS.ProcessEnv = process.env
     createAuditExportPlugin(),
     createEvalRunnerPlugin()
   ];
+  const profilePlugins = args.profile === CODE_AGENT_PROFILE_ID
+    ? createCodeAgentPlugins({ workspaceRoot: process.cwd(), includeOperations: true })
+    : operationalPlugins;
+  const permissions = args.profile === CODE_AGENT_PROFILE_ID
+    ? createCodeAgentPermissionPolicy()
+    : undefined;
 
   if (!args.mock) {
     const config = readCliConfig(env);
@@ -147,12 +164,19 @@ async function createCliHost(args: RunArgs, env: NodeJS.ProcessEnv = process.env
     });
     return createLocalGugaHost({
       hostRuntime: new HostRuntime({
-        runtime: createAgentRuntime({ model: providerPlugin, plugins: operationalPlugins })
+        runtime: createAgentRuntime({
+          model: providerPlugin,
+          plugins: profilePlugins,
+          ...(permissions ? { permissions } : {})
+        })
       })
     });
   }
 
-  const runtime = createAgentRuntime({ plugins: operationalPlugins });
+  const runtime = createAgentRuntime({
+    plugins: profilePlugins,
+    ...(permissions ? { permissions } : {})
+  });
   runtime.registerProvider(createMockProvider([
     ({ messages }) => ({
       type: "final",

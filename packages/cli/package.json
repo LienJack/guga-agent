@@ -27,6 +27,7 @@
     "@guga-agent/plugin-audit-export": "workspace:*",
     "@guga-agent/plugin-eval-runner": "workspace:*",
     "@guga-agent/plugin-ops-health": "workspace:*",
+    "@guga-agent/profile-code-agent": "workspace:*",
     "@guga-agent/provider-ai-sdk": "workspace:*"
   }
 }

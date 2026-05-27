@@ -41,6 +41,9 @@ importers:
       '@guga-agent/plugin-ops-health':
         specifier: workspace:*
         version: link:../plugin-ops-health
+      '@guga-agent/profile-code-agent':
+        specifier: workspace:*
+        version: link:../profile-code-agent
       '@guga-agent/provider-ai-sdk':
         specifier: workspace:*
         version: link:../provider-ai-sdk
