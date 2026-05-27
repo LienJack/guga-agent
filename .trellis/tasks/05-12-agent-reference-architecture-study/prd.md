@@ -38,16 +38,20 @@
 ## 预期输出
 
 - `docs/research/repomix/`：每个参考项目的 repomix token tree 与打包结果。
-- `docs/agent-react-pattern.md`
-- `docs/agent-prompt-engineering.md`
-- `docs/agent-context-management.md`
-- `docs/agent-tool-management.md`
-- `docs/agent-llm-integration.md`
-- `docs/agent-agui.md`
+- `docs/research/agent-react-pattern.md`
+- `docs/research/agent-prompt-engineering.md`
+- `docs/research/agent-context-management.md`
+- `docs/research/agent-tool-management.md`
+- `docs/research/agent-llm-integration.md`
+- `docs/research/agent-agui.md`
 
 ## 验收标准
 
-- 6 个参考项目都有 repomix 产物或明确记录失败原因。
-- 6 篇文章均存在，均为中文。
-- 每篇文章都包含跨项目比较、核心设计机制、可借鉴模式、适用边界。
-- 每篇文章都包含真实源码路径证据。
+- [x] 6 个参考项目都有 repomix 产物或明确记录失败原因。
+- [x] 6 篇文章均存在，均为中文。
+- [x] 每篇文章都包含跨项目比较、核心设计机制、可借鉴模式、适用边界。
+- [x] 每篇文章都包含真实源码路径证据。
+
+## Completion Notes
+
+- 最终研究文章统一迁入 `docs/research/`，避免顶层 `docs/` 混杂执行路线、产品路线和研究材料。

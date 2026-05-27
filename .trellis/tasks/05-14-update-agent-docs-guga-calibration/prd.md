@@ -19,10 +19,14 @@ Update the remaining agent architecture roadmap documents so they match the Guga
 
 ## Acceptance Criteria
 
-- [ ] Each requested doc has a Guga-specific calibration or priority section.
-- [ ] The updates align with the existing context packs and do not contradict the ReAct document.
-- [ ] Markdown code fences remain balanced.
-- [ ] `git diff --check` passes for the touched docs.
+- [x] Each requested doc has a Guga-specific calibration or priority section.
+- [x] The updates align with the existing context packs and do not contradict the ReAct document.
+- [x] Markdown code fences remain balanced.
+- [x] `git diff --check` passes for the touched docs.
+
+## Completion Notes
+
+- The calibrated docs now live under `docs/research/` with the rest of the long-form research corpus.
 
 ## Out of Scope
 

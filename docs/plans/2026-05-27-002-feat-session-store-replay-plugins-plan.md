@@ -117,7 +117,7 @@ M0-M4 已经让 Guga 具备 core loop、plugin host、provider bridge、tool/per
 ### External References
 
 - `docs/roadmap.md`：M5 明确包含 `SessionStore`、`EventStore`、`ArtifactStore`、append-only event log、resume、fork、tree navigation、projection replay、interrupted run detection，以及三个 first-party plugins。
-- `docs/agent-memo.md`：确认 durable session substrate 应先于 curated memory、session search 和 retrieval injection。
+- `docs/research/agent-memo.md`：确认 durable session substrate 应先于 curated memory、session search 和 retrieval injection。
 - `.trellis/tasks/05-27-m5-session-store-replay-plugins/research/current-codebase-constraints.md`：确认当前缺 store seams、durable envelope、resume/fork identity 和 serializable projection replay 边界。
 - `.trellis/tasks/05-27-m5-session-store-replay-plugins/research/session-replay-reference-patterns.md`：Pi、Claude Code、OpenCode、Hermes 均支持 append-only log、tree/fork、interrupted detection 或 replay projection 方向。
 - `.trellis/tasks/05-27-m5-session-store-replay-plugins/research/event-sourcing-replay-best-practices.md`：建议 narrow event sourcing、expected revision/idempotency、schema upcasters、JSONL corruption prefix/quarantine 和 artifact indirection。

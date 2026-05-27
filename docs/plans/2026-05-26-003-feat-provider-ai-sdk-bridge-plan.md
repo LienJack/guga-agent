@@ -90,7 +90,7 @@ M1 已证明本地插件可以注册 provider、tool 和 hook，但当前 provid
 
 - `docs/research/context-packs/provider-abstraction.md`：跨项目 provider abstraction 研究，支持 SDK 类型封装在 transport/adapter 边界外，agent loop 只依赖内部统一 contracts。
 - `.trellis/tasks/05-26-m2-provider-ai-sdk-bridge/research/ai-sdk-provider-bridge.md`：AI SDK 当前 provider/model bridge API、版本隔离、Gateway/OpenAI-compatible 测试路径、usage/pricing 和 tool execution 边界。
-- `docs/agent-llm-integration.md`：Guga LLM 接入路线图，支持 contract-first provider boundary、streaming event adapter、capability adaptation 和 error recovery 分阶段推进。
+- `docs/research/agent-llm-integration.md`：Guga LLM 接入路线图，支持 contract-first provider boundary、streaming event adapter、capability adaptation 和 error recovery 分阶段推进。
 - `docs/roadmap.md` / `STRATEGY.md`：确认 Guga 目标是小内核、强插件、可恢复、可审计 runtime，不把真实 provider SDK 或真实工具内置进 core。
 - AI SDK docs from the research file：provider management、provider registry、custom provider、Gateway、OpenAI、Anthropic、OpenAI-compatible 和 tool calling / `stopWhen`。
 
@@ -343,7 +343,7 @@ flowchart TB
 **Patterns to follow:**
 - Existing `UsageRecorded` and `ModelRequested`/`ModelResponded` events as compatibility anchors.
 - `EventBus` append/subscribe behavior.
-- `docs/agent-llm-integration.md` L2 streaming event adapter framing.
+- `docs/research/agent-llm-integration.md` L2 streaming event adapter framing.
 
 **Test scenarios:**
 - Happy path: a non-streaming final provider call emits request, text/final, usage and finish semantics through the model event path.
@@ -631,7 +631,7 @@ flowchart TB
 - **Task PRD:** `.trellis/tasks/05-26-m2-provider-ai-sdk-bridge/prd.md`
 - **AI SDK research:** `.trellis/tasks/05-26-m2-provider-ai-sdk-bridge/research/ai-sdk-provider-bridge.md`
 - **Provider abstraction research:** `docs/research/context-packs/provider-abstraction.md`
-- **LLM integration roadmap:** `docs/agent-llm-integration.md`
+- **LLM integration roadmap:** `docs/research/agent-llm-integration.md`
 - **Guga roadmap:** `docs/roadmap.md`
 - **Strategy:** `STRATEGY.md`
 - **Backend directory spec:** `.trellis/spec/backend/directory-structure.md`

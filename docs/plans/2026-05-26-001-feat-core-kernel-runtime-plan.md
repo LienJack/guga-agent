@@ -70,9 +70,9 @@ M0 的产品范围已经由 origin PRD 确认：先证明无产品外壳的 core
 - `docs/research/context-packs/agent-loop.md` 提醒 M0 不应照搬完整商业 loop；当前阶段只需要最小状态机、tool call/result 配对、停止条件和可观察事件。
 - `docs/research/context-packs/tool-registry.md` 明确工具失败应回流给模型，registry 应当让模型看到的工具与 runtime 可执行工具一致。
 - `docs/research/context-packs/provider-abstraction.md` 明确 provider SDK 类型必须封装在 transport/adapter 边界外，agent loop 只依赖内部统一 contracts。
-- `docs/agent-react-pattern.md` 把 L1 最小 ReAct loop 的核心定义为合法维护 `assistant.tool_calls -> tool message` 配对。
-- `docs/agent-tool-management.md` 支持在早期就把工具声明和执行结果集中到 runtime 管理，但插件生态与权限系统应晚于 M0。
-- `docs/agent-llm-integration.md` 支持早期固定 provider boundary，不让 SDK 类型污染 loop。
+- `docs/research/agent-react-pattern.md` 把 L1 最小 ReAct loop 的核心定义为合法维护 `assistant.tool_calls -> tool message` 配对。
+- `docs/research/agent-tool-management.md` 支持在早期就把工具声明和执行结果集中到 runtime 管理，但插件生态与权限系统应晚于 M0。
+- `docs/research/agent-llm-integration.md` 支持早期固定 provider boundary，不让 SDK 类型污染 loop。
 
 ### Institutional Learnings
 
@@ -227,8 +227,8 @@ flowchart TD
 
 **Patterns to follow:**
 - `docs/research/context-packs/provider-abstraction.md` 的 provider boundary 原则。
-- `docs/agent-llm-integration.md` 的“SDK 类型不得穿透 runtime”原则。
-- `docs/agent-react-pattern.md` 对 tool call/result 配对的要求。
+- `docs/research/agent-llm-integration.md` 的“SDK 类型不得穿透 runtime”原则。
+- `docs/research/agent-react-pattern.md` 对 tool call/result 配对的要求。
 
 **Test scenarios:**
 - Happy path: contract helper 或 fixture 能表达一个 user message、一个 assistant tool call、一个 matching tool result 和一个 final assistant answer。
@@ -304,7 +304,7 @@ flowchart TD
 **Execution note:** 优先写集成式单元测试，让 F1/F2 先失败再实现 loop 行为。
 
 **Patterns to follow:**
-- `docs/agent-react-pattern.md` 的 L1 最小 ReAct loop。
+- `docs/research/agent-react-pattern.md` 的 L1 最小 ReAct loop。
 - `docs/research/context-packs/agent-loop.md` 的 turn lifecycle 和 tool dispatch 边界。
 - `docs/research/context-packs/tool-registry.md` 的“工具失败返回模型”共识。
 
@@ -434,8 +434,8 @@ flowchart TD
 - `docs/research/context-packs/agent-loop.md`
 - `docs/research/context-packs/tool-registry.md`
 - `docs/research/context-packs/provider-abstraction.md`
-- `docs/agent-react-pattern.md`
-- `docs/agent-tool-management.md`
-- `docs/agent-llm-integration.md`
+- `docs/research/agent-react-pattern.md`
+- `docs/research/agent-tool-management.md`
+- `docs/research/agent-llm-integration.md`
 - `.trellis/spec/backend/index.md`
 - `.trellis/spec/guides/agent-reference-projects-guide.md`

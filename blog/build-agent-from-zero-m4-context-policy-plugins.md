@@ -195,7 +195,7 @@ permission_mode
 
 `system_prompt` 是 critical，不能压缩。`pending_turn` 是当前用户意图，不能被历史摘要吞掉。`tool_result_preview` 可以被预算治理。`resource_file` 和 `host_context` 可以由插件发现。`compaction_summary` 是历史任务上下文，但它不能升级成 system instruction。`permission_mode` 是 runtime 状态，压缩后要恢复。
 
-这对应 `docs/agent-context-management.md` 里反复强调的一句话：
+这对应 `docs/research/agent-context-management.md` 里反复强调的一句话：
 
 **summary 是续航手段，不是事实源；messages 是模型输入投影，不是完整账本。**
 
@@ -705,6 +705,6 @@ ledger 为 replay 和 audit 留证据。
 
 ## 参考
 
-- [Agent Context 管理：从最小可运行演进到商业级复刻](../docs/agent-context-management.md)
-- [Context Policy Plugins](../docs/context-policy-plugins.md)
+- [Agent Context 管理：从最小可运行演进到商业级复刻](../docs/research/agent-context-management.md)
+- [Context Policy Plugins](../docs/research/context-policy-plugins.md)
 - [M4 Context Policy Plugins Plan](../docs/plans/2026-05-27-001-feat-context-policy-plugins-plan.md)

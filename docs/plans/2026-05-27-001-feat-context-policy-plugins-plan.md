@@ -118,7 +118,7 @@ M0-M3 已经让 Guga 具备 core loop、provider bridge、plugin host、HookKern
 
 ### External References
 
-- `docs/agent-context-management.md`：确认 context 的主线是 L1 分层、L2 工具输出治理、L3 compaction、L4 event/replay，且 summary 不是事实源。
+- `docs/research/agent-context-management.md`：确认 context 的主线是 L1 分层、L2 工具输出治理、L3 compaction、L4 event/replay，且 summary 不是事实源。
 - `docs/research/context-packs/context-compression.md`：确认 context budget、工具结果截断、tool pairing safety、compact boundary 和 post-compact reinjection 是跨项目共同模式。
 - `docs/research/context-packs/agent-loop.md`：确认 overflow recovery、pre-request message cleaning、retry 当前意图和 tool call/result 配对修复属于 loop 集成风险点。
 - `docs/research/context-packs/tool-registry.md`：确认工具输出预算、progressive skills loading、hook interception 和 fail-closed permission 是 context 的上游约束。
@@ -615,7 +615,7 @@ stateDiagram-v2
 - Keep the ledger deliberately narrow: projection descriptor, policy decisions, compaction boundary, projection hash and source refs only. Do not store raw artifact content or implement session resume semantics in M4.
 
 **Patterns to follow:**
-- `docs/agent-context-management.md` post-compact file/plan/skill/tool reinjection sequence.
+- `docs/research/agent-context-management.md` post-compact file/plan/skill/tool reinjection sequence.
 - `docs/research/context-packs/context-compression.md` compact boundary and source parent/cutoff patterns.
 - Existing provider/router test style with mock providers and deterministic inputs.
 
@@ -651,7 +651,7 @@ stateDiagram-v2
 - Modify: `package.json`
 - Modify: `tsconfig.base.json`
 - Modify: `docs/roadmap.md`
-- Create: `docs/context-policy-plugins.md`
+- Create: `docs/research/context-policy-plugins.md`
 - Test: `packages/plugin-context-default/src/default-context-plugin.test.ts`
 - Test: `packages/plugin-context-default/src/default-context-policy.test.ts`
 
@@ -715,7 +715,7 @@ stateDiagram-v2
 ## Documentation / Operational Notes
 
 - Update `docs/roadmap.md` only to link the plan or clarify completed/deferred M4 pieces; do not rewrite the roadmap during implementation unless scope changes.
-- Add `docs/context-policy-plugins.md` as the user-facing architecture doc for hosts and plugin authors.
+- Add `docs/research/context-policy-plugins.md` as the user-facing architecture doc for hosts and plugin authors.
 - Document M4c default thresholds, summary contract, minimal ledger shape and the future multi-package context plugin split.
 - Keep tests credential-free with mock providers and deterministic stores.
 - For rollout, land units in M4a-M4e order; later units should not assume durable M5 storage exists.
@@ -726,7 +726,7 @@ stateDiagram-v2
 
 - **Origin document:** [docs/brainstorms/2026-05-27-m4-context-policy-plugins-requirements.md](docs/brainstorms/2026-05-27-m4-context-policy-plugins-requirements.md)
 - Roadmap: [docs/roadmap.md](docs/roadmap.md)
-- Context research: [docs/agent-context-management.md](docs/agent-context-management.md)
+- Context research: [docs/research/agent-context-management.md](docs/research/agent-context-management.md)
 - Context compression pack: [docs/research/context-packs/context-compression.md](docs/research/context-packs/context-compression.md)
 - Agent loop pack: [docs/research/context-packs/agent-loop.md](docs/research/context-packs/agent-loop.md)
 - Tool registry pack: [docs/research/context-packs/tool-registry.md](docs/research/context-packs/tool-registry.md)

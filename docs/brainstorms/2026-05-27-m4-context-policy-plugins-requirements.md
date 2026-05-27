@@ -201,7 +201,7 @@ M0-M3 让 Guga 逐步拥有 core loop、plugin host、provider bridge、tool pip
 ## 参考依据
 
 - `docs/roadmap.md`：`Fact`，定义 M4 在整体 roadmap 中的目标、范围、first-party plugins、退出标准和后续落点。
-- `docs/agent-context-management.md`：`Fact`，提供 Guga context 管理从 L0 到 L5 的分阶段研究结论。
+- `docs/research/agent-context-management.md`：`Fact`，提供 Guga context 管理从 L0 到 L5 的分阶段研究结论。
 - `docs/research/context-packs/context-compression.md`：`Fact`，总结 Claude Code、Hermes、OpenCode、DeerFlow 的 compaction、工具结果治理、resume 和 post-compact reinjection 模式。
 - `docs/research/context-packs/agent-loop.md`：`Fact`，总结 context overflow recovery、工具配对修复、retry/fallback 和 loop integration 对 M4 的约束。
 - `docs/research/context-packs/tool-registry.md`：`Fact`，说明 tool result budget、permission、hook、MCP/skills 渐进披露和工具池治理如何影响 context。

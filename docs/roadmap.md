@@ -379,7 +379,7 @@ first-party 插件：
 
 **目标：** 把“模型看见什么”做成可替换、可审计、可恢复的 context policy plugin，而不是固定 prompt 拼接或单体 `ContextManager`。
 
-核心判断来自 `docs/agent-context-management.md` 和九个参考项目的交叉结论：context 不是历史消息本身，而是从事件账本、会话状态、工具 artifact、资源文件、skills、当前 pending turn 和压缩摘要投影出来的一次模型输入。M4 只负责让这个投影过程可插拔、可预算、可压缩、可追踪；长期记忆、向量检索、跨 session semantic memory 留到 M5/M8 之后。
+核心判断来自 `docs/research/agent-context-management.md` 和九个参考项目的交叉结论：context 不是历史消息本身，而是从事件账本、会话状态、工具 artifact、资源文件、skills、当前 pending turn 和压缩摘要投影出来的一次模型输入。M4 只负责让这个投影过程可插拔、可预算、可压缩、可追踪；长期记忆、向量检索、跨 session semantic memory 留到 M5/M8 之后。
 
 参考项目取舍：
 
@@ -490,7 +490,7 @@ M4 分阶段实现：
 
 first-party 插件：
 
-- M4 首版使用 `@guga-agent/plugin-context-default` 作为单一默认 context policy，证明不改 core 即可替换 context 行为；host/plugin 作者文档见 [`docs/context-policy-plugins.md`](context-policy-plugins.md)。
+- M4 首版使用 `@guga-agent/plugin-context-default` 作为单一默认 context policy，证明不改 core 即可替换 context 行为；host/plugin 作者文档见 [`docs/research/context-policy-plugins.md`](research/context-policy-plugins.md)。
 - 后续可拆为 `plugin-context-basic`、`plugin-context-tool-results`、`plugin-context-truncation`、`plugin-context-compaction`、`plugin-context-reinjection`，但多包拆分不属于 M4 首版交付。
 
 退出标准：
