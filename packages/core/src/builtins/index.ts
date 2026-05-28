@@ -51,7 +51,7 @@ export {
   createBuiltInAiSdkProviderCapabilities,
   createModel,
   mapAiSdkResultToProviderResponse
-} from "./provider-ai-sdk/index";
+} from "../provider-ai-sdk/index";
 export type {
   AiSdkBridgeMode,
   AiSdkGenerateText,
@@ -60,15 +60,15 @@ export type {
   AiSdkProviderFactoryOptions,
   AiSdkToolCallLike,
   BuiltInAiSdkProviderCapabilities
-} from "./provider-ai-sdk/index";
-export { mapCoreMessagesToAiSdk } from "./provider-ai-sdk/message-mapper";
-export type { AiSdkModelMessage } from "./provider-ai-sdk/message-mapper";
-export { mapToolsToAiSdk } from "./provider-ai-sdk/tool-mapper";
-export type { AiSdkToolSpec } from "./provider-ai-sdk/tool-mapper";
+} from "../provider-ai-sdk/index";
+export { mapCoreMessagesToAiSdk } from "../provider-ai-sdk/message-mapper";
+export type { AiSdkModelMessage } from "../provider-ai-sdk/message-mapper";
+export { mapToolsToAiSdk } from "../provider-ai-sdk/tool-mapper";
+export type { AiSdkToolSpec } from "../provider-ai-sdk/tool-mapper";
 export {
   AiSdkProviderErrorCategory,
   mapAiSdkError,
   mapAiSdkFinishReason,
   mapAiSdkUsage
-} from "./provider-ai-sdk/usage-error-mapper";
-export type { AiSdkUsageLike } from "./provider-ai-sdk/usage-error-mapper";
+} from "../provider-ai-sdk/usage-error-mapper";
+export type { AiSdkUsageLike } from "../provider-ai-sdk/usage-error-mapper";

@@ -1,4 +1,4 @@
-import type { ModelFinishReason, ProviderError, Usage } from "../../contracts/provider";
+import type { ModelFinishReason, ProviderError, Usage } from "../contracts/provider";
 
 export const AiSdkProviderErrorCategory = {
   Auth: "auth",

@@ -53,11 +53,7 @@ V1 fail closed：
 | `packages/core/src/builtins/filesystem.ts` | Built-in core capability | Default workspace file substrate. |
 | `packages/core/src/builtins/git.ts` | Built-in core capability | Safe git read helpers and commit-message helper. |
 | `packages/core/src/builtins/shell.ts` | Built-in core capability | Local shell backend with permission and timeout metadata. |
-| `packages/core/src/builtins/provider-ai-sdk/` | Built-in core capability | AI SDK bridge/adapter, not concrete credentials or endpoint ownership. |
-| `packages/plugin-tools-filesystem` | Compatibility wrapper | Re-exports core built-in filesystem path. |
-| `packages/plugin-tools-git` | Compatibility wrapper | Re-exports core built-in git path. |
-| `packages/plugin-tools-shell` | Compatibility wrapper | Re-exports core built-in shell path. |
-| `packages/provider-ai-sdk` | Compatibility wrapper | Re-exports core built-in AI SDK bridge path. |
+| `packages/core/src/provider-ai-sdk/` | Built-in core capability | AI SDK bridge/adapter, not concrete credentials or endpoint ownership. |
 | `packages/plugin-mcp` | Optional extension | First dogfood for extension SDK. |
 | skills, memory, artifact, replay/audit, ops/eval, delegation | Future optional extensions | Migrate incrementally using the same extension contract. |
 
@@ -67,7 +63,7 @@ M38 is covered by:
 
 - core contracts and registry tests for serializable descriptors, built-in metadata, extension metadata, conflict descriptors, and override denial;
 - core runtime and builtins tests for configurable built-in composition and kernel dependency boundaries;
-- compatibility package tests for filesystem/git/shell/provider-ai-sdk behavior preservation;
+- core tests for filesystem/git/shell/provider-ai-sdk behavior preservation;
 - extension-sdk tests for metadata injection and stale context invalidation;
 - plugin-mcp runtime tests for extension dogfood and shutdown cleanup.
 
@@ -75,7 +71,7 @@ M38 is covered by:
 
 只读复评结论：无 P0。第一次评估发现 `createAgentRuntime` 的静态 import 链会触发 optional AI SDK dependencies，且 root barrel 暴露过宽；实现随后改为：
 
-- `default-core-capabilities.ts` 仅 type-import AI SDK bridge types，并在 provider `generate()` 时动态 `import("./provider-ai-sdk")`；
+- `default-core-capabilities.ts` 仅 type-import AI SDK bridge types，并在 provider `generate()` 时动态 import `../provider-ai-sdk/index`；
 - root `@guga-agent/core` barrel 不再 value re-export built-ins，built-in helpers 只通过 `@guga-agent/core/builtins` 暴露；
 - dependency-boundary test 覆盖 runtime/root/default composition 文件，防止静态导入 `provider-ai-sdk`、`ai` 或 `@ai-sdk/*`。
 

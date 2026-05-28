@@ -27,7 +27,7 @@ packages/
         filesystem.ts
         git.ts
         shell.ts
-        provider-ai-sdk/
+      provider-ai-sdk/
       contracts/
       events/
       hooks/
@@ -38,10 +38,6 @@ packages/
       state/
       tools/
       testing/
-  provider-ai-sdk/              # compatibility re-export
-  plugin-tools-filesystem/      # compatibility re-export
-  plugin-tools-shell/           # compatibility re-export
-  plugin-tools-git/             # compatibility re-export
 ```
 
 ---
@@ -57,10 +53,11 @@ packages/
 - `plugin-host/`: local trusted plugin initialization, restricted plugin context, capability registration, and runtime-scoped cleanup.
 - `runtime/`: host-facing runtime facade and factory.
 - `tools/`: core-owned control-plane utilities such as execution pipeline, scheduler, resource scopes, and result policy. Real tool implementations do not belong here.
-- `builtins/`: default coding-agent substrate implementations. Filesystem, git, shell, and provider bridges live here and must still register through normal core authority paths.
+- `builtins/`: default coding-agent substrate implementations. Filesystem, git, and shell live here and must still register through normal core authority paths.
+- `provider-ai-sdk/`: built-in AI SDK provider bridge and SDK-specific mappers. It is a sibling module to `builtins/` so provider concerns do not crowd the tool built-ins directory.
 - `testing/`: mock provider and test tool fixtures for core tests only; these are not default runtime capabilities.
 
-Do not put real provider SDKs or real tools in the core kernel layers (`contracts`, `registry`, `hooks`, `permissions`, `tools`, `runtime`, `loop`, or `state`). Built-in implementations belong under `packages/core/src/builtins`, while MCP and other optional ecosystem integrations stay outside core as extensions. Compatibility packages may re-export built-ins but should not be the preferred first-party import path.
+Do not put real provider SDKs or real tools in the core kernel layers (`contracts`, `registry`, `hooks`, `permissions`, `tools`, `runtime`, `loop`, or `state`). Built-in tool implementations belong under `packages/core/src/builtins`; the AI SDK provider bridge belongs under `packages/core/src/provider-ai-sdk`. MCP and other optional ecosystem integrations stay outside core as extensions.
 
 ---
 

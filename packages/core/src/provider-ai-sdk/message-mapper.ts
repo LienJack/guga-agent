@@ -1,4 +1,4 @@
-import type { CoreMessage } from "../../contracts/messages";
+import type { CoreMessage } from "../contracts/messages";
 
 export type AiSdkModelMessage = {
   role: "system" | "user" | "assistant" | "tool";

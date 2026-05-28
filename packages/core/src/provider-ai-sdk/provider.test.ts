@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { AiSdkProviderErrorCategory } from "./ai-sdk-usage-error-mapper";
+import { AiSdkProviderErrorCategory } from "./usage-error-mapper";
 import {
   createAiSdkProvider,
   createAiSdkProviderPlugin,
   mapAiSdkResultToProviderResponse
-} from "./ai-sdk-provider";
+} from "./index";
 
 describe("AI SDK provider bridge", () => {
   it("maps final text results to Guga provider responses", () => {

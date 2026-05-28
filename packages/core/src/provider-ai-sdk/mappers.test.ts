@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { mapCoreMessagesToAiSdk } from "./ai-sdk-message-mapper";
-import { mapToolsToAiSdk } from "./ai-sdk-tool-mapper";
-import { AiSdkProviderErrorCategory, mapAiSdkError, mapAiSdkFinishReason, mapAiSdkUsage } from "./ai-sdk-usage-error-mapper";
+import { mapCoreMessagesToAiSdk } from "./message-mapper";
+import { mapToolsToAiSdk } from "./tool-mapper";
+import { AiSdkProviderErrorCategory, mapAiSdkError, mapAiSdkFinishReason, mapAiSdkUsage } from "./usage-error-mapper";
 
 describe("AI SDK mappers", () => {
   it("maps Guga messages to AI SDK-shaped messages", () => {

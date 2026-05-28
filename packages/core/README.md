@@ -73,11 +73,11 @@ Core owns provider-neutral runtime semantics. Providers can describe available m
 
 Tool calls from a model are only tool intent. They are converted into Guga `ToolCall` values and executed through the core `ExecutionPipeline`. The pipeline performs lookup, schema checks, tool hooks, permission resolution, execution, result budgeting, and lifecycle events. Provider bridges must not execute tools on their own.
 
-The built-in AI SDK bridge lives under `packages/core/src/builtins/provider-ai-sdk/` and is exported through `@guga-agent/core/builtins`, but provider SDK types do not leak into core public contracts. `@guga-agent/provider-ai-sdk` remains a compatibility import path.
+The built-in AI SDK bridge lives under `packages/core/src/provider-ai-sdk/` and is exported through `@guga-agent/core/builtins`, but provider SDK types do not leak into core public contracts.
 
 ## Tool Runtime Boundary
 
-Default filesystem, shell, and git implementations live under `@guga-agent/core/builtins`. Compatibility packages such as `@guga-agent/plugin-tools-filesystem`, `@guga-agent/plugin-tools-shell`, and `@guga-agent/plugin-tools-git` re-export those built-in paths. Core owns the contracts and final execution authority; built-in and extension tools enter through the same registry and pipeline.
+Default filesystem, shell, and git implementations live under `@guga-agent/core/builtins`. Core owns the contracts and final execution authority; built-in and extension tools enter through the same registry and pipeline.
 
 Side-effecting tools declare permission metadata and are evaluated by `PermissionKernel` before execution. Denied, cancelled, timed-out, missing, schema-invalid, hook-blocked, and thrown tool calls become structured model-visible tool observations. Large outputs pass through `ResultPolicy` so model-visible content stays bounded while runtime metadata records budget facts.
 

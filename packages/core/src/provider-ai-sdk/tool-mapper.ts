@@ -1,4 +1,4 @@
-import type { ToolDefinition } from "../../contracts/tools";
+import type { ToolDefinition } from "../contracts/tools";
 import { jsonSchema } from "ai";
 
 export type AiSdkToolSpec = {

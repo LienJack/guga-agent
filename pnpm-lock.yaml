@@ -231,24 +231,6 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/plugin-tools-filesystem:
-    dependencies:
-      '@guga-agent/core':
-        specifier: workspace:*
-        version: link:../core
-
-  packages/plugin-tools-git:
-    dependencies:
-      '@guga-agent/core':
-        specifier: workspace:*
-        version: link:../core
-
-  packages/plugin-tools-shell:
-    dependencies:
-      '@guga-agent/core':
-        specifier: workspace:*
-        version: link:../core
-
   packages/profile-code-agent:
     dependencies:
       '@guga-agent/core':
@@ -277,12 +259,6 @@ importers:
       vitest:
         specifier: ^4.1.7
         version: 4.1.7(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(vite@8.0.14(@types/node@25.9.1))
-
-  packages/provider-ai-sdk:
-    dependencies:
-      '@guga-agent/core':
-        specifier: workspace:*
-        version: link:../core
 
 packages:
 
