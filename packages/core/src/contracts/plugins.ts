@@ -159,12 +159,12 @@ export type CapabilityDiff = {
 
 export type PluginContext = {
   pluginId: string;
-  registerProvider(provider: Provider): void;
-  registerModel?(model: ModelMetadata): void;
+  registerProvider(provider: Provider, options?: CapabilityRegistrationOptions): void;
+  registerModel?(model: ModelMetadata, options?: CapabilityRegistrationOptions): void;
   registerTool(tool: ToolDefinition, options?: ToolRegistrationOptions): void;
-  registerSkill?(skill: SkillMetadata): void;
-  registerHook(hook: HookRegistration): void;
-  registerContextPolicy?(policy: ContextPolicy): void;
+  registerSkill?(skill: SkillMetadata, options?: CapabilityRegistrationOptions): void;
+  registerHook(hook: HookRegistration, options?: CapabilityRegistrationOptions): void;
+  registerContextPolicy?(policy: ContextPolicy, options?: CapabilityRegistrationOptions): void;
   registerEventStore?(store: EventStore): void;
   registerSessionStore?(store: SessionStore): void;
   registerArtifactStore?(store: ArtifactStore): void;

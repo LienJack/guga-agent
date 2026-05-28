@@ -112,13 +112,18 @@ export class PluginHost {
       try {
         await plugin.init({
           pluginId: plugin.id,
-          registerProvider: (provider) => this.registerProvider(options.runId, plugin.id, provider, contribution),
-          registerModel: (model) => this.registerModel(options.runId, plugin.id, model, contribution),
-          registerTool: (tool, toolOptions) => this.registerTool(options.runId, plugin.id, tool, contribution, toolOptions),
-          registerSkill: (skill) => this.registerSkill(options.runId, plugin.id, skill, contribution),
-          registerHook: (hook) =>
-            this.registerHook(options.runId, plugin.id, pluginLoadIndex, hook, contribution),
-          registerContextPolicy: (policy) => this.registerContextPolicy(options.runId, plugin.id, policy, contribution),
+          registerProvider: (provider, providerOptions) =>
+            this.registerProvider(options.runId, plugin.id, provider, contribution, providerOptions),
+          registerModel: (model, modelOptions) =>
+            this.registerModel(options.runId, plugin.id, model, contribution, modelOptions),
+          registerTool: (tool, toolOptions) =>
+            this.registerTool(options.runId, plugin.id, tool, contribution, toolOptions),
+          registerSkill: (skill, skillOptions) =>
+            this.registerSkill(options.runId, plugin.id, skill, contribution, skillOptions),
+          registerHook: (hook, hookOptions) =>
+            this.registerHook(options.runId, plugin.id, pluginLoadIndex, hook, contribution, hookOptions),
+          registerContextPolicy: (policy, policyOptions) =>
+            this.registerContextPolicy(options.runId, plugin.id, policy, contribution, policyOptions),
           registerEventStore: (store) => this.registerEventStore(options.runId, plugin.id, store, contribution),
           registerSessionStore: (store) => this.registerSessionStore(options.runId, plugin.id, store, contribution),
           registerArtifactStore: (store) => this.registerArtifactStore(options.runId, plugin.id, store, contribution),
@@ -188,9 +193,10 @@ export class PluginHost {
     runId: string,
     pluginId: string,
     provider: Provider,
-    contribution: PluginContribution
+    contribution: PluginContribution,
+    options: CapabilityRegistrationOptions = {}
   ): void {
-    this.registry.registerProvider(provider, { source: "plugin", ownerPluginId: pluginId });
+    this.registry.registerProvider(provider, pluginCapabilityOptions(pluginId, options));
     contribution.providers.push(provider.id);
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
@@ -228,9 +234,10 @@ export class PluginHost {
     runId: string,
     pluginId: string,
     model: ModelMetadata,
-    contribution: PluginContribution
+    contribution: PluginContribution,
+    options: CapabilityRegistrationOptions = {}
   ): void {
-    this.registry.registerModel(model, { source: "plugin", ownerPluginId: pluginId });
+    this.registry.registerModel(model, pluginCapabilityOptions(pluginId, options));
     contribution.models.push({ providerId: model.providerId, modelId: model.modelId });
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
@@ -246,10 +253,11 @@ export class PluginHost {
     pluginId: string,
     pluginLoadIndex: number,
     hook: HookRegistration,
-    contribution: PluginContribution
+    contribution: PluginContribution,
+    options: CapabilityRegistrationOptions = {}
   ): void {
     this.hookKernel.registerHook(pluginId, pluginLoadIndex, hook);
-    this.registry.registerHookCapability(hook.id, { source: "plugin", ownerPluginId: pluginId });
+    this.registry.registerHookCapability(hook.id, pluginCapabilityOptions(pluginId, options));
     contribution.hooks.push(hook.id);
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
@@ -264,11 +272,11 @@ export class PluginHost {
     runId: string,
     pluginId: string,
     skill: SkillMetadata,
-    contribution: PluginContribution
+    contribution: PluginContribution,
+    options: CapabilityRegistrationOptions = {}
   ): void {
     this.registry.registerSkill(skill, {
-      source: "plugin",
-      ownerPluginId: pluginId,
+      ...pluginCapabilityOptions(pluginId, options),
       ...(skill.namespace ? { namespace: skill.namespace } : {})
     });
     contribution.skills.push(skill.name);
@@ -285,7 +293,8 @@ export class PluginHost {
     runId: string,
     pluginId: string,
     policy: ContextPolicy,
-    contribution: PluginContribution
+    contribution: PluginContribution,
+    options: CapabilityRegistrationOptions = {}
   ): void {
     const registeredPolicy = {
       ...policy,
@@ -294,7 +303,7 @@ export class PluginHost {
         pluginId: policy.auditIdentity.pluginId ?? pluginId
       }
     };
-    this.registry.registerContextPolicy(registeredPolicy, { source: "plugin", ownerPluginId: pluginId });
+    this.registry.registerContextPolicy(registeredPolicy, pluginCapabilityOptions(pluginId, options));
     this.hookKernel.registerContextPolicy(pluginId, registeredPolicy);
     contribution.contextPolicies.push(policy.id);
     this.eventBus.publish({
@@ -498,5 +507,16 @@ function toShutdownFailure(error: unknown): PluginFailure {
     code: "PLUGIN_SHUTDOWN_FAILED",
     message: error instanceof Error ? error.message : "Plugin shutdown failed",
     details: error
+  };
+}
+
+function pluginCapabilityOptions(
+  pluginId: string,
+  options: CapabilityRegistrationOptions = {}
+): CapabilityRegistrationOptions {
+  return {
+    ...options,
+    source: options.source ?? "plugin",
+    ownerPluginId: options.ownerPluginId ?? pluginId
   };
 }
