@@ -69,6 +69,7 @@ export type ConnectionViewModel =
 
 export type WorkbenchViewModel = {
   startup: StartupViewModel;
+  welcome: WelcomeViewModel;
   transcript: TranscriptViewBlock[];
   statusBar: StatusBarViewModel;
   activeRun?: ActiveRunViewModel;
@@ -78,11 +79,27 @@ export type WorkbenchViewModel = {
   queue: QueueSummary;
 };
 
+export type WelcomeViewModel = {
+  visible: boolean;
+  title: string;
+  modelLabel: string;
+  contextLabel: string;
+  costLabel: string;
+  cwdLabel: string;
+  tips: readonly string[];
+  whatsNew: readonly string[];
+  commandLabel: string;
+};
+
 export function createWorkbenchViewModel(state: WorkbenchState): WorkbenchViewModel {
+  const startup = createStartupViewModel(state.startup);
+  const transcript = selectVisibleTranscriptBlocks(state).map(createTranscriptViewBlock);
+  const statusBar = createStatusBarViewModel(state);
   const view: WorkbenchViewModel = {
-    startup: createStartupViewModel(state.startup),
-    transcript: selectVisibleTranscriptBlocks(state).map(createTranscriptViewBlock),
-    statusBar: createStatusBarViewModel(state),
+    startup,
+    welcome: createWelcomeViewModel(state, startup, statusBar, transcript),
+    transcript,
+    statusBar,
     connection: createConnectionViewModel(state),
     queue: state.queue
   };
@@ -134,6 +151,34 @@ function createStatusBarViewModel(state: WorkbenchState): StatusBarViewModel {
     status.runId = state.activeRunId;
   }
   return status;
+}
+
+function createWelcomeViewModel(
+  state: WorkbenchState,
+  startup: StartupViewModel,
+  statusBar: StatusBarViewModel,
+  transcript: readonly TranscriptViewBlock[]
+): WelcomeViewModel {
+  return {
+    visible: transcript.length === 0 && state.runStatus === "idle" && state.lastSeq === 0,
+    title: "Welcome to Guga",
+    modelLabel: startup.modelLabel,
+    contextLabel: "context unknown",
+    costLabel: state.usage.costUsd === undefined ? "cost unknown" : `$${state.usage.costUsd.toFixed(4)}`,
+    cwdLabel: startup.projectPath,
+    tips: [
+      "Use Tab to complete slash commands.",
+      "Run /status to inspect model, tools and session facts.",
+      "Press Esc to abort an active run."
+    ],
+    whatsNew: [
+      "Ink workbench now separates reasoning, tools and assistant output.",
+      `Usage meter: ${statusBar.usageLabel}`
+    ],
+    commandLabel: startup.slashCommands.length > 0
+      ? `Commands ${startup.slashCommands.slice(0, 5).join(" ")}`
+      : "Commands unavailable"
+  };
 }
 
 function createActiveRunViewModel(state: WorkbenchState): ActiveRunViewModel | undefined {

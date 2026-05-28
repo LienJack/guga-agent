@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Box, Text, useApp, useInput } from "ink";
+import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { createWorkbenchViewModel } from "../workbench/views";
 import { mapKeypressToIntent, type KeyIntent, type TerminalKeypress } from "../tui/keys";
 import { StatusBar } from "./components/status-bar";
+import { WelcomePanel } from "./components/welcome-panel";
 import { Transcript } from "./components/transcript";
 import { PromptEditor } from "./components/prompt-editor";
 import { SlashPalette } from "./components/slash-palette";
@@ -41,12 +42,15 @@ import { parseInteractionResponse } from "./controller";
 
 export function InkWorkbenchApp({ controller }: { readonly controller: WorkbenchController }) {
   const { exit } = useApp();
+  const { stdout } = useStdout();
   const [state, setState] = useState(controller.state);
   const [prompt, setPrompt] = useState<PromptState>(() => createPromptState());
   const [slash, setSlash] = useState<SlashPaletteState | undefined>();
   const [selector, setSelector] = useState<SelectorState | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const view = useMemo(() => createWorkbenchViewModel(state), [state]);
+  const columns = typeof stdout.columns === "number" ? stdout.columns : 100;
+  const colorMode = process.env.NO_COLOR === undefined ? "color" : "mono";
   const focus = useMemo(() => createAppFocusState({
     slashOpen: slash !== undefined,
     selectorOpen: selector !== undefined,
@@ -234,6 +238,7 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
       </Text>
       <Text dimColor>{view.startup.configSourceLabel}</Text>
       <StatusBar status={view.statusBar} />
+      <WelcomePanel welcome={view.welcome} columns={columns} colorMode={colorMode} />
       <Transcript blocks={view.transcript} />
       {notice ? <Text dimColor>{notice}</Text> : null}
       {view.pendingPermission ? <Text>Permission: type allow or deny</Text> : null}

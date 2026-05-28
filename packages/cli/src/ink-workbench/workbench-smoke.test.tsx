@@ -9,6 +9,7 @@ describe("Ink workbench smoke route", () => {
     await expect(runCli(["--mock"], io)).resolves.toBe(0);
 
     expect(io.stdout()).toContain("Guga Ink workbench");
+    expect(io.stdout()).toContain("Welcome to Guga");
     expect(io.stdout()).toContain("prompt");
     expect(io.stderr()).toBe("");
   });

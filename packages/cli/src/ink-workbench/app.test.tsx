@@ -14,10 +14,32 @@ describe("Ink workbench app", () => {
     const { lastFrame } = render(<InkWorkbenchApp controller={controllerFor(fakeClient())} />);
 
     expect(lastFrame()).toContain("Guga Ink workbench");
+    expect(lastFrame()).toContain("Welcome to Guga");
+    expect(lastFrame()).toContain("Tips");
+    expect(lastFrame()).toContain("context unknown");
+    expect(lastFrame()).toContain("cost unknown");
     expect(lastFrame()).toContain("session session-1");
     expect(lastFrame()).toContain("idle | Idle");
     expect(lastFrame()).toContain("No transcript yet.");
     expect(lastFrame()).toContain("prompt");
+  });
+
+  it("keeps a compact no-color welcome fallback without hiding the editor", () => {
+    const previousNoColor = process.env.NO_COLOR;
+    process.env.NO_COLOR = "1";
+    try {
+      const { lastFrame } = render(<InkWorkbenchApp controller={controllerFor(fakeClient())} />);
+
+      expect(lastFrame()).toContain("Welcome to Guga");
+      expect(lastFrame()).toContain("Use Tab to complete slash commands.");
+      expect(lastFrame()).toContain("prompt");
+    } finally {
+      if (previousNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = previousNoColor;
+      }
+    }
   });
 
   it("echoes prompt text in the bottom editor before submission", async () => {

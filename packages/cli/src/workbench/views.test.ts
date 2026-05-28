@@ -32,6 +32,14 @@ describe("workbench views", () => {
       usageLabel: "tokens 0 in 0 out 0",
       inputLocked: false
     });
+    expect(view.welcome).toMatchObject({
+      visible: true,
+      title: "Welcome to Guga",
+      modelLabel: "guga-mock",
+      contextLabel: "context unknown",
+      costLabel: "cost unknown",
+      cwdLabel: "/workspace/app"
+    });
     expect(view.connection).toEqual({
       status: "connected",
       inputLocked: false
@@ -100,5 +108,11 @@ describe("workbench views", () => {
       title: "Tool failed: shell",
       detail: "Permission denied"
     });
+    expect(createWorkbenchViewModel(state).welcome.visible).toBe(false);
+
+    const cleared = reduceWorkbenchAction(state, { type: "ui.clear" });
+    const view = createWorkbenchViewModel(cleared);
+    expect(view.transcript).toEqual([]);
+    expect(view.welcome.visible).toBe(false);
   });
 });
