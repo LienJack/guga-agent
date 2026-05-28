@@ -1,7 +1,7 @@
 ---
 title: "feat: Productized CLI coding workbench"
 type: feat
-status: completed
+status: active
 date: 2026-05-28
 origin: docs/brainstorms/2026-05-28-m37-productized-cli-workbench-requirements.md
 ---
@@ -17,6 +17,10 @@ origin: docs/brainstorms/2026-05-28-m37-productized-cli-workbench-requirements.m
 当前 Guga 已经有 Host runtime、Host SDK、Host protocol、stdio adapter、code-agent profile、filesystem/shell/git 插件、权限内核和基础 CLI streaming 输出，但 CLI 第一体验仍然偏向命令执行。用户期望的体验是：安装包后在项目里输入 `guga`，直接进入一个可持续工作的 coding-agent terminal workbench，可以选模型、读配置、跑真实工具、排队 follow-up、abort、回答权限请求，并且这些交互语义未来能被桌面端复用。
 
 本计划以 `docs/brainstorms/2026-05-28-m37-productized-cli-workbench-requirements.md` 为源文档。计划不实现代码，只明确实现边界、模块拆分、测试场景和跨层风险。
+
+### 2026-05-28 implementation correction
+
+当前 CLI 截图仍显示 line REPL 形态：启动后打印 `home: ... project: ...`，再给出裸 `>` prompt。这个状态只能视为临时 fallback / protocol smoke，不满足本计划的 productized workbench 验收。后续实施不能用“给 `>` prompt 包一层文案”冒充真实输入框；必须落成持久 bottom prompt editor、slash command popover、selector/focus stack 和 running-state input queue。
 
 ## Research Findings
 
@@ -253,11 +257,15 @@ Approach:
 - 使用 OpenTUI core 的 layout/input/renderable 能力承载 transcript、status、editor、overlay、select。
 - Editor 支持 multiline input、history 基础能力、slash command prefix routing、Escape/Ctrl-C 快捷键。
 - Overlay 支持 permission prompt、model/profile select、help/status 等最小面板。
+- `packages/cli/src/commands/run.ts` 中现有 line-oriented `createLineQueue()` / `>` prompt 只能作为 headless/fallback 兼容路径；interactive `guga` 的主路径必须进入 raw terminal editor，能够在不按 Enter 的情况下响应 `/`、方向键、Escape、Tab 和 IME cursor 更新。
+- `home/project/config` 这类 diagnostics 不应作为首屏正文裸打印；它们应进入 startup/status view 或 `/status`，保证第一视觉信号是 workbench 和输入框。
 
 Test scenarios:
 
 - Workbench view model 到 OpenTUI adapter 的映射可用 mock renderer 测试。
 - Editor 的 Enter、Shift/Meta newline 策略稳定。
+- Typing `/` into an empty editor opens a filterable command popover before submit; it is not handled as an unknown slash command after Enter.
+- The prompt editor remains visible and focused while assistant text streams, a tool is running, or a permission/interaction overlay is pending.
 - Escape/Ctrl-C 被路由为 abort intent。
 - Overlay focus 时输入不会误发给 agent。
 - 非 TTY 启动返回可读错误或 headless 指引。
@@ -422,6 +430,8 @@ Test scenarios:
 - `guga --list-models` 与 `/models` 使用同一 registry。
 - `guga -p "Say exactly: ok" --mock` 输出确定性结果。
 - 裸 `guga --mock` 能启动 workbench 并完成一轮 mock prompt。
+- 裸 `guga --mock` 的首屏不能只出现 `home: ... project: ...` 加裸 `>`；必须有 startup/status area、transcript area 和持久 bottom prompt editor。
+- 输入 `/` 的 smoke 必须验证 command popover 展示命令名、描述、来源/快捷键，并且 Escape 关闭后 editor 文本和焦点不丢失。
 - code profile 工具事件在 workbench transcript 中可见。
 - permission approve/deny 路径端到端可观察。
 - README 中的 controls/events 表与 protocol 文档保持一致。
