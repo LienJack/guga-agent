@@ -5,6 +5,7 @@ import { createGitPlugin } from "./git-plugin";
 describe("git plugin runtime integration", () => {
   it("runs git_status through the core plugin registry and execution pipeline", async () => {
     const runtime = createAgentRuntime({
+      builtIns: false,
       plugins: [
         createGitPlugin({
           workspaceRoot: "/workspace",

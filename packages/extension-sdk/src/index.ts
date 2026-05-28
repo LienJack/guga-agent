@@ -1,12 +1,15 @@
 import type {
   CapabilityRegistrationOptions,
+  ContextPolicy,
   ExtensionLifecycleBehavior,
   ExtensionSourceDescriptor,
   ExtensionSpecMetadata,
   HookRegistration,
   LocalPlugin,
+  ModelMetadata,
   PluginContext,
   PluginShutdownContext,
+  Provider,
   SkillMetadata,
   ToolDefinition,
   ToolRegistrationOptions
@@ -30,13 +33,19 @@ export type ExtensionLifecycleContext = {
 };
 
 export type ExtensionSetupContext = ExtensionLifecycleContext & {
+  provider(provider: Provider, options?: ExtensionCapabilityOptions): void;
+  model(model: ModelMetadata, options?: ExtensionCapabilityOptions): void;
   tool(tool: ToolDefinition, options?: ExtensionToolOptions): void;
   skill(skill: SkillMetadata, options?: ExtensionCapabilityOptions): void;
   hook(hook: HookRegistration, options?: ExtensionCapabilityOptions): void;
+  contextPolicy(policy: ContextPolicy, options?: ExtensionCapabilityOptions): void;
   operation(name: string, options?: ExtensionCapabilityOptions): void;
+  registerProvider(provider: Provider, options?: ExtensionCapabilityOptions): void;
+  registerModel(model: ModelMetadata, options?: ExtensionCapabilityOptions): void;
   registerTool(tool: ToolDefinition, options?: ExtensionToolOptions): void;
   registerSkill(skill: SkillMetadata, options?: ExtensionCapabilityOptions): void;
   registerHook(hook: HookRegistration, options?: ExtensionCapabilityOptions): void;
+  registerContextPolicy(policy: ContextPolicy, options?: ExtensionCapabilityOptions): void;
   registerOperation(name: string, options?: ExtensionCapabilityOptions): void;
 };
 
@@ -157,6 +166,19 @@ function createSetupContext(
 ): ExtensionSetupContext & MutableLifecycleContext {
   const base = createBaseContext(extension, coreContext.pluginId);
 
+  const registerProvider = (provider: Provider, options?: ExtensionCapabilityOptions) => {
+    base.assertActive();
+    callWithCapabilityOptions(coreContext.registerProvider, provider, enrichCapabilityOptions(extension, coreContext.pluginId, options));
+  };
+
+  const registerModel = (model: ModelMetadata, options?: ExtensionCapabilityOptions) => {
+    base.assertActive();
+    if (!coreContext.registerModel) {
+      throw unsupported("registerModel", extension.id);
+    }
+    callWithCapabilityOptions(coreContext.registerModel, model, enrichCapabilityOptions(extension, coreContext.pluginId, options));
+  };
+
   const registerTool = (tool: ToolDefinition, options?: ExtensionToolOptions) => {
     base.assertActive();
     const enrichedOptions = enrichToolOptions(extension, coreContext.pluginId, options);
@@ -182,6 +204,14 @@ function createSetupContext(
     callWithCapabilityOptions(coreContext.registerHook, hook, enrichCapabilityOptions(extension, coreContext.pluginId, options));
   };
 
+  const registerContextPolicy = (policy: ContextPolicy, options?: ExtensionCapabilityOptions) => {
+    base.assertActive();
+    if (!coreContext.registerContextPolicy) {
+      throw unsupported("registerContextPolicy", extension.id);
+    }
+    callWithCapabilityOptions(coreContext.registerContextPolicy, policy, enrichCapabilityOptions(extension, coreContext.pluginId, options));
+  };
+
   const registerOperation = (name: string, options?: ExtensionCapabilityOptions) => {
     base.assertActive();
     if (!coreContext.registerOperation) {
@@ -192,13 +222,19 @@ function createSetupContext(
 
   return {
     ...base,
+    provider: registerProvider,
+    model: registerModel,
     tool: registerTool,
     skill: registerSkill,
     hook: registerHook,
+    contextPolicy: registerContextPolicy,
     operation: registerOperation,
+    registerProvider,
+    registerModel,
     registerTool,
     registerSkill,
     registerHook,
+    registerContextPolicy,
     registerOperation
   };
 }
@@ -215,6 +251,7 @@ function enrichCapabilityOptions(
   pluginId: string,
   options: ExtensionCapabilityOptions = {}
 ): ExtensionCapabilityOptions {
+  assertExtensionCapabilitySource(options.source, extension.id);
   return {
     ...options,
     source: options.source ?? "plugin",
@@ -232,6 +269,16 @@ function enrichCapabilityOptions(
     ...(options.lifecycle ?? extension.lifecycle ? { lifecycle: options.lifecycle ?? extension.lifecycle } : {}),
     extension
   };
+}
+
+function assertExtensionCapabilitySource(source: ExtensionCapabilityOptions["source"], extensionId: string): void {
+  if (source === undefined || source === "plugin" || source === "mcp") {
+    return;
+  }
+  throw new ExtensionSdkError("EXTENSION_CONTEXT_UNSUPPORTED", `Extension capabilities cannot use source: ${source}`, {
+    extensionId,
+    source
+  });
 }
 
 function enrichToolOptions(

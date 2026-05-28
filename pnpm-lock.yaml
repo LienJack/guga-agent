@@ -257,15 +257,6 @@ importers:
       '@guga-agent/plugin-skills':
         specifier: workspace:*
         version: link:../plugin-skills
-      '@guga-agent/plugin-tools-filesystem':
-        specifier: workspace:*
-        version: link:../plugin-tools-filesystem
-      '@guga-agent/plugin-tools-git':
-        specifier: workspace:*
-        version: link:../plugin-tools-git
-      '@guga-agent/plugin-tools-shell':
-        specifier: workspace:*
-        version: link:../plugin-tools-shell
 
   packages/profile-deep-research-agent: {}
 

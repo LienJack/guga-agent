@@ -49,7 +49,7 @@ Core records capability ownership and source metadata while keeping concrete imp
 
 ## Minimal Usage Shape
 
-The host application creates a runtime, registers capabilities, subscribes to events, and runs a turn. The mock provider and test tool are exported for M0 verification only; they are not default runtime capabilities.
+The host application creates a runtime, registers capabilities, subscribes to events, and runs a turn. Plain runtimes register filesystem, git, and shell built-ins for the current workspace. The AI SDK bridge is a built-in core capability module too, but model/provider registration needs host configuration because model ids and credentials are deployment-specific. The mock provider and test tool are exported for M0 verification only; they are not default runtime capabilities.
 
 The public API intentionally stays small so later plugin/provider/tool phases can extend the runtime without rewriting the core loop.
 
@@ -63,7 +63,7 @@ import {
 } from "@guga-agent/core/builtins";
 ```
 
-The root `@guga-agent/core` barrel does not export built-in implementation values. This keeps `import { createAgentRuntime } from "@guga-agent/core"` from statically loading optional AI SDK dependencies. Hosts that want a custom built-in set can compose it through `@guga-agent/core/builtins` and pass it to `createAgentRuntime({ builtIns: { capabilities } })`.
+The root `@guga-agent/core` barrel does not export built-in implementation values. This keeps `import { createAgentRuntime } from "@guga-agent/core"` from statically loading optional AI SDK dependencies. Hosts that want a custom built-in set can compose it through `@guga-agent/core/builtins` and pass it to `createAgentRuntime({ builtIns: { capabilities } })`; hosts that need no defaults can pass `builtIns: false`.
 
 ## Provider Runtime Boundary
 

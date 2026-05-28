@@ -240,6 +240,14 @@ describe("PluginHost", () => {
         code: "CAPABILITY_ALREADY_REGISTERED"
       })
     );
+    expect(registry.listCapabilityDescriptors()).toContainEqual({
+      type: "provider",
+      name: "duplicate",
+      source: "plugin",
+      status: "rejected-conflict",
+      ownerPluginId: "duplicate-plugin",
+      reason: "Provider already registered: duplicate"
+    });
   });
 
   it("preserves duplicate model registration errors and marks the source plugin", async () => {
@@ -270,6 +278,14 @@ describe("PluginHost", () => {
         code: "CAPABILITY_ALREADY_REGISTERED"
       })
     );
+    expect(registry.listCapabilityDescriptors()).toContainEqual({
+      type: "model",
+      name: "host-provider/duplicate-model",
+      source: "plugin",
+      status: "rejected-conflict",
+      ownerPluginId: "duplicate-model-plugin",
+      reason: "Model already registered: host-provider/duplicate-model"
+    });
   });
 
   it("records rejected conflict descriptors for plugin tool collisions", async () => {

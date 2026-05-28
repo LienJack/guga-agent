@@ -1,10 +1,10 @@
-import { createAgentRuntime, createMockProvider } from "@guga-agent/core";
+import { createAgentRuntime, createMockProvider, type AgentRuntimeOptions } from "@guga-agent/core";
 import { HostRuntime } from "@guga-agent/host-runtime";
 import { createLocalGugaHost, type LocalGugaHost } from "@guga-agent/host-sdk";
 import { createAuditExportPlugin } from "@guga-agent/plugin-audit-export";
 import { createEvalRunnerPlugin } from "@guga-agent/plugin-eval-runner";
 import { createOpsHealthPlugin } from "@guga-agent/plugin-ops-health";
-import { CODE_AGENT_PROFILE_ID, createCodeAgentPlugins, createCodeAgentPermissionPolicy } from "@guga-agent/profile-code-agent";
+import { CODE_AGENT_PROFILE_ID, createCodeAgentRuntimeOptions } from "@guga-agent/profile-code-agent";
 import { DEEP_RESEARCH_PROFILE_ID } from "@guga-agent/profile-deep-research-agent";
 import { REVIEW_AGENT_PROFILE_ID } from "@guga-agent/profile-review-agent";
 import { createAiSdkProviderPlugin } from "@guga-agent/provider-ai-sdk";
@@ -150,12 +150,9 @@ async function createCliHost(args: RunArgs, env: NodeJS.ProcessEnv = process.env
     createAuditExportPlugin(),
     createEvalRunnerPlugin()
   ];
-  const profilePlugins = args.profile === CODE_AGENT_PROFILE_ID
-    ? createCodeAgentPlugins({ workspaceRoot: process.cwd(), includeOperations: true })
-    : operationalPlugins;
-  const permissions = args.profile === CODE_AGENT_PROFILE_ID
-    ? createCodeAgentPermissionPolicy()
-    : undefined;
+  const profileOptions: AgentRuntimeOptions = args.profile === CODE_AGENT_PROFILE_ID
+    ? createCodeAgentRuntimeOptions({ workspaceRoot: process.cwd(), includeOperations: true })
+    : { plugins: operationalPlugins };
 
   if (!args.mock) {
     const config = readCliConfig(env);
@@ -173,17 +170,15 @@ async function createCliHost(args: RunArgs, env: NodeJS.ProcessEnv = process.env
     return createLocalGugaHost({
       hostRuntime: new HostRuntime({
         runtime: createAgentRuntime({
-          model: providerPlugin,
-          plugins: profilePlugins,
-          ...(permissions ? { permissions } : {})
+          ...profileOptions,
+          model: providerPlugin
         })
       })
     });
   }
 
   const runtime = createAgentRuntime({
-    plugins: profilePlugins,
-    ...(permissions ? { permissions } : {})
+    ...profileOptions
   });
   runtime.registerProvider(createMockProvider([
     ({ messages }) => ({

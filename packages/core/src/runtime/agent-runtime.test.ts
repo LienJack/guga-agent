@@ -177,6 +177,16 @@ describe("AgentRuntime", () => {
     }));
   });
 
+  it("registers default filesystem, git, and shell built-ins for plain runtimes", () => {
+    const runtime = createAgentRuntime();
+
+    expect(runtime.listCapabilityDescriptors()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "tool", name: "fs_read", source: "built-in", layer: "built-in-core" }),
+      expect.objectContaining({ type: "tool", name: "git_status", source: "built-in", layer: "built-in-core" }),
+      expect.objectContaining({ type: "tool", name: "shell_exec", source: "built-in", layer: "built-in-core" })
+    ]));
+  });
+
   it("can disable built-in capability registration", () => {
     const runtime = createAgentRuntime({
       builtIns: false

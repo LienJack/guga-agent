@@ -15,6 +15,7 @@ describe("filesystem plugin runtime integration", () => {
   it("runs fs_write through core permission, pipeline, and model-visible result flow", async () => {
     const root = await tempWorkspace();
     const runtime = createAgentRuntime({
+      builtIns: false,
       plugins: [createFilesystemPlugin({ workspaceRoot: root })],
       permissions: {
         resolver: () => ({ action: "allow", remember: "once", source: "host" })
@@ -39,6 +40,7 @@ describe("filesystem plugin runtime integration", () => {
   it("returns permission denial as a model-visible fs_write result", async () => {
     const root = await tempWorkspace();
     const runtime = createAgentRuntime({
+      builtIns: false,
       plugins: [createFilesystemPlugin({ workspaceRoot: root })],
       permissions: {
         resolver: () => ({ action: "deny", remember: "once", source: "host", reason: "not allowed" })

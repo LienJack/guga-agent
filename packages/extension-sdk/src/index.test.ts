@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type {
   CapabilityRegistrationOptions,
+  ContextPolicy,
   HookRegistration,
+  ModelMetadata,
   PluginContext,
+  Provider,
   SkillMetadata,
   ToolDefinition
 } from "@guga-agent/core";
@@ -80,8 +83,24 @@ describe("defineExtension", () => {
     ]);
   });
 
-  it("offers tool, skill, hook, and operation facades over the core context", async () => {
+  it("offers provider, model, tool, skill, hook, context policy, and operation facades over the core context", async () => {
     const calls = createCapturingPluginContext("facade-fixture");
+    const provider: Provider = {
+      id: "facade-provider",
+      generate() {
+        return { type: "final", content: "ok" };
+      }
+    };
+    const model: ModelMetadata = {
+      providerId: "facade-provider",
+      modelId: "facade-model",
+      capabilities: { usage: "optional" }
+    };
+    const contextPolicy: ContextPolicy = {
+      id: "facade-context",
+      phases: ["context.assemble"],
+      auditIdentity: { label: "Facade context" }
+    };
     const extension = defineExtension({
       id: "facade-fixture",
       source: extensionSource,
@@ -89,6 +108,8 @@ describe("defineExtension", () => {
       declaredEffects: ["context.read"],
       lifecycle: { load: "lazy" },
       setup(context) {
+        context.provider(provider);
+        context.model(model);
         context.tool(createTool("facade_tool"));
         context.skill({ name: "facade-skill", description: "Facade skill" });
         context.hook({
@@ -97,12 +118,30 @@ describe("defineExtension", () => {
           effect: "observe",
           handler() {}
         } as HookRegistration);
+        context.contextPolicy(contextPolicy, { declaredEffects: ["context.write"] });
         context.operation("facade.operation", { declaredEffects: ["runtime.operation"] });
       }
     });
 
     await extension.init(calls);
 
+    expect(calls.providers[0]).toMatchObject({
+      provider,
+      options: expect.objectContaining({
+        source: "plugin",
+        layer: "extension",
+        ownerPluginId: "facade-fixture",
+        extension: expect.objectContaining({ id: "facade-fixture" })
+      })
+    });
+    expect(calls.models[0]).toMatchObject({
+      model,
+      options: expect.objectContaining({
+        layer: "extension",
+        ownerPluginId: "facade-fixture",
+        extension: expect.objectContaining({ id: "facade-fixture" })
+      })
+    });
     expect(calls.tools[0]?.options).toMatchObject({
       source: "plugin",
       layer: "extension",
@@ -131,6 +170,14 @@ describe("defineExtension", () => {
         extension: expect.objectContaining({ id: "facade-fixture" })
       })
     });
+    expect(calls.contextPolicies[0]).toMatchObject({
+      policy: contextPolicy,
+      options: expect.objectContaining({
+        declaredEffects: ["context.write"],
+        layer: "extension",
+        ownerPluginId: "facade-fixture"
+      })
+    });
     expect(calls.operations[0]).toMatchObject({
       name: "facade.operation",
       options: expect.objectContaining({
@@ -138,6 +185,21 @@ describe("defineExtension", () => {
         layer: "extension",
         ownerPluginId: "facade-fixture"
       })
+    });
+  });
+
+  it("rejects extension attempts to masquerade as host or built-in sources", async () => {
+    const extension = defineExtension({
+      id: "source-fixture",
+      source: extensionSource,
+      setup(context) {
+        context.tool(createTool("bad_source"), { source: "built-in" });
+      }
+    });
+
+    await expect(extension.init(createCapturingPluginContext("source-fixture"))).rejects.toMatchObject({
+      code: "EXTENSION_CONTEXT_UNSUPPORTED",
+      details: { extensionId: "source-fixture", source: "built-in" }
     });
   });
 
@@ -229,21 +291,32 @@ describe("defineExtension", () => {
 });
 
 function createCapturingPluginContext(pluginId: string): PluginContext & {
+  providers: Array<{ provider: Provider; options?: CapabilityRegistrationOptions }>;
+  models: Array<{ model: ModelMetadata; options?: CapabilityRegistrationOptions }>;
   tools: Array<{ tool: ToolDefinition; options?: CapabilityRegistrationOptions }>;
   skills: Array<{ skill: SkillMetadata; options?: CapabilityRegistrationOptions }>;
   hooks: Array<{ hook: HookRegistration; options?: CapabilityRegistrationOptions }>;
+  contextPolicies: Array<{ policy: ContextPolicy; options?: CapabilityRegistrationOptions }>;
   operations: Array<{ name: string; options?: CapabilityRegistrationOptions }>;
 } {
   const calls = {
+    providers: [] as Array<{ provider: Provider; options?: CapabilityRegistrationOptions }>,
+    models: [] as Array<{ model: ModelMetadata; options?: CapabilityRegistrationOptions }>,
     tools: [] as Array<{ tool: ToolDefinition; options?: CapabilityRegistrationOptions }>,
     skills: [] as Array<{ skill: SkillMetadata; options?: CapabilityRegistrationOptions }>,
     hooks: [] as Array<{ hook: HookRegistration; options?: CapabilityRegistrationOptions }>,
+    contextPolicies: [] as Array<{ policy: ContextPolicy; options?: CapabilityRegistrationOptions }>,
     operations: [] as Array<{ name: string; options?: CapabilityRegistrationOptions }>
   };
 
   return {
     pluginId,
-    registerProvider() {},
+    registerProvider(provider, options) {
+      calls.providers.push({ provider, ...(options ? { options } : {}) });
+    },
+    registerModel(model, options) {
+      calls.models.push({ model, ...(options ? { options } : {}) });
+    },
     registerTool(tool, options) {
       calls.tools.push({ tool, ...(options ? { options: options as CapabilityRegistrationOptions } : {}) });
     },
@@ -252,6 +325,9 @@ function createCapturingPluginContext(pluginId: string): PluginContext & {
     },
     registerHook(hook, options?: CapabilityRegistrationOptions) {
       calls.hooks.push({ hook, ...(options ? { options } : {}) });
+    },
+    registerContextPolicy(policy, options) {
+      calls.contextPolicies.push({ policy, ...(options ? { options } : {}) });
     },
     registerOperation(name, options) {
       calls.operations.push({ name, ...(options ? { options } : {}) });

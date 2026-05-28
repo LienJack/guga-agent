@@ -6,7 +6,7 @@
 
 ## Overview
 
-Guga Agent backend/runtime code is a TypeScript workspace with a small core package plus provider/tool plugin packages. Keep the core package small: it owns contracts, in-memory runtime primitives, execution pipeline, permission kernel, scheduler, result policy, and test fixtures. Do not add CLI, Web, real provider SDKs, real tools, persistence, or UI projection inside `packages/core`.
+Guga Agent backend/runtime code is a TypeScript workspace with a small core kernel plus explicit built-in capability modules and optional extension/plugin packages. Keep the core kernel small: it owns contracts, in-memory runtime primitives, execution pipeline, permission kernel, scheduler, result policy, and test fixtures. Default filesystem, shell, git, and AI SDK bridge implementations may live only under `packages/core/src/builtins/*`; do not add CLI, Web, persistence, UI projection, or optional ecosystem integrations to core kernel layers.
 
 ---
 
@@ -33,6 +33,12 @@ packages/
       state/
       tools/
       testing/
+      builtins/
+        filesystem.ts
+        git.ts
+        shell.ts
+        provider-ai-sdk.ts
+  extension-sdk/
   provider-ai-sdk/
   plugin-tools-filesystem/
   plugin-tools-shell/
@@ -53,8 +59,9 @@ packages/
 - `runtime/`: host-facing runtime facade and factory.
 - `tools/`: core-owned control-plane utilities such as execution pipeline, scheduler, resource scopes, and result policy. Real tool implementations do not belong here.
 - `testing/`: mock provider and test tool fixtures for core tests only; these are not default runtime capabilities.
+- `builtins/`: default coding-agent substrate implementations for filesystem, git, shell, and AI SDK bridge. These modules may use real local backends or optional provider SDK adapters, but kernel sublayers must not import them.
 
-Do not put real provider SDKs or real tools in `packages/core`. The core plugin host may accept local trusted plugin objects, but real provider transports and real tools belong to plugin/provider/tool packages.
+Do not put real provider SDKs or real tools in `packages/core/src/contracts`, `registry`, `hooks`, `permissions`, `tools`, `loop`, or other kernel sublayers. Optional ecosystem integrations such as MCP, skills, memory, artifact, replay/audit, eval, and delegation belong outside core as extensions or compatibility packages.
 
 ---
 

@@ -7,6 +7,7 @@ describe("shell plugin runtime integration", () => {
     const execute = vi.fn().mockResolvedValue({ stdout: "no", stderr: "", exitCode: 0 });
     const projectedTools: string[][] = [];
     const runtime = createAgentRuntime({
+      builtIns: false,
       plugins: [createShellPlugin({ workspaceRoot: "/workspace", backend: { execute } })],
       permissions: { profile: "headless" }
     });
