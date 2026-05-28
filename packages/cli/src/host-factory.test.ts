@@ -88,6 +88,55 @@ describe("CLI host factory", () => {
     }
   });
 
+  it("resolves default stores under Guga Home project partitions", async () => {
+    const root = await mkdtemp(join(tmpdir(), "guga-host-home-"));
+    const cwd = join(root, "project");
+    mkdirSync(join(cwd, ".git"), { recursive: true });
+    const homeDir = join(root, "home");
+    const host = await createCliHost({
+      mock: true,
+      env: {},
+      cwd,
+      homeDir,
+      workspaceRoot: cwd
+    });
+    try {
+      expect(host.storage.home).toBe(join(homeDir, ".guga"));
+      expect(host.storage.sessionsRoot).toContain(join(homeDir, ".guga/sessions/projects"));
+      expect(host.storage.artifactsRoot).toContain(join(homeDir, ".guga/artifacts/projects"));
+      expect(host.storage.memoryRoot).toBe(join(homeDir, ".guga/memory"));
+      await runNoop(host);
+      await expect(host.local.client.listCapabilities()).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: "operation", name: "memory.jsonl.health" })
+        ])
+      );
+    } finally {
+      await host.local.close();
+    }
+  });
+
+  it("honors GUGA_HOME for store diagnostics", async () => {
+    const root = await mkdtemp(join(tmpdir(), "guga-host-home-"));
+    const cwd = join(root, "project");
+    const gugaHome = join(root, "override");
+    mkdirSync(join(cwd, ".git"), { recursive: true });
+    const host = await createCliHost({
+      mock: true,
+      env: { GUGA_HOME: gugaHome },
+      cwd,
+      workspaceRoot: cwd
+    });
+    try {
+      expect(host.storage.home).toBe(gugaHome);
+      expect(host.storage.sessionsRoot.startsWith(gugaHome)).toBe(true);
+      expect(host.storage.artifactsRoot.startsWith(gugaHome)).toBe(true);
+      expect(host.storage.memoryRoot).toBe(join(gugaHome, "memory"));
+    } finally {
+      await host.local.close();
+    }
+  });
+
   it("fails clearly when no model is configured", async () => {
     await expect(createCliHost({ env: {} })).rejects.toMatchObject({
       code: "MODEL_REQUIRED"

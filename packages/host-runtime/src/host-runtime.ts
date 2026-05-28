@@ -7,6 +7,10 @@ import {
   type PermissionDenyDecision,
   type PermissionRequest,
   type Provider,
+  type SessionBranch,
+  type SessionLeaf,
+  type SessionRecord,
+  type SessionStore,
   type ToolDefinition
 } from "@guga-agent/core";
 import {
@@ -84,6 +88,7 @@ export type PermissionResponseResult =
 
 export class HostRuntime {
   private readonly runtime: AgentRuntime;
+  private readonly sessionStore: SessionStore | undefined;
   private readonly ownsRuntime: boolean;
   private readonly now: () => Date;
   private readonly idFactory: () => string;
@@ -99,6 +104,7 @@ export class HostRuntime {
 
   constructor(options: HostRuntimeOptions = {}) {
     this.runtime = options.runtime ?? createAgentRuntime(this.runtimeOptionsWithPermissionBridge(options.runtimeOptions));
+    this.sessionStore = this.runtime.getPersistenceCapabilities().sessionStore;
     this.ownsRuntime = !options.runtime;
     this.now = options.now ?? (() => new Date());
     this.idFactory = options.idFactory ?? (() => crypto.randomUUID());
@@ -152,7 +158,7 @@ export class HostRuntime {
     });
   }
 
-  createSession(options: { title?: string } = {}): SessionResource {
+  async createSession(options: { title?: string } = {}): Promise<SessionResource> {
     const timestamp = this.now().toISOString();
     const sessionId = `session-${this.idFactory()}`;
     const mainBranch: SessionBranchResource = {
@@ -169,21 +175,63 @@ export class HostRuntime {
       activeBranchId: mainBranch.id,
       branches: [mainBranch]
     };
+    if (this.sessionStore) {
+      const created = await this.sessionStore.createSession({
+        sessionId,
+        branchId: mainBranch.id,
+        ...(options.title ? { title: options.title } : {})
+      });
+      if (created.ok) {
+        const durableSession = sessionResourceFromDurable(created.session, [created.branch], {
+          sessionId,
+          branchId: mainBranch.id,
+          eventId: null,
+          updatedAt: created.session.updatedAt,
+          reason: "session-created"
+        });
+        this.store.putSession(durableSession);
+        for (const branch of durableSession.branches ?? []) {
+          this.store.putBranch(branch);
+        }
+        return durableSession;
+      }
+    }
     this.store.putSession(session);
     this.store.putBranch(mainBranch);
     return session;
   }
 
-  getSession(sessionId: string): SessionResource | undefined {
-    return this.store.getSession(sessionId);
+  async getSession(sessionId: string): Promise<SessionResource | undefined> {
+    const session = this.store.getSession(sessionId);
+    if (session) {
+      return session;
+    }
+    const tree = await this.sessionStore?.getSessionTree(sessionId);
+    if (!tree?.ok) {
+      return undefined;
+    }
+    const durable = sessionResourceFromDurable(tree.session, tree.branches, tree.activeLeaf);
+    this.store.putSession(durable);
+    for (const branch of durable.branches ?? []) {
+      this.store.putBranch(branch);
+    }
+    return durable;
   }
 
-  listSessions(): SessionResource[] {
+  async listSessions(): Promise<SessionResource[]> {
+    const listed = await this.sessionStore?.listSessions?.({ order: "updated_desc" });
+    if (listed?.ok) {
+      return listed.sessions.map((summary) => sessionResourceFromDurable(
+        summary.session,
+        undefined,
+        summary.activeLeaf
+      ));
+    }
     return this.store.listSessions();
   }
 
-  resumeSession(sessionId: string, options: { branchId?: string } = {}): SessionResource | undefined {
-    const session = this.store.getSession(sessionId);
+  async resumeSession(sessionId: string, options: { branchId?: string } = {}): Promise<SessionResource | undefined> {
+    const session = await this.getSession(sessionId);
     if (!session) {
       return undefined;
     }
@@ -194,6 +242,12 @@ export class HostRuntime {
     if (!branch) {
       return undefined;
     }
+    await this.sessionStore?.setActiveLeaf({
+      sessionId,
+      branchId: branch.id,
+      eventId: null,
+      reason: "resume-selected"
+    });
     this.store.updateSession(sessionId, {
       activeBranchId: branch.id,
       updatedAt: this.now().toISOString()
@@ -870,6 +924,35 @@ function queuedRunInputSummary(input: QueuedRunInputResource): QueuedRunInputSum
 
 function permissionRequestId(request: PermissionRequest): string {
   return `${request.runId}:${request.toolCallId}:${request.attempt}`;
+}
+
+function sessionResourceFromDurable(
+  session: SessionRecord,
+  branches: SessionBranch[] | undefined,
+  activeLeaf: SessionLeaf | undefined
+): SessionResource {
+  return {
+    id: session.id,
+    ...(session.title ? { title: session.title } : {}),
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    activeBranchId: session.activeBranchId,
+    rootBranchId: session.rootBranchId,
+    ...(activeLeaf ? { activeLeafEventId: activeLeaf.eventId } : {}),
+    ...(session.metadata ? { metadata: session.metadata } : {}),
+    ...(branches ? { branches: branches.map(sessionBranchResourceFromDurable) } : {})
+  };
+}
+
+function sessionBranchResourceFromDurable(branch: SessionBranch): SessionBranchResource {
+  return {
+    id: branch.id,
+    sessionId: branch.sessionId,
+    ...(branch.parentBranchId ? { parentBranchId: branch.parentBranchId } : {}),
+    createdAt: branch.createdAt,
+    updatedAt: branch.createdAt,
+    ...(branch.metadata ? { metadata: branch.metadata } : {})
+  };
 }
 
 function validatePermissionResolution(

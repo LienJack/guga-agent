@@ -131,6 +131,58 @@ describe("JsonlSessionStore", () => {
       }
     });
   });
+
+  it("lists lightweight session summaries without event transcripts", async () => {
+    const root = await tempRoot();
+    const store = new JsonlSessionStore({
+      rootDir: root,
+      now: clock([
+        "2026-05-27T00:00:00.000Z",
+        "2026-05-27T00:00:01.000Z",
+        "2026-05-27T00:00:02.000Z"
+      ])
+    });
+    await store.createSession({ sessionId: "session-old", branchId: "main", title: "Old" });
+    await store.createSession({ sessionId: "session-new", branchId: "main", title: "New" });
+    await store.setActiveLeaf({ sessionId: "session-old", branchId: "main", eventId: "event-1", reason: "host-selected" });
+
+    await expect(store.listSessions()).resolves.toMatchObject({
+      ok: true,
+      sessions: [
+        {
+          session: { id: "session-old", title: "Old", activeBranchId: "main", updatedAt: "2026-05-27T00:00:02.000Z" },
+          activeLeaf: { eventId: "event-1" },
+          branchCount: 1
+        },
+        {
+          session: { id: "session-new", title: "New", activeBranchId: "main", updatedAt: "2026-05-27T00:00:01.000Z" },
+          activeLeaf: { eventId: null },
+          branchCount: 1
+        }
+      ]
+    });
+  });
+
+  it("keeps listing healthy sessions when another session has a partial tail", async () => {
+    const root = await tempRoot();
+    const store = new JsonlSessionStore({ rootDir: root });
+    await store.createSession({ sessionId: "healthy", branchId: "main" });
+    await store.createSession({ sessionId: "partial", branchId: "main" });
+    await store.appendRawFactForTest("partial", "{\"kind\"");
+
+    await expect(store.listSessions()).resolves.toMatchObject({
+      ok: true,
+      sessions: expect.arrayContaining([
+        expect.objectContaining({ session: expect.objectContaining({ id: "healthy" }) }),
+        expect.objectContaining({
+          session: expect.objectContaining({ id: "partial" }),
+          diagnostics: [
+            expect.objectContaining({ status: "unavailable" })
+          ]
+        })
+      ])
+    });
+  });
 });
 
 async function tempRoot(): Promise<string> {

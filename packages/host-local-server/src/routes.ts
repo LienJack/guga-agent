@@ -52,26 +52,26 @@ async function handleRequest(
 
     if (request.method === "POST" && segments.length === 1 && segments[0] === "sessions") {
       const body = await readJsonBody<{ title?: unknown }>(request);
-      sendJson(response, 201, hostRuntime.createSession({
+      sendJson(response, 201, await hostRuntime.createSession({
         ...(typeof body.title === "string" ? { title: body.title } : {})
       }));
       return;
     }
 
     if (request.method === "GET" && segments.length === 1 && segments[0] === "sessions") {
-      sendJson(response, 200, { sessions: hostRuntime.listSessions() });
+      sendJson(response, 200, { sessions: await hostRuntime.listSessions() });
       return;
     }
 
     if (request.method === "GET" && segments.length === 2 && segments[0] === "sessions") {
-      const session = hostRuntime.getSession(segments[1] ?? "");
+      const session = await hostRuntime.getSession(segments[1] ?? "");
       sendJsonOrNotFound(response, session, "Session not found");
       return;
     }
 
     if (request.method === "POST" && segments.length === 3 && segments[0] === "sessions" && segments[2] === "resume") {
       const body = await readJsonBody<{ branchId?: unknown }>(request);
-      const session = hostRuntime.resumeSession(segments[1] ?? "", {
+      const session = await hostRuntime.resumeSession(segments[1] ?? "", {
         ...(typeof body.branchId === "string" ? { branchId: body.branchId } : {})
       });
       sendJsonOrNotFound(response, session, "Session or branch not found");
@@ -116,7 +116,7 @@ async function handleRequest(
 
     if (request.method === "POST" && segments.length === 3 && segments[0] === "sessions" && segments[2] === "runs") {
       const sessionId = segments[1] ?? "";
-      if (!hostRuntime.getSession(sessionId)) {
+      if (!await hostRuntime.getSession(sessionId)) {
         sendError(response, 404, "NOT_FOUND", "Session not found");
         return;
       }

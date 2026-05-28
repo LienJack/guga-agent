@@ -49,13 +49,57 @@ guga run "hello" --mock --debug-events
 
 ## Configuration
 
-Guga reads one config file from the first matching source, then applies environment overrides:
+Guga uses a local user workspace called Guga Home. By default it is `~/.guga`; set `GUGA_HOME` to move the whole workspace:
 
-1. `GUGA_CONFIG`
-2. project `.guga/config.json`
-3. user `~/.guga/config.json`
+```text
+~/.guga/
+  config.toml
+  sessions/projects/<project-key>/
+    events/
+    sessions/
+  artifacts/projects/<project-key>/
+  memory/
+  cache/
+  logs/
+  profiles/
+```
+
+Session, artifact, and memory files can contain sensitive local state. Do not commit or casually sync them. Project `.guga/config.toml` is only a config layer; default runtime state stays in Guga Home unless you explicitly configure otherwise.
+
+Config is TOML-first and layered:
+
+1. built-in defaults
+2. user `~/.guga/config.toml` or legacy `~/.guga/config.json`
+3. project `.guga/config.toml` or legacy `.guga/config.json`
+4. explicit `GUGA_CONFIG`
+5. environment variables
+6. CLI flags
 
 Environment variables such as `GUGA_MODEL` and `GUGA_PROVIDER` override file values. Built-in defaults apply when neither files nor environment provide a value.
+
+Example `~/.guga/config.toml`:
+
+```toml
+defaultModel = "gpt"
+defaultProfile = "code"
+providerId = "ai-sdk"
+providerMode = "openai"
+
+[[models]]
+id = "gpt"
+label = "GPT"
+modelId = "gpt-5"
+apiKeyEnv = "OPENAI_API_KEY"
+
+[[models]]
+id = "local"
+modelId = "llama3.1"
+providerMode = "openai-compatible"
+baseURL = "http://localhost:11434/v1"
+apiKeyEnv = "LOCAL_OPENAI_API_KEY"
+```
+
+Use `apiKeyEnv` for secrets. Raw `apiKey` values are supported for compatibility but display paths redact secrets and docs avoid recommending them.
 
 Common environment overrides:
 
@@ -66,6 +110,10 @@ GUGA_MODEL=gpt-5
 GUGA_BASE_URL=https://api.openai.com/v1
 GUGA_API_KEY=...
 ```
+
+Legacy JSON config remains supported when the TOML file for that layer does not exist. A project config can override one model alias while preserving unrelated user aliases.
+
+Session history is append-only local history under `sessions/`; compaction and branch summaries are session facts, not long-term memory. The `memory/` directory is for governed memory projections and is not auto-populated from every transcript or injected into prompts by default.
 
 ## Models And Profiles
 

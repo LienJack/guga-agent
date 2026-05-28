@@ -1,7 +1,7 @@
 ---
 title: "feat: Add Guga Home config and durable history defaults"
 type: feat
-status: active
+status: completed
 date: 2026-05-28
 origin: docs/brainstorms/2026-05-28-guga-home-config-session-memory-requirements.md
 ---
