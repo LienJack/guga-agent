@@ -5,8 +5,12 @@ import type { ModelMetadata, Provider } from "../contracts/provider";
 import type {
   CapabilityDiff,
   CapabilityDescriptor,
+  CapabilityLayer,
+  CapabilityOverrideDeclaration,
+  CapabilityOverrideDescriptor,
   CapabilityRegistrationOptions,
   CapabilitySource,
+  CapabilityStatus,
   SkillMetadata
 } from "../contracts/plugins";
 import type { ToolDefinition } from "../contracts/tools";
@@ -14,12 +18,9 @@ import type { ToolDefinition } from "../contracts/tools";
 const DEFAULT_PERSISTENCE_CAPABILITY_ID = "default";
 const DEFAULT_CAPABILITY_SOURCE: CapabilitySource = "host";
 
-export type ToolRegistryOptions = {
-  override?: false | {
-    replaces: string;
-    reason: string;
-  };
-} & CapabilityRegistrationOptions;
+export type ToolRegistryOptions = Omit<CapabilityRegistrationOptions, "override"> & {
+  override?: false | CapabilityOverrideDeclaration;
+};
 
 type CapabilityKindForRegistry =
   | "provider"
@@ -36,6 +37,7 @@ type CapabilityKindForRegistry =
 
 type DescriptorInput = CapabilityRegistrationOptions & {
   reason?: string;
+  status?: CapabilityStatus;
 };
 
 export class CapabilityRegistry {
@@ -95,6 +97,7 @@ export class CapabilityRegistry {
     }
     this.skills.set(skill.name, skill);
     this.recordDescriptor("skill", skill.name, {
+      ...options,
       ...(skill.namespace ?? options.namespace ? { namespace: skill.namespace ?? options.namespace } : {}),
       ...(options.ownerPluginId ? { ownerPluginId: options.ownerPluginId } : {}),
       ...(options.source ? { source: options.source } : {})
@@ -356,16 +359,24 @@ export class CapabilityRegistry {
   }
 
   private recordDescriptor(type: CapabilityKindForRegistry, name: string, input: DescriptorInput = {}): void {
-    const descriptor = {
+    const descriptor = normalizeDescriptor({
       type,
       name,
       source: input.source ?? DEFAULT_CAPABILITY_SOURCE,
-      status: "registered",
+      status: input.status ?? "registered",
+      ...(input.layer ? { layer: input.layer } : {}),
       ...(input.namespace ? { namespace: input.namespace } : {}),
       ...(input.ownerPluginId ? { ownerPluginId: input.ownerPluginId } : {}),
+      ...(input.owner ? { owner: input.owner } : {}),
       ...(input.trust ? { trust: input.trust } : {}),
+      ...(input.declaredEffects ? { declaredEffects: input.declaredEffects } : {}),
+      ...(input.permissionRequirements ? { permissionRequirements: input.permissionRequirements } : {}),
+      ...(input.dependencies ? { dependencies: input.dependencies } : {}),
+      ...(input.lifecycle ? { lifecycle: input.lifecycle } : {}),
+      ...(input.extension ? { extension: input.extension } : {}),
+      ...(input.override ? { override: normalizeOverrideDescriptor(type, name, input.override) } : {}),
       ...(input.reason ? { reason: input.reason } : {})
-    } satisfies CapabilityDescriptor;
+    } satisfies CapabilityDescriptor);
     this.descriptors.set(descriptorKey(type, name, descriptor), descriptor);
   }
 
@@ -379,9 +390,17 @@ function modelKey(providerId: string, modelId: string): string {
 }
 
 function toolDescriptorInput(options: ToolRegistryOptions): DescriptorInput {
+  const { override, ...descriptorOptions } = options;
   return {
-    ...options,
-    ...(options.override ? { reason: options.override.reason } : {})
+    ...descriptorOptions,
+    ...(override ? normalizedToolOverrideInput(override) : {})
+  };
+}
+
+function normalizedToolOverrideInput(override: CapabilityOverrideDeclaration): Pick<DescriptorInput, "reason" | "override"> {
+  return {
+    reason: override.reason,
+    override: normalizeOverrideDescriptor("tool", override.replaces, override)
   };
 }
 
@@ -430,7 +449,7 @@ export function diffCapabilityDescriptors(
 }
 
 function descriptorIdentity(descriptor: CapabilityDescriptor): string {
-  if (descriptor.status === "skipped-conflict") {
+  if (descriptor.status === "skipped-conflict" || descriptor.status === "rejected-conflict") {
     return [
       descriptor.type,
       descriptor.name,
@@ -449,12 +468,81 @@ function descriptorEquals(left: CapabilityDescriptor, right: CapabilityDescripto
     && left.name === right.name
     && left.source === right.source
     && left.status === right.status
+    && left.layer === right.layer
     && left.namespace === right.namespace
     && left.ownerPluginId === right.ownerPluginId
+    && JSON.stringify(left.owner ?? null) === JSON.stringify(right.owner ?? null)
     && JSON.stringify(left.trust ?? null) === JSON.stringify(right.trust ?? null)
+    && JSON.stringify(left.declaredEffects ?? null) === JSON.stringify(right.declaredEffects ?? null)
+    && JSON.stringify(left.permissionRequirements ?? null) === JSON.stringify(right.permissionRequirements ?? null)
+    && JSON.stringify(left.dependencies ?? null) === JSON.stringify(right.dependencies ?? null)
+    && JSON.stringify(left.lifecycle ?? null) === JSON.stringify(right.lifecycle ?? null)
+    && JSON.stringify(left.extension ?? null) === JSON.stringify(right.extension ?? null)
+    && JSON.stringify(left.override ?? null) === JSON.stringify(right.override ?? null)
     && left.reason === right.reason;
 }
 
 function sortDescriptors(descriptors: CapabilityDescriptor[]): CapabilityDescriptor[] {
   return [...descriptors].sort((left, right) => descriptorIdentity(left).localeCompare(descriptorIdentity(right)));
+}
+
+function normalizeDescriptor(descriptor: CapabilityDescriptor): CapabilityDescriptor {
+  const layer = descriptor.layer ?? defaultLayerForSource(descriptor.source);
+  const normalized = {
+    ...descriptor,
+    ...(layer === "built-in-core" ? { layer } : {}),
+    ...(descriptor.source === "built-in" && !descriptor.owner ? { owner: { kind: "core" as const, id: "guga-core" } } : {})
+  };
+
+  assertValidDescriptor(normalized);
+  return normalized;
+}
+
+function defaultLayerForSource(source: CapabilitySource): CapabilityLayer | undefined {
+  if (source === "built-in") {
+    return "built-in-core";
+  }
+  return undefined;
+}
+
+function assertValidDescriptor(descriptor: CapabilityDescriptor): void {
+  if (descriptor.source === "built-in") {
+    if (descriptor.ownerPluginId || descriptor.owner?.kind === "extension") {
+      throw new CoreError("INVALID_CAPABILITY_DESCRIPTOR", "Built-in capabilities cannot be owned by an extension", {
+        type: descriptor.type,
+        name: descriptor.name
+      });
+    }
+    if (descriptor.layer && descriptor.layer !== "built-in-core") {
+      throw new CoreError("INVALID_CAPABILITY_DESCRIPTOR", "Built-in capabilities must use the built-in-core layer", {
+        type: descriptor.type,
+        name: descriptor.name,
+        layer: descriptor.layer
+      });
+    }
+  }
+
+  if ((descriptor.source === "plugin" || descriptor.source === "mcp") && descriptor.layer === "built-in-core") {
+    throw new CoreError("INVALID_CAPABILITY_DESCRIPTOR", "Extension capabilities cannot use the built-in-core layer", {
+      type: descriptor.type,
+      name: descriptor.name,
+      source: descriptor.source
+    });
+  }
+}
+
+function normalizeOverrideDescriptor(
+  type: CapabilityKindForRegistry,
+  name: string,
+  override: CapabilityOverrideDeclaration | CapabilityOverrideDescriptor
+): CapabilityOverrideDescriptor {
+  if ("status" in override) {
+    return override;
+  }
+
+  return {
+    status: override.reason.startsWith("restore ") ? "restored" : "active",
+    target: override.target ?? { type, name },
+    reason: override.reason
+  };
 }

@@ -309,7 +309,12 @@ describe("PluginHost", () => {
       name: "override-me",
       source: "host",
       status: "registered",
-      reason: "restore plugin override from override-plugin"
+      reason: "restore plugin override from override-plugin",
+      override: {
+        status: "restored",
+        target: { type: "tool", name: "override-me" },
+        reason: "restore plugin override from override-plugin"
+      }
     });
   });
 

@@ -6,23 +6,116 @@ import type { ModelIdentifier, ModelMetadata, Provider } from "./provider";
 import type { ToolDefinition } from "./tools";
 
 export type ToolRegistrationOptions = {
-  override?: false | {
-    replaces: string;
-    reason: string;
-  };
+  override?: false | CapabilityOverrideDeclaration;
   source?: CapabilitySource;
+  layer?: CapabilityLayer;
   namespace?: string;
   ownerPluginId?: string;
+  owner?: CapabilityOwnerDescriptor;
   trust?: TrustDescriptor;
+  declaredEffects?: CapabilityDeclaredEffect[];
+  permissionRequirements?: CapabilityPermissionRequirement[];
 };
 
 export type CapabilitySource = "host" | "plugin" | "mcp" | "built-in";
 
+export type CapabilityLayer = "core-kernel" | "built-in-core" | "extension" | "host";
+
+export type CapabilityOwnerKind = "core" | "host" | "extension";
+
+export type CapabilityOwnerDescriptor = {
+  kind: CapabilityOwnerKind;
+  id: string;
+  packageName?: string;
+};
+
+export type CapabilityDeclaredEffect =
+  | "filesystem.read"
+  | "filesystem.write"
+  | "process.spawn"
+  | "network.access"
+  | "git.read"
+  | "git.write"
+  | "model.invoke"
+  | "context.read"
+  | "context.write"
+  | "hook.observe"
+  | "hook.mutate"
+  | "runtime.operation";
+
+export type CapabilityPermissionRequirement = {
+  subject: string;
+  actions: string[];
+  reason?: string;
+};
+
+export type CapabilityDependency = {
+  kind: "capability" | "package" | "executable" | "service";
+  name: string;
+  optional?: boolean;
+  versionRange?: string;
+};
+
+export type ExtensionLifecycleBehavior = {
+  load?: "eager" | "lazy";
+  unload?: "remove-contributions" | "runtime-shutdown-only";
+  reload?: "supported" | "unsupported";
+  shutdownTimeoutMs?: number;
+};
+
+export type ExtensionSourceDescriptor = {
+  kind: "first-party" | "workspace" | "external" | "mcp-config" | "host-provided";
+  packageName?: string;
+  location?: string;
+};
+
+export type ExtensionSpecMetadata = {
+  id: string;
+  name?: string;
+  version?: string;
+  source: ExtensionSourceDescriptor;
+  namespace?: string;
+  owner: CapabilityOwnerDescriptor;
+  declaredEffects?: CapabilityDeclaredEffect[];
+  permissionRequirements?: CapabilityPermissionRequirement[];
+  dependencies?: CapabilityDependency[];
+  lifecycle?: ExtensionLifecycleBehavior;
+};
+
+export type CapabilityOverrideTarget = {
+  type: PluginCapabilityKind;
+  name: string;
+  layer?: CapabilityLayer;
+};
+
+export type CapabilityOverrideDeclaration = {
+  replaces: string;
+  reason: string;
+  target?: CapabilityOverrideTarget;
+  declaredEffects?: CapabilityDeclaredEffect[];
+  trust?: TrustDescriptor;
+};
+
+export type CapabilityOverrideDescriptor = {
+  status: "active" | "restored" | "denied";
+  target: CapabilityOverrideTarget;
+  reason: string;
+  owner?: CapabilityOwnerDescriptor;
+};
+
 export type CapabilityRegistrationOptions = {
   source?: CapabilitySource;
+  layer?: CapabilityLayer;
   namespace?: string;
   ownerPluginId?: string;
+  owner?: CapabilityOwnerDescriptor;
   trust?: TrustDescriptor;
+  declaredEffects?: CapabilityDeclaredEffect[];
+  permissionRequirements?: CapabilityPermissionRequirement[];
+  dependencies?: CapabilityDependency[];
+  lifecycle?: ExtensionLifecycleBehavior;
+  extension?: ExtensionSpecMetadata;
+  override?: CapabilityOverrideDescriptor;
 };
 
 export type SkillMetadata = {
@@ -33,16 +126,24 @@ export type SkillMetadata = {
   tags?: string[];
 };
 
-export type CapabilityStatus = "registered" | "skipped-conflict";
+export type CapabilityStatus = "registered" | "skipped-conflict" | "rejected-conflict" | "unavailable";
 
 export type CapabilityDescriptor = {
   type: PluginCapabilityKind;
   name: string;
   source: CapabilitySource;
   status: CapabilityStatus;
+  layer?: CapabilityLayer;
   namespace?: string;
   ownerPluginId?: string;
+  owner?: CapabilityOwnerDescriptor;
   trust?: TrustDescriptor;
+  declaredEffects?: CapabilityDeclaredEffect[];
+  permissionRequirements?: CapabilityPermissionRequirement[];
+  dependencies?: CapabilityDependency[];
+  lifecycle?: ExtensionLifecycleBehavior;
+  extension?: ExtensionSpecMetadata;
+  override?: CapabilityOverrideDescriptor;
   reason?: string;
 };
 
