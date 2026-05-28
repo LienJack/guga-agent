@@ -40,6 +40,7 @@ export async function launchInkWorkbench(options: InkWorkbenchLaunchOptions): Pr
       ...(host.providerId ? { providerId: host.providerId } : {}),
       ...(host.modelId ? { modelId: host.modelId } : {}),
       profileId: host.profileId,
+      ...(options.io.oauthLoginRunner ? { oauthLoginRunner: options.io.oauthLoginRunner } : {}),
       ...(options.io.env ? { env: options.io.env } : {})
     });
 

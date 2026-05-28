@@ -1,6 +1,6 @@
 import type { KeyIntent } from "../tui/keys";
 
-export type SelectorSource = "model" | "profile" | "resume" | "custom";
+export type SelectorSource = "model" | "profile" | "resume" | "provider" | "custom";
 
 export interface SelectorOption {
   readonly id: string;
@@ -46,7 +46,7 @@ export function createSelectorState(options: {
 }
 
 export function createCommandSelectorOptions(
-  command: "/model" | "/profile" | "/resume",
+  command: "/model" | "/profile" | "/resume" | "/login",
   options: ReadonlyArray<{
     readonly id: string;
     readonly label: string;

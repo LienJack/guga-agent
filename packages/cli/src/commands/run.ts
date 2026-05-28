@@ -6,8 +6,16 @@ import {
   type CliHost,
   type CliProfileId
 } from "../host-factory";
+import { resolveGugaHome } from "../guga-home";
 import { resolveModelRegistry, unavailableReasonText } from "../model-registry";
-import { loginProvider } from "../provider-login";
+import {
+  listProviderAuthStatus,
+  loginOAuthProvider,
+  loginProvider,
+  logoutProvider,
+  type ProviderOAuthLoginRunner
+} from "../provider-login";
+import { runCopilotDeviceOAuthLogin } from "../provider-oauth";
 import { renderHostEvent } from "../render/events";
 import { createFallbackTerminalAdapter } from "../tui/terminal";
 
@@ -21,6 +29,7 @@ export type CliIO = {
   stderr: CliWriter;
   stdin?: NodeJS.ReadableStream & { isTTY?: boolean };
   env?: NodeJS.ProcessEnv;
+  oauthLoginRunner?: ProviderOAuthLoginRunner;
 };
 
 type RunArgs = {
@@ -83,6 +92,17 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
       }
       return loginCommand(parsed.args, io);
     }
+    if (command === "logout") {
+      const providerId = rest[0];
+      if (!providerId || providerId.startsWith("--")) {
+        io.stderr.write("logout requires a provider id\n");
+        return 2;
+      }
+      return await logoutCommand(providerId, io);
+    }
+    if (command === "auth") {
+      return authCommand(rest, io);
+    }
     if (command === "-p") {
       const parsed = parseRunArgs(rest);
       if (!parsed.ok) {
@@ -123,7 +143,13 @@ export async function runInteractiveCommand(args: InteractiveArgs, io: CliIO): P
     return 2;
   }
   const { launchInkWorkbench } = await import("../ink-workbench/launch");
-  return launchInkWorkbench({ args, io });
+  return launchInkWorkbench({
+    args,
+    io: {
+      ...io,
+      oauthLoginRunner: io.oauthLoginRunner ?? createDefaultOAuthLoginRunner(io)
+    }
+  });
 }
 
 export async function runCommand(args: RunArgs, io: CliIO): Promise<number> {
@@ -384,9 +410,11 @@ function parseLoginArgs(argv: string[]): { ok: true; args: LoginArgs } | { ok: f
 
 function printConfiguredModels(io: CliIO): void {
   const config = readCliConfig(io.env);
+  const home = resolveGugaHome({ ...(io.env ? { env: io.env } : {}) });
   const models = resolveModelRegistry({
     config,
-    ...(io.env ? { env: io.env } : {})
+    ...(io.env ? { env: io.env } : {}),
+    credentialRoot: home.home
   });
   if (models.length === 0) {
     io.stdout.write("configured model: (none)\n");
@@ -442,8 +470,27 @@ function initCommand(args: InitArgs, io: CliIO): number {
   return 0;
 }
 
-function loginCommand(args: LoginArgs, io: CliIO): number {
+async function loginCommand(args: LoginArgs, io: CliIO): Promise<number> {
   if (!args.apiKey && !args.apiKeyEnv) {
+    if (isOAuthLoginProvider(args.providerId)) {
+      const runner = io.oauthLoginRunner ?? createDefaultOAuthLoginRunner(io);
+      let result;
+      try {
+        result = await loginOAuthProvider({
+          providerId: args.providerId,
+          runner,
+          ...(args.mode ? { mode: args.mode } : {}),
+          ...(args.modelId ? { modelId: args.modelId } : {}),
+          ...(io.env ? { env: io.env } : {})
+        });
+      } catch (error) {
+        io.stderr.write(`${errorMessage(error)}\n`);
+        return 2;
+      }
+      io.stdout.write(`logged in provider ${result.providerId}: ${result.configPath}\n`);
+      io.stdout.write(`auth: ${result.credential.status}\n`);
+      return 0;
+    }
     io.stderr.write("login requires --api-key or --api-key-env; interactive secret prompts are not available in this environment\n");
     return 2;
   }
@@ -466,12 +513,143 @@ function loginCommand(args: LoginArgs, io: CliIO): number {
   return 0;
 }
 
+function createDefaultOAuthLoginRunner(io: CliIO): ProviderOAuthLoginRunner {
+  return async ({ providerId, store }) => {
+    const env = io.env ?? process.env;
+    if (providerId === "copilot") {
+      const clientId = env.GUGA_COPILOT_CLIENT_ID;
+      if (!clientId) {
+        return {
+          ok: false,
+          error: {
+            code: "missing_client_id",
+            message: "Copilot OAuth login requires GUGA_COPILOT_CLIENT_ID for the Guga-owned GitHub OAuth app."
+          }
+        };
+      }
+      const result = await runCopilotDeviceOAuthLogin({
+        clientId,
+        scopes: ["read:user"],
+        store,
+        transport: createGitHubDeviceOAuthTransport(),
+        onEvent(event) {
+          if (event.type === "device_code") {
+            io.stdout.write(`Open ${event.verificationUri} and enter code ${event.userCode}\n`);
+          }
+          if (event.type === "polling") {
+            io.stdout.write(`waiting for authorization (${event.nextPollInSeconds}s)\n`);
+          }
+        }
+      });
+      return result.ok
+        ? { ok: true, credential: result.credential }
+        : { ok: false, error: result.error };
+    }
+    return {
+      ok: false,
+      error: {
+        code: "codex_oauth_contract_pending",
+        message: "Codex OAuth browser/device endpoints are not enabled by default until the official third-party contract is confirmed."
+      }
+    };
+  };
+}
+
+function createGitHubDeviceOAuthTransport() {
+  return {
+    async requestDeviceCode(request: { clientId: string; scopes: readonly string[] }) {
+      const response = await fetch("https://github.com/login/device/code", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          client_id: request.clientId,
+          scope: request.scopes.join(" ")
+        })
+      });
+      const payload = await response.json() as Record<string, unknown>;
+      if (typeof payload.device_code !== "string" || typeof payload.user_code !== "string" || typeof payload.verification_uri !== "string") {
+        throw new Error("GitHub device-code response did not include device_code, user_code, and verification_uri.");
+      }
+      return {
+        deviceCode: payload.device_code,
+        userCode: payload.user_code,
+        verificationUri: payload.verification_uri,
+        expiresInSeconds: typeof payload.expires_in === "number" ? payload.expires_in : 900,
+        intervalSeconds: typeof payload.interval === "number" ? payload.interval : 5
+      };
+    },
+    async pollDeviceToken(request: { clientId: string; deviceCode: string }) {
+      const response = await fetch("https://github.com/login/oauth/access_token", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          client_id: request.clientId,
+          device_code: request.deviceCode,
+          grant_type: "urn:ietf:params:oauth:grant-type:device_code"
+        })
+      });
+      const payload = await response.json() as Record<string, unknown>;
+      if (payload.error === "authorization_pending" || payload.error === "slow_down" || payload.error === "expired_token" || payload.error === "access_denied") {
+        return {
+          type: payload.error,
+          ...(payload.error === "slow_down" && typeof payload.interval === "number" ? { intervalSeconds: payload.interval } : {})
+        } as const;
+      }
+      if (typeof payload.access_token !== "string") {
+        return { type: "access_denied" as const };
+      }
+      return {
+        type: "success" as const,
+        accessToken: payload.access_token,
+        ...(typeof payload.refresh_token === "string" ? { refreshToken: payload.refresh_token } : {}),
+        tokenType: typeof payload.token_type === "string" ? payload.token_type : "bearer",
+        scopes: typeof payload.scope === "string" ? payload.scope.split(/[,\s]+/).filter(Boolean) : []
+      };
+    }
+  };
+}
+
+async function logoutCommand(providerId: string, io: CliIO): Promise<number> {
+  const result = await logoutProvider({
+    providerId,
+    ...(io.env ? { env: io.env } : {})
+  });
+  io.stdout.write(`logged out provider ${result.providerId}\n`);
+  return 0;
+}
+
+function authCommand(argv: string[], io: CliIO): number {
+  const [subcommand, providerId] = argv;
+  if (subcommand !== "status") {
+    io.stderr.write("usage: guga auth status [provider]\n");
+    return 2;
+  }
+  const statuses = listProviderAuthStatus({
+    ...(providerId ? { providerId } : {}),
+    ...(io.env ? { env: io.env } : {})
+  });
+  for (const status of statuses) {
+    io.stdout.write(`${status.providerId}: ${status.status} (${status.source})\n`);
+  }
+  return 0;
+}
+
 function handleCliError(error: unknown, io: CliIO): number {
   if (error instanceof CliHostFactoryError || error instanceof CliConfigError) {
     io.stderr.write(`${error.message}\n`);
     return 2;
   }
   throw error;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function isCliProviderMode(value: string | undefined): value is CliProviderMode {
@@ -481,11 +659,17 @@ function isCliProviderMode(value: string | undefined): value is CliProviderMode 
     || value === "anthropic";
 }
 
+function isOAuthLoginProvider(providerId: string): providerId is "copilot" | "codex" {
+  return providerId === "copilot" || providerId === "codex";
+}
+
 function cliUsage(): string {
   return [
     "usage: guga [--model id] [--profile code|deep-research|review] [--mock]",
     "       guga init [--user|--project] [--model id] [--provider-mode openai|anthropic|openai-compatible|gateway] [--force]",
     "       guga login <provider> [--api-key key|--api-key-env VAR] [--mode openai|anthropic|openai-compatible|gateway] [--model id] [--static]",
+    "       guga logout <provider>",
+    "       guga auth status [provider]",
     "       guga run <prompt> [--provider id] [--model id] [--profile code|deep-research|review] [--mock] [--debug-events] [--ops]",
     "       guga -p <prompt> [--provider id] [--model id] [--profile code|deep-research|review] [--mock]",
     "       guga --list-models",

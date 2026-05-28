@@ -9,16 +9,30 @@ export type ProfileSelection = {
   requiresNewSession: boolean;
 };
 
-export function listModelOptions(config: CliConfig, env: NodeJS.ProcessEnv = process.env): ModelOption[] {
-  return resolveModelRegistry({ config, env });
+export function listModelOptions(
+  config: CliConfig,
+  env: NodeJS.ProcessEnv = process.env,
+  credentialRoot?: string
+): ModelOption[] {
+  return resolveModelRegistry({
+    config,
+    env,
+    ...(credentialRoot ? { credentialRoot } : {})
+  });
 }
 
 export function selectModelOrThrow(
   config: CliConfig,
   selector: string,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  credentialRoot?: string
 ): SelectedCliModel {
-  const selected = selectResolvedModel({ config, selector, env });
+  const selected = selectResolvedModel({
+    config,
+    selector,
+    env,
+    ...(credentialRoot ? { credentialRoot } : {})
+  });
   if (!selected) {
     throw new Error(`Unknown model: ${selector}`);
   }

@@ -55,6 +55,36 @@ describe("AI SDK provider bridge", () => {
     });
   });
 
+  it("redacts OAuth-style authorization metadata from raw references", () => {
+    expect(
+      mapAiSdkResultToProviderResponse({
+        text: "hello",
+        providerMetadata: {
+          openai: {
+            responseId: "resp-1",
+            headers: {
+              Authorization: "Bearer access-token-value",
+              "x-request-id": "req-1"
+            }
+          }
+        }
+      })
+    ).toMatchObject({
+      raw: [{
+        label: "ai-sdk.providerMetadata",
+        value: {
+          openai: {
+            responseId: "resp-1",
+            headers: {
+              Authorization: "<redacted>",
+              "x-request-id": "req-1"
+            }
+          }
+        }
+      }]
+    });
+  });
+
   it("maps AI SDK tool calls to Guga tool intent responses", () => {
     expect(
       mapAiSdkResultToProviderResponse({
@@ -96,6 +126,40 @@ describe("AI SDK provider bridge", () => {
         maxRetries: 0
       })
     );
+  });
+
+  it("keeps OAuth-resolved bearer headers inside SDK-neutral provider config", async () => {
+    const generateText = vi.fn(async () => ({ text: "stubbed" }));
+    const modelFactory = vi.fn(() => "fake-model");
+    const provider = createAiSdkProvider(
+      {
+        id: "openai-codex",
+        mode: "openai-compatible",
+        modelId: "codex-test",
+        baseURL: "https://example.invalid/v1",
+        headers: { Authorization: "Bearer access-token-value" },
+        providerOptions: { openaiCodex: { authMode: "chatgpt" } }
+      },
+      { generateText, modelFactory }
+    );
+
+    await provider.generate({
+      messages: [{ role: "user", content: "hello" }],
+      tools: []
+    });
+
+    expect(modelFactory).toHaveBeenCalledWith(expect.objectContaining({
+      id: "openai-codex",
+      mode: "openai-compatible",
+      modelId: "codex-test",
+      baseURL: "https://example.invalid/v1",
+      headers: { Authorization: "Bearer access-token-value" }
+    }));
+    expect(generateText).toHaveBeenCalledWith(expect.objectContaining({
+      model: "fake-model",
+      providerOptions: { openaiCodex: { authMode: "chatgpt" } }
+    }));
+    expect(JSON.stringify(generateText.mock.calls[0]?.[0])).not.toContain("access-token-value");
   });
 
   it("uses the router-selected model id when present on the request", async () => {

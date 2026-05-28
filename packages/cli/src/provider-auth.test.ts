@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { redactSecret, resolveProviderAuth } from "./provider-auth";
+import { createProviderCredentialStore } from "./provider-credential-store";
 
 describe("provider auth resolver", () => {
   it("resolves env API keys without leaking raw secrets", () => {
@@ -82,5 +83,68 @@ describe("provider auth resolver", () => {
       code: "PROVIDER_AUTH_UNKNOWN"
     }));
     expect(redactSecret("short")).toBe("<redacted>");
+  });
+
+  it("resolves OAuth credentials from Guga Home without leaking tokens", async () => {
+    const root = await mkdtemp(join(tmpdir(), "guga-provider-auth-"));
+    const store = createProviderCredentialStore({ credentialsRoot: join(root, "credentials") });
+    store.saveCredential({
+      providerId: "copilot",
+      kind: "oauth",
+      accessToken: "gho-oauth-secret-1234",
+      refreshToken: "refresh-oauth-secret-9999",
+      tokenType: "bearer",
+      account: { login: "octo" },
+      expiresAt: "2099-01-01T00:00:00.000Z"
+    });
+
+    const resolved = resolveProviderAuth({
+      provider: { id: "copilot", metadata: { authType: "oauth" } },
+      credentialRoot: root,
+      env: {}
+    });
+
+    expect(resolved.view).toMatchObject({
+      providerId: "copilot",
+      status: "configured",
+      source: "oauth",
+      redacted: {
+        accessToken: "gho...1234",
+        refreshToken: "ref...9999",
+        account: "octo"
+      }
+    });
+    expect(resolved.material).toMatchObject({
+      providerId: "copilot",
+      accessToken: "gho-oauth-secret-1234",
+      refreshToken: "refresh-oauth-secret-9999",
+      tokenType: "bearer"
+    });
+    expect(JSON.stringify(resolved.view)).not.toContain("oauth-secret");
+  });
+
+  it("reports expired and malformed OAuth credentials without exposing raw payloads", async () => {
+    const root = await mkdtemp(join(tmpdir(), "guga-provider-auth-"));
+    const store = createProviderCredentialStore({ credentialsRoot: join(root, "credentials") });
+    store.saveCredential({
+      providerId: "codex",
+      kind: "oauth",
+      accessToken: "expired-secret-token",
+      tokenType: "bearer",
+      expiresAt: "2000-01-01T00:00:00.000Z"
+    });
+
+    const expired = resolveProviderAuth({
+      provider: { id: "codex", metadata: { authType: "oauth" } },
+      credentialRoot: root,
+      env: {}
+    });
+
+    expect(expired.view.status).toBe("expired");
+    expect(expired.view.diagnostics).toContainEqual(expect.objectContaining({
+      code: "PROVIDER_AUTH_EXPIRED_OAUTH"
+    }));
+    expect(expired.material.accessToken).toBeUndefined();
+    expect(JSON.stringify(expired.view)).not.toContain("expired-secret-token");
   });
 });

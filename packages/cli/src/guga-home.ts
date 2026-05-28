@@ -20,6 +20,7 @@ export type GugaHomePaths = {
   eventsRoot: string;
   sessionFactsRoot: string;
   artifactsRoot: string;
+  credentialsRoot: string;
   memoryRoot: string;
   cacheRoot: string;
   logsRoot: string;
@@ -68,6 +69,7 @@ export function resolveGugaHome(options: ResolveGugaHomeOptions = {}): GugaHomeP
     eventsRoot: join(projectSessionRoot, "events"),
     sessionFactsRoot: join(projectSessionRoot, "sessions"),
     artifactsRoot: join(home, "artifacts", "projects", projectKey),
+    credentialsRoot: join(home, "credentials"),
     memoryRoot: join(home, "memory"),
     cacheRoot: join(home, "cache"),
     logsRoot: join(home, "logs"),

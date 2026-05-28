@@ -26,6 +26,7 @@ describe("Guga home resolver", () => {
     expect(resolved.eventsRoot).toBe(join(resolved.sessionsRoot, "events"));
     expect(resolved.sessionFactsRoot).toBe(join(resolved.sessionsRoot, "sessions"));
     expect(resolved.artifactsRoot).toBe(join(homeDir, ".guga/artifacts/projects", resolved.projectKey));
+    expect(resolved.credentialsRoot).toBe(join(homeDir, ".guga/credentials"));
     expect(resolved.memoryRoot).toBe(join(homeDir, ".guga/memory"));
   });
 

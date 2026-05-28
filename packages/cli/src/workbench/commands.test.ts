@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { HostClient } from "@guga-agent/host-sdk";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   executeWorkbenchCommand,
   formatCommandHelp,
@@ -36,6 +39,9 @@ describe("workbench slash commands", () => {
     expect(WORKBENCH_SLASH_COMMAND_METADATA.find((command) => command.command === "/resume")).toMatchObject({
       selector: "resume"
     });
+    expect(WORKBENCH_SLASH_COMMAND_METADATA.find((command) => command.command === "/login")).toMatchObject({
+      selector: "provider"
+    });
     expect(formatCommandHelp()).toContain("/abort - Abort the active run.");
   });
 
@@ -69,6 +75,42 @@ describe("workbench slash commands", () => {
         profileId: "code",
         requiresNewSession: true
       }
+    });
+  });
+
+  it("logs in, reports auth status, and logs out OAuth providers without leaking tokens", async () => {
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-workbench-home-"));
+    const ctx = context({
+      env: { GUGA_HOME: gugaHome },
+      oauthLoginRunner: async ({ providerId, store }) => ({
+        ok: true,
+        credential: store.saveCredential({
+          providerId,
+          kind: "oauth",
+          accessToken: "workbench-oauth-secret",
+          tokenType: "bearer"
+        })
+      })
+    });
+
+    await expect(executeWorkbenchCommand(parseWorkbenchInput("/login codex"), ctx)).resolves.toMatchObject({
+      ok: true,
+      action: "login-provider",
+      message: "logged in provider codex"
+    });
+    await expect(executeWorkbenchCommand(parseWorkbenchInput("/auth status codex"), ctx)).resolves.toMatchObject({
+      ok: true,
+      action: "auth-status",
+      message: "codex: configured (oauth)"
+    });
+    await expect(executeWorkbenchCommand(parseWorkbenchInput("/logout codex"), ctx)).resolves.toMatchObject({
+      ok: true,
+      action: "logout-provider"
+    });
+    await expect(executeWorkbenchCommand(parseWorkbenchInput("/auth status codex"), ctx)).resolves.toMatchObject({
+      ok: true,
+      action: "auth-status",
+      message: "codex: missing (oauth)"
     });
   });
 

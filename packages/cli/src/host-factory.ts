@@ -29,6 +29,7 @@ import {
 } from "./config";
 import { GugaHomeError, type GugaHomePaths, resolveGugaHome } from "./guga-home";
 import { resolveModelRegistry, selectResolvedModel, type ResolvedModelView } from "./model-registry";
+import { providerRuntimeAuthForSelection } from "./provider-runtime-auth";
 
 export type CliProfileId = typeof CODE_AGENT_PROFILE_ID | typeof DEEP_RESEARCH_PROFILE_ID | typeof REVIEW_AGENT_PROFILE_ID;
 
@@ -55,6 +56,7 @@ export type CliHostStorageDiagnostics = {
   eventsRoot: string;
   sessionFactsRoot: string;
   artifactsRoot: string;
+  credentialsRoot: string;
   memoryRoot: string;
 };
 
@@ -104,12 +106,14 @@ export async function createCliHost(options: CliHostFactoryOptions = {}): Promis
     config: config.config,
     env,
     credentialRoot: gugaHome.home,
+    ...(options.providerId ? { providerId: options.providerId } : {}),
     ...(options.modelSelector ? { selector: options.modelSelector } : {})
   });
   const selectedModel = selectResolvedModel({
     config: config.config,
     env,
     credentialRoot: gugaHome.home,
+    ...(options.providerId ? { providerId: options.providerId } : {}),
     ...(options.modelSelector ? { selector: options.modelSelector } : {})
   });
   if (!options.mock && options.modelSelector && modelView.length > 0 && !selectedModel) {
@@ -192,7 +196,7 @@ function createProviderPlugins(
       id: providerId,
       mode: selected?.providerMode ?? firstModel.providerMode ?? "openai",
       modelId: selected?.modelId ?? firstModel.modelId,
-      ...(selected?.apiKey ? { apiKey: selected.apiKey } : {}),
+      ...providerRuntimeAuthForSelection(selected),
       ...(selected?.baseURL ? { baseURL: selected.baseURL } : {})
     });
     const metadata = models.map(modelMetadataForView);
@@ -311,6 +315,7 @@ function diagnosticsForHome(gugaHome: GugaHomePaths): CliHostStorageDiagnostics 
     eventsRoot: gugaHome.eventsRoot,
     sessionFactsRoot: gugaHome.sessionFactsRoot,
     artifactsRoot: gugaHome.artifactsRoot,
+    credentialsRoot: gugaHome.credentialsRoot,
     memoryRoot: gugaHome.memoryRoot
   };
 }

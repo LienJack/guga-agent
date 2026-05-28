@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { stringify as stringifyToml } from "smol-toml";
 import {
@@ -7,7 +7,14 @@ import {
   type CliProviderConfig,
   type CliProviderMode
 } from "./config";
-import { resolveGugaHome, safePathSegment } from "./guga-home";
+import { resolveGugaHome } from "./guga-home";
+import {
+  createProviderCredentialStore,
+  credentialRefForProvider,
+  type ProviderCredentialStore,
+  type RedactedProviderCredentialView
+} from "./provider-credential-store";
+import { resolveProviderAuth, type ProviderAuthView } from "./provider-auth";
 
 export type ProviderLoginOptions = {
   providerId: string;
@@ -26,6 +33,44 @@ export type ProviderLoginResult = {
   configPath: string;
   credentialPath?: string;
   warnings: string[];
+};
+
+export type ProviderOAuthLoginRunner = (context: {
+  providerId: "copilot" | "codex";
+  store: ProviderCredentialStore;
+}) => Promise<
+  | { ok: true; credential: RedactedProviderCredentialView }
+  | { ok: false; error: { code: string; message: string } }
+>;
+
+export type ProviderOAuthLoginOptions = Omit<ProviderLoginOptions, "apiKey" | "apiKeyEnv" | "staticSecret"> & {
+  providerId: "copilot" | "codex";
+  runner: ProviderOAuthLoginRunner;
+};
+
+export type ProviderOAuthLoginResult = {
+  providerId: "copilot" | "codex";
+  configPath: string;
+  credential: RedactedProviderCredentialView;
+};
+
+export type ProviderLogoutOptions = {
+  providerId: string;
+  env?: NodeJS.ProcessEnv;
+  cwd?: string;
+  homeDir?: string;
+};
+
+export type ProviderLogoutResult = {
+  providerId: string;
+  credential: RedactedProviderCredentialView;
+};
+
+export type ProviderAuthStatusOptions = {
+  providerId?: string;
+  env?: NodeJS.ProcessEnv;
+  cwd?: string;
+  homeDir?: string;
 };
 
 export function loginProvider(options: ProviderLoginOptions): ProviderLoginResult {
@@ -53,7 +98,7 @@ export function loginProvider(options: ProviderLoginOptions): ProviderLoginResul
   if (options.apiKey && options.staticSecret) {
     warnings.push("Static provider secrets are stored directly in config; prefer --api-key-env or managed local credentials.");
   } else if (options.apiKey) {
-    credentialRef = join("credentials", "providers", `${safePathSegment(options.providerId)}.json`);
+    credentialRef = credentialRefForProvider(options.providerId);
     credentialPath = join(home.home, credentialRef);
     mkdirSync(dirname(credentialPath), { recursive: true });
     writeFileSync(credentialPath, `${JSON.stringify({ apiKey: options.apiKey }, null, 2)}\n`, { mode: 0o600 });
@@ -76,6 +121,92 @@ export function loginProvider(options: ProviderLoginOptions): ProviderLoginResul
     ...(credentialPath ? { credentialPath } : {}),
     warnings
   };
+}
+
+export async function loginOAuthProvider(options: ProviderOAuthLoginOptions): Promise<ProviderOAuthLoginResult> {
+  const home = resolveGugaHome({
+    ...(options.env ? { env: options.env } : {}),
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+    ...(options.homeDir ? { homeDir: options.homeDir } : {})
+  });
+  const store = createProviderCredentialStore({ credentialsRoot: home.credentialsRoot });
+  return store.withProviderLock(options.providerId, async () => {
+    const login = await options.runner({ providerId: options.providerId, store });
+    if (!login.ok) {
+      throw new Error(login.error.message);
+    }
+    const configPath = existsSync(home.config.userToml) || !existsSync(home.config.userJson)
+      ? home.config.userToml
+      : home.config.userJson;
+    const existing = readCliConfigWithSources({
+      ...(options.env ? { env: options.env } : {}),
+      ...(options.cwd ? { cwd: options.cwd } : {}),
+      ...(options.homeDir ? { homeDir: options.homeDir } : {})
+    }).config;
+    const provider: CliProviderConfig = {
+      id: options.providerId,
+      mode: options.mode ?? defaultModeForProvider(options.providerId),
+      metadata: { authType: "oauth" },
+      ...(options.modelId ? { defaultModel: options.modelId } : {})
+    };
+    writeConfig(configPath, upsertProviderConfig(existing, provider, options));
+    return {
+      providerId: options.providerId,
+      configPath,
+      credential: login.credential
+    };
+  });
+}
+
+export async function logoutProvider(options: ProviderLogoutOptions): Promise<ProviderLogoutResult> {
+  const home = resolveGugaHome({
+    ...(options.env ? { env: options.env } : {}),
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+    ...(options.homeDir ? { homeDir: options.homeDir } : {})
+  });
+  const store = createProviderCredentialStore({ credentialsRoot: home.credentialsRoot });
+  return store.withProviderLock(options.providerId, () => {
+    const credential = store.deleteCredential(options.providerId);
+    const legacyCredentialPath = join(home.home, credentialRefForProvider(options.providerId));
+    if (existsSync(legacyCredentialPath)) {
+      rmSync(legacyCredentialPath);
+    }
+    return {
+      providerId: options.providerId,
+      credential
+    };
+  });
+}
+
+export function listProviderAuthStatus(options: ProviderAuthStatusOptions = {}): ProviderAuthView[] {
+  const home = resolveGugaHome({
+    ...(options.env ? { env: options.env } : {}),
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+    ...(options.homeDir ? { homeDir: options.homeDir } : {})
+  });
+  const config = readCliConfigWithSources({
+    ...(options.env ? { env: options.env } : {}),
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+    ...(options.homeDir ? { homeDir: options.homeDir } : {})
+  }).config;
+  const providerIds = new Set([
+    ...(config.providers ?? []).map((provider) => provider.id),
+    "copilot",
+    "codex"
+  ]);
+  const selected = options.providerId ? [options.providerId] : [...providerIds];
+  return selected.map((providerId) => {
+    const provider = config.providers?.find((candidate) => candidate.id === providerId) ?? {
+      id: providerId,
+      mode: defaultModeForProvider(providerId),
+      ...(providerId === "copilot" || providerId === "codex" ? { metadata: { authType: "oauth" } } : {})
+    };
+    return resolveProviderAuth({
+      provider,
+      env: options.env ?? process.env,
+      credentialRoot: home.home
+    }).view;
+  });
 }
 
 export function loginGuidance(providerId: string): string {
@@ -143,6 +274,12 @@ function readMode(path: string): number | undefined {
 }
 
 function defaultModeForProvider(providerId: string): CliProviderMode {
+  if (providerId === "copilot") {
+    return "openai-compatible";
+  }
+  if (providerId === "codex") {
+    return "openai";
+  }
   if (providerId === "anthropic") {
     return "anthropic";
   }

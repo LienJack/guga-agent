@@ -166,6 +166,8 @@ export type SelectedCliModel = {
   providerMode?: CliProviderMode;
   modelId?: string;
   apiKey?: string;
+  accessToken?: string;
+  tokenType?: string;
   baseURL?: string;
 };
 

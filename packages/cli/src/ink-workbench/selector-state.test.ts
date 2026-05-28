@@ -97,6 +97,21 @@ describe("selector state", () => {
     });
   });
 
+  it("creates /login provider selector options", () => {
+    const state = createSelectorState({
+      source: "provider",
+      title: "Login provider",
+      options: createCommandSelectorOptions("/login", [
+        { id: "copilot", label: "GitHub Copilot", value: "copilot", detail: "OAuth device flow" }
+      ])
+    });
+
+    expect(confirmSelectorOption(state).effect).toMatchObject({
+      type: "select",
+      commandText: "/login copilot"
+    });
+  });
+
   it("closes on escape and keeps typed filtering local to selector state", () => {
     let result = applySelectorIntent(selector(), { type: "text", value: "slow" });
     expect(result.state.query).toBe("slow");

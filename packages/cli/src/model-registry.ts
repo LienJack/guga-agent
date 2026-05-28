@@ -7,6 +7,9 @@ export type ModelHealthStatus = "unknown" | "healthy" | "degraded" | "unavailabl
 export type ModelAvailabilityReason =
   | "missing-auth"
   | "invalid-auth"
+  | "expired-auth"
+  | "refresh-failed-auth"
+  | "logged-out-auth"
   | "invalid-config"
   | "provider-unhealthy"
   | "unsupported-capability";
@@ -19,7 +22,7 @@ export type ResolvedModelView = {
   modelId: string;
   purpose?: ModelPurpose;
   capabilities?: ModelCapability;
-  source: "config" | "legacy" | "registered";
+  source: "config" | "legacy" | "registered" | "built-in";
   authStatus: ProviderAuthStatus;
   auth: ProviderAuthView;
   healthStatus: ModelHealthStatus;
@@ -37,6 +40,7 @@ export type ResolvedModelSelection = SelectedCliModel & {
 export type ResolveModelRegistryOptions = {
   config: CliConfig;
   selector?: string;
+  providerId?: string;
   env?: NodeJS.ProcessEnv;
   credentialRoot?: string;
   registeredModels?: ModelMetadata[];
@@ -48,18 +52,29 @@ export function resolveModelRegistry(options: ResolveModelRegistryOptions): Reso
   const env = options.env ?? process.env;
   const providers = providersById(options.config);
   const configuredModels = configuredModelSpecs(options.config, providers);
+  const builtInModels = builtInOAuthModelSpecs(options.config, providers);
   const registeredModels = (options.registeredModels ?? []).map((model) => ({
     id: `${model.providerId}/${model.modelId}`,
     model,
     source: "registered" as const
   }));
 
-  return [
+  const models = [
     ...configuredModels.map((model) => modelViewFromConfig({
       config: options.config,
       model: model.model,
       provider: providers.get(model.model.providerId ?? options.config.providerId ?? "ai-sdk"),
       source: model.source,
+      env,
+      ...(options.credentialRoot ? { credentialRoot: options.credentialRoot } : {}),
+      ...(options.requiredCapabilities ? { requiredCapabilities: options.requiredCapabilities } : {}),
+      ...(options.health ? { health: options.health } : {})
+    })),
+    ...builtInModels.map((model) => modelViewFromConfig({
+      config: options.config,
+      model: model.model,
+      provider: providers.get(model.model.providerId),
+      source: "built-in",
       env,
       ...(options.credentialRoot ? { credentialRoot: options.credentialRoot } : {}),
       ...(options.requiredCapabilities ? { requiredCapabilities: options.requiredCapabilities } : {}),
@@ -75,16 +90,19 @@ export function resolveModelRegistry(options: ResolveModelRegistryOptions): Reso
       ...(options.health ? { health: options.health } : {})
     }))
   ];
+  return options.providerId
+    ? models.filter((model) => model.providerId === options.providerId)
+    : models;
 }
 
 export function selectResolvedModel(
   options: ResolveModelRegistryOptions
 ): ResolvedModelSelection | undefined {
   const models = resolveModelRegistry(options);
-  const requested = options.selector ?? options.config.defaultModel ?? options.config.modelId;
+  const requested = options.selector ?? (options.providerId ? undefined : options.config.defaultModel ?? options.config.modelId);
   const selected = requested
     ? models.find((model) => model.id === requested || model.modelId === requested)
-    : models[0];
+    : models.find((model) => model.source !== "built-in") ?? (options.providerId ? models[0] : undefined);
   if (!selected || !selected.available) {
     return undefined;
   }
@@ -101,6 +119,8 @@ export function selectResolvedModel(
     ...(selected.providerMode ? { providerMode: selected.providerMode } : {}),
     modelId: selected.modelId,
     ...(auth.material.apiKey ? { apiKey: auth.material.apiKey } : {}),
+    ...(auth.material.accessToken ? { accessToken: auth.material.accessToken } : {}),
+    ...(auth.material.tokenType ? { tokenType: auth.material.tokenType } : {}),
     ...(selected.baseURL ? { baseURL: selected.baseURL } : {}),
     availability: selected
   };
@@ -117,7 +137,7 @@ function modelViewFromConfig(options: {
   config: CliConfig;
   model: CliModelConfig & { providerId: string };
   provider: CliProviderConfig | undefined;
-  source: "config" | "legacy";
+  source: "config" | "legacy" | "built-in";
   env: NodeJS.ProcessEnv;
   credentialRoot?: string;
   requiredCapabilities?: ModelCapability;
@@ -242,6 +262,11 @@ function providersById(config: CliConfig): Map<string, CliProviderConfig> {
       });
     }
   }
+  for (const model of BUILT_IN_OAUTH_MODELS) {
+    if (!providers.has(model.providerId)) {
+      providers.set(model.providerId, builtInProviderFor(model.providerId));
+    }
+  }
   return providers;
 }
 
@@ -274,6 +299,22 @@ function configuredModelSpecs(
     },
     source: "legacy"
   }];
+}
+
+function builtInOAuthModelSpecs(
+  config: CliConfig,
+  providers: Map<string, CliProviderConfig>
+): Array<{ model: CliModelConfig & { providerId: string }; source: "built-in" }> {
+  const configuredIds = new Set((config.models ?? []).map((model) => model.id));
+  const configuredProviderModels = new Set((config.models ?? []).map((model) => `${model.providerId}:${model.modelId}`));
+  return BUILT_IN_OAUTH_MODELS
+    .filter((model) => !configuredIds.has(model.id) && !configuredProviderModels.has(`${model.providerId}:${model.modelId}`))
+    .map((model) => {
+      if (!providers.has(model.providerId)) {
+        providers.set(model.providerId, builtInProviderFor(model.providerId));
+      }
+      return { model, source: "built-in" as const };
+    });
 }
 
 function providerForModel(
@@ -325,6 +366,18 @@ function availabilityReasons(options: {
   if (options.authStatus === "invalid") {
     reasons.push("invalid-auth");
   }
+  if (options.authStatus === "expired") {
+    reasons.push("expired-auth");
+  }
+  if (options.authStatus === "refresh-failed") {
+    reasons.push("refresh-failed-auth");
+  }
+  if (options.authStatus === "logged-out") {
+    reasons.push("logged-out-auth");
+  }
+  if (options.authStatus === "login-pending") {
+    reasons.push("missing-auth");
+  }
   if (options.invalidConfig) {
     reasons.push("invalid-config");
   }
@@ -335,6 +388,33 @@ function availabilityReasons(options: {
     reasons.push("unsupported-capability");
   }
   return reasons;
+}
+
+const BUILT_IN_OAUTH_MODELS: Array<CliModelConfig & { providerId: string }> = [
+  {
+    id: "copilot",
+    label: "GitHub Copilot",
+    providerId: "copilot",
+    providerMode: "openai-compatible",
+    modelId: "gpt-5.4",
+    capabilities: { toolCalling: false, streaming: true, reasoning: true, usage: "optional" }
+  },
+  {
+    id: "codex",
+    label: "OpenAI Codex",
+    providerId: "codex",
+    providerMode: "openai",
+    modelId: "gpt-5.4",
+    capabilities: { toolCalling: true, streaming: true, reasoning: true, usage: "optional" }
+  }
+];
+
+function builtInProviderFor(providerId: string): CliProviderConfig {
+  return {
+    id: providerId,
+    mode: providerId === "codex" ? "openai" : "openai-compatible",
+    metadata: { authType: "oauth" }
+  };
 }
 
 function hasInvalidConfigDiagnostic(config: CliConfig, providerId: string, modelId: string): boolean {

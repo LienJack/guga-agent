@@ -2,6 +2,7 @@ import type { SessionResource } from "@guga-agent/host-protocol";
 import type { HostClient } from "@guga-agent/host-sdk";
 import type { CliConfig, SelectedCliModel } from "../config";
 import { isCliProfileId, type CliHostStorageDiagnostics, type CliProfileId } from "../host-factory";
+import type { ProviderOAuthLoginRunner } from "../provider-login";
 import { executeWorkbenchCommand, parseWorkbenchInput } from "../workbench/commands";
 import { reduceHostEvent, reduceHostEvents, reduceWorkbenchAction } from "../workbench/event-reducer";
 import { formatModelOption, listModelOptions, type ProfileSelection } from "../workbench/model-control";
@@ -21,6 +22,7 @@ export type WorkbenchControllerOptions = {
   providerId?: string;
   modelId?: string;
   profileId: CliProfileId;
+  oauthLoginRunner?: ProviderOAuthLoginRunner;
   env?: NodeJS.ProcessEnv;
   onStateChange?: (state: WorkbenchState) => void;
   onExit?: () => void;
@@ -34,6 +36,7 @@ export class WorkbenchController {
   readonly client: HostClient;
   readonly config: CliConfig;
   readonly storage: CliHostStorageDiagnostics | undefined;
+  readonly oauthLoginRunner: ProviderOAuthLoginRunner | undefined;
   readonly env: NodeJS.ProcessEnv | undefined;
   readonly onExit: (() => void) | undefined;
 
@@ -50,6 +53,7 @@ export class WorkbenchController {
     this.client = options.client;
     this.config = options.config;
     this.storage = options.storage;
+    this.oauthLoginRunner = options.oauthLoginRunner;
     this.#providerId = options.providerId;
     this.#modelId = options.modelId;
     this.#profileId = options.profileId;
@@ -174,6 +178,7 @@ export class WorkbenchController {
       client: this.client,
       config: this.config,
       ...(this.storage ? { storage: this.storage } : {}),
+      ...(this.oauthLoginRunner ? { oauthLoginRunner: this.oauthLoginRunner } : {}),
       ...(this.env ? { env: this.env } : {}),
       activeSessionId: this.#session.id,
       ...(this.#session.activeBranchId ? { activeBranchId: this.#session.activeBranchId } : {}),
@@ -248,7 +253,7 @@ export class WorkbenchController {
       return createSelectorState({
         source: "model",
         title: "Select model",
-        options: createCommandSelectorOptions("/model", listModelOptions(this.config, this.env).map((model) => ({
+        options: createCommandSelectorOptions("/model", listModelOptions(this.config, this.env, this.storage?.home).map((model) => ({
           id: model.id,
           label: `${model.isDefault ? "* " : ""}${model.displayName}`,
           value: model.id,
@@ -268,6 +273,16 @@ export class WorkbenchController {
           value: profileId,
           detail: "restart required"
         })))
+      });
+    }
+    if (command === "/login") {
+      return createSelectorState({
+        source: "provider",
+        title: "Login provider",
+        options: createCommandSelectorOptions("/login", [
+          { id: "copilot", label: "GitHub Copilot", value: "copilot", detail: "OAuth device flow" },
+          { id: "codex", label: "OpenAI Codex", value: "codex", detail: "ChatGPT/Codex OAuth flow" }
+        ])
       });
     }
     const sessions = await this.client.listSessions();

@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { HostClient } from "@guga-agent/host-sdk";
 import { WorkbenchController } from "./controller";
 
@@ -125,6 +128,46 @@ describe("workbench controller", () => {
     });
   });
 
+  it("opens a provider selector for login commands", async () => {
+    const controller = controllerFor(fakeClient());
+
+    await expect(controller.selectorForCommand("/login")).resolves.toMatchObject({
+      source: "provider",
+      title: "Login provider",
+      options: [
+        expect.objectContaining({
+          id: "copilot",
+          commandText: "/login copilot"
+        }),
+        expect.objectContaining({
+          id: "codex",
+          commandText: "/login codex"
+        })
+      ]
+    });
+  });
+
+  it("passes OAuth runner into login slash commands", async () => {
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-controller-home-"));
+    const controller = controllerFor(fakeClient(), {
+      env: { GUGA_HOME: gugaHome },
+      oauthLoginRunner: async ({ providerId, store }) => ({
+        ok: true,
+        credential: store.saveCredential({
+          providerId,
+          kind: "oauth",
+          accessToken: "controller-oauth-token",
+          tokenType: "bearer"
+        })
+      })
+    });
+
+    await expect(controller.submitText("/login codex")).resolves.toMatchObject({
+      ok: true,
+      message: "logged in provider codex"
+    });
+  });
+
   it("prioritizes pending permission responses over slash commands", async () => {
     const client = fakeClient();
     const controller = controllerFor(client);
@@ -156,7 +199,10 @@ describe("workbench controller", () => {
   });
 });
 
-function controllerFor(client: HostClient) {
+function controllerFor(
+  client: HostClient,
+  options: Pick<ConstructorParameters<typeof WorkbenchController>[0], "env" | "oauthLoginRunner"> = {}
+) {
   return new WorkbenchController({
     client,
     config: {
@@ -183,7 +229,8 @@ function controllerFor(client: HostClient) {
     },
     providerId: "mock",
     modelId: "mock-model",
-    profileId: "code"
+    profileId: "code",
+    ...options
   });
 }
 

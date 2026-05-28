@@ -39,6 +39,10 @@ guga
 guga run "summarize the repo"
 guga -p "summarize the repo"
 guga login openai --api-key-env OPENAI_API_KEY
+guga login copilot
+guga login codex
+guga auth status
+guga logout codex
 guga --list-models
 guga run "hello" --mock --debug-events
 ```
@@ -46,7 +50,9 @@ guga run "hello" --mock --debug-events
 - `guga` starts the interactive terminal workbench for a project.
 - `guga run "<prompt>"` runs one headless turn and prints the streamed result.
 - `guga -p "<prompt>"` is the short one-shot alias for the headless path.
-- `guga login <provider>` configures a named provider using an env var or a Guga-managed local credential reference.
+- `guga login <provider>` configures a named provider using an env var, a Guga-managed local credential reference, or OAuth for built-in Copilot/Codex flows.
+- `guga auth status [provider]` prints redacted provider auth state.
+- `guga logout <provider>` removes the local Guga-owned credential for that provider.
 - `guga --list-models` prints configured model aliases and provider defaults.
 
 ## Configuration
@@ -118,10 +124,33 @@ apiKeyEnv = "LOCAL_OPENAI_API_KEY"
 
 Use `apiKeyEnv` for secrets when possible. `guga login openai --api-key <key>` writes a local credential reference under Guga Home and stores only the reference in config. Raw `apiKey` values are supported only for compatibility and diagnostics mark them as risky.
 
-Workbench has provider-aware guidance:
+OAuth-backed built-ins are visible in the same model registry:
+
+```bash
+guga login copilot
+guga login codex
+guga auth status codex
+guga --list-models
+guga logout codex
+```
+
+`copilot` and `codex` credentials are stored under Guga Home `credentials/providers/` and are owned by Guga, not by GitHub CLI, Copilot CLI, Codex CLI, or any external tool. Status output, model lists, runtime metadata, and diagnostics show only redacted account/status information; access tokens, refresh tokens, raw OAuth payloads, and authorization headers must not be printed.
+
+Copilot OAuth uses GitHub device flow and requires a Guga-owned GitHub OAuth app client id:
+
+```bash
+GUGA_COPILOT_CLIENT_ID=... guga login copilot
+```
+
+Codex OAuth is wired through the same runner/storage/model surfaces, but the default CLI runner remains disabled until OpenAI confirms a stable third-party ChatGPT/Codex OAuth endpoint contract. API-key OpenAI models remain available through the normal `openai` provider.
+
+Workbench exposes the same surfaces:
 
 ```text
-/login openai
+/login
+/login copilot
+/logout codex
+/auth status
 /models
 /model sonnet
 ```
@@ -144,7 +173,7 @@ Session history is append-only local history under `sessions/`; compaction and b
 
 Fallback is explicit: `fallbackModels` names backup aliases for the primary route. Auxiliary models use a model `purpose` field such as `summarizer`; the router, not the provider bridge, owns retry/fallback selection.
 
-OAuth flows, including Gemini OAuth, are intentionally not part of this API-key/env/local-credential MVP. The provider/auth schema keeps room for a future OAuth credential source without changing model selection semantics.
+Anthropic/Claude remains API-key or Workload Identity Federation for this milestone. DeepSeek and Kimi/Moonshot remain API-key or OpenAI-compatible provider configuration paths; their OAuth flows are not part of this milestone.
 
 ## Models And Profiles
 

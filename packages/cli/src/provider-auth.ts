@@ -1,10 +1,19 @@
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import type { CliProviderConfig } from "./config";
+import { createProviderCredentialStore } from "./provider-credential-store";
 
-export type ProviderAuthStatus = "configured" | "missing" | "invalid" | "unknown";
+export type ProviderAuthStatus =
+  | "configured"
+  | "missing"
+  | "invalid"
+  | "unknown"
+  | "login-pending"
+  | "expired"
+  | "refresh-failed"
+  | "logged-out";
 
-export type ProviderAuthSource = "env" | "static" | "local" | "none";
+export type ProviderAuthSource = "env" | "static" | "local" | "oauth" | "none";
 
 export type ProviderAuthDiagnostic = {
   severity: "info" | "warning" | "error";
@@ -23,6 +32,9 @@ export type ProviderAuthView = {
 export type ProviderCredentialMaterial = {
   providerId: string;
   apiKey?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenType?: string;
 };
 
 export type ResolvedProviderAuth = {
@@ -94,6 +106,14 @@ export function resolveProviderAuth(options: ResolveProviderAuthOptions): Resolv
     return resolveLocalCredential({
       providerId: options.provider.id,
       credentialRef: options.provider.credentialRef,
+      ...(options.credentialRoot ? { credentialRoot: options.credentialRoot } : {}),
+      diagnostics
+    });
+  }
+
+  if (isOAuthProvider(options.provider)) {
+    return resolveOAuthCredential({
+      providerId: options.provider.id,
       ...(options.credentialRoot ? { credentialRoot: options.credentialRoot } : {}),
       diagnostics
     });
@@ -207,6 +227,87 @@ function resolveCredentialPath(credentialRef: string, credentialRoot: string | u
     return credentialRef;
   }
   return credentialRoot ? join(credentialRoot, credentialRef) : resolve(credentialRef);
+}
+
+function resolveOAuthCredential(options: {
+  providerId: string;
+  credentialRoot?: string;
+  diagnostics: ProviderAuthDiagnostic[];
+}): ResolvedProviderAuth {
+  const base = {
+    providerId: options.providerId,
+    diagnostics: options.diagnostics
+  };
+  if (!options.credentialRoot) {
+    options.diagnostics.push({
+      severity: "error",
+      code: "PROVIDER_AUTH_MISSING_OAUTH",
+      message: `Missing OAuth credential for provider ${options.providerId}; run guga login ${options.providerId}.`
+    });
+    return {
+      view: {
+        ...base,
+        status: "missing",
+        source: "oauth",
+        redacted: {}
+      },
+      material: { providerId: options.providerId }
+    };
+  }
+
+  const store = createProviderCredentialStore({ credentialsRoot: join(options.credentialRoot, "credentials") });
+  const stored = store.readCredential(options.providerId);
+  if (stored.status === "missing") {
+    options.diagnostics.push({
+      severity: "error",
+      code: "PROVIDER_AUTH_MISSING_OAUTH",
+      message: `Missing OAuth credential for provider ${options.providerId}; run guga login ${options.providerId}.`
+    });
+    return {
+      view: {
+        ...base,
+        status: "missing",
+        source: "oauth",
+        redacted: {}
+      },
+      material: { providerId: options.providerId }
+    };
+  }
+  if (stored.status === "invalid") {
+    options.diagnostics.push({
+      severity: "error",
+      code: "PROVIDER_AUTH_INVALID_OAUTH",
+      message: `OAuth credential for provider ${options.providerId} is invalid; run guga login ${options.providerId} again.`
+    });
+  }
+  if (stored.status === "expired" || stored.status === "refresh-failed") {
+    options.diagnostics.push({
+      severity: "error",
+      code: stored.status === "expired" ? "PROVIDER_AUTH_EXPIRED_OAUTH" : "PROVIDER_AUTH_REFRESH_FAILED",
+      message: `OAuth credential for provider ${options.providerId} needs refresh or re-login.`
+    });
+  }
+  const credential = stored.credential;
+  return {
+    view: {
+      ...base,
+      status: stored.status,
+      source: "oauth",
+      redacted: stored.view.redacted
+    },
+    material: {
+      providerId: options.providerId,
+      ...(stored.status === "configured" && credential?.accessToken ? { accessToken: credential.accessToken } : {}),
+      ...(stored.status === "configured" && credential?.refreshToken ? { refreshToken: credential.refreshToken } : {}),
+      ...(stored.status === "configured" && credential?.tokenType ? { tokenType: credential.tokenType } : {})
+    }
+  };
+}
+
+function isOAuthProvider(provider: CliProviderConfig): boolean {
+  return provider.id === "copilot"
+    || provider.id === "codex"
+    || provider.metadata?.authType === "oauth";
 }
 
 function readCredentialApiKey(path: string): string | undefined {

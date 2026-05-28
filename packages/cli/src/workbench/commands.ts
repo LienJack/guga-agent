@@ -3,7 +3,13 @@ import type { HostClient } from "@guga-agent/host-sdk";
 import type { CliConfig } from "../config";
 import type { CliHostStorageDiagnostics } from "../host-factory";
 import { formatModelOption, listModelOptions, selectModelOrThrow, selectProfileOrThrow } from "./model-control";
-import { loginGuidance } from "../provider-login";
+import {
+  listProviderAuthStatus,
+  loginGuidance,
+  loginOAuthProvider,
+  logoutProvider,
+  type ProviderOAuthLoginRunner
+} from "../provider-login";
 import {
   createWorkbenchSession,
   forkWorkbenchSession,
@@ -11,7 +17,7 @@ import {
   summarizeOperationalStatus
 } from "./session-control";
 
-export type WorkbenchSlashSelectorKind = "model" | "profile" | "resume";
+export type WorkbenchSlashSelectorKind = "model" | "profile" | "resume" | "provider";
 
 export interface WorkbenchSlashCommandMetadata {
   readonly command: string;
@@ -31,7 +37,9 @@ export const WORKBENCH_SLASH_COMMAND_METADATA = [
   { command: "/clear", label: "Clear", usage: "/clear", help: "Clear the visible transcript." },
   { command: "/models", label: "Models", usage: "/models", help: "List configured models." },
   { command: "/model", label: "Switch model", usage: "/model <id>", help: "Switch model.", selector: "model" },
-  { command: "/login", label: "Login", usage: "/login <provider>", help: "Show provider login guidance." },
+  { command: "/login", label: "Login", usage: "/login <provider>", help: "Login to a provider.", selector: "provider" },
+  { command: "/logout", label: "Logout", usage: "/logout <provider>", help: "Remove a local provider credential." },
+  { command: "/auth", label: "Auth status", usage: "/auth status [provider]", help: "Show provider auth status." },
   { command: "/profile", label: "Switch profile", usage: "/profile <id>", help: "Switch profile and start a new session.", selector: "profile" },
   { command: "/permissions", label: "Permissions", usage: "/permissions", help: "List permission-relevant capabilities." },
   { command: "/mcp", label: "MCP", usage: "/mcp", help: "List MCP capabilities." },
@@ -59,6 +67,7 @@ export type WorkbenchCommandContext = {
   activeSessionId?: string;
   activeBranchId?: string;
   activeRunId?: string;
+  oauthLoginRunner?: ProviderOAuthLoginRunner;
 };
 
 export type WorkbenchCommandAction =
@@ -68,6 +77,9 @@ export type WorkbenchCommandAction =
   | "list-models"
   | "select-model"
   | "select-profile"
+  | "login-provider"
+  | "logout-provider"
+  | "auth-status"
   | "new-session"
   | "resume-session"
   | "fork-session"
@@ -125,7 +137,7 @@ export async function executeWorkbenchCommand(
     case "/clear":
       return commandOk("clear", "transcript cleared");
     case "/models": {
-      const models = listModelOptions(context.config, context.env);
+      const models = listModelOptions(context.config, context.env, context.storage?.home);
       return commandOk(
         "list-models",
         models.length === 0
@@ -137,16 +149,50 @@ export async function executeWorkbenchCommand(
     case "/login": {
       const providerId = intent.args.trim();
       if (!providerId) {
-        return commandError("/login requires a provider id.", ["/login openai", "/login anthropic"]);
+        return commandError("/login requires a provider id.", ["/login copilot", "/login codex"]);
       }
-      return commandOk("status", loginGuidance(providerId));
+      if ((providerId === "copilot" || providerId === "codex") && context.oauthLoginRunner) {
+        return executeHostCommand(async () => {
+          const result = await loginOAuthProvider({
+            providerId,
+            runner: context.oauthLoginRunner as ProviderOAuthLoginRunner,
+            ...(context.env ? { env: context.env } : {})
+          });
+          return commandOk("login-provider", `logged in provider ${result.providerId}`, result.credential);
+        });
+      }
+      return commandOk("login-provider", loginGuidance(providerId));
+    }
+    case "/logout": {
+      const providerId = intent.args.trim();
+      if (!providerId) {
+        return commandError("/logout requires a provider id.", ["/logout copilot", "/logout codex"]);
+      }
+      return executeHostCommand(async () => {
+        const result = await logoutProvider({
+          providerId,
+          ...(context.env ? { env: context.env } : {})
+        });
+        return commandOk("logout-provider", `logged out provider ${result.providerId}`, result.credential);
+      });
+    }
+    case "/auth": {
+      const [subcommand, providerId] = intent.args.trim().split(/\s+/);
+      if (subcommand !== "status") {
+        return commandError("/auth requires status.", ["/auth status", "/auth status copilot"]);
+      }
+      const statuses = listProviderAuthStatus({
+        ...(providerId ? { providerId } : {}),
+        ...(context.env ? { env: context.env } : {})
+      });
+      return commandOk("auth-status", statuses.map((status) => `${status.providerId}: ${status.status} (${status.source})`).join("\n"), statuses);
     }
     case "/model": {
       if (intent.args.trim().length === 0) {
         return commandError("/model requires a model id or alias.", ["/models"]);
       }
       try {
-        const selected = selectModelOrThrow(context.config, intent.args.trim(), context.env);
+        const selected = selectModelOrThrow(context.config, intent.args.trim(), context.env, context.storage?.home);
         return commandOk("select-model", `model switched to ${selected.id}`, selected);
       } catch (error) {
         return commandError(errorMessage(error), ["/models"]);

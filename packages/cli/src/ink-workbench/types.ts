@@ -1,4 +1,5 @@
 import type { CliProfileId } from "../host-factory";
+import type { ProviderOAuthLoginRunner } from "../provider-login";
 
 export type InkWorkbenchLaunchArgs = {
   debugEvents: boolean;
@@ -24,6 +25,7 @@ export type InkWorkbenchIO = {
   stderr: InkWorkbenchWriter;
   stdin?: InkWorkbenchStdin;
   env?: NodeJS.ProcessEnv;
+  oauthLoginRunner?: ProviderOAuthLoginRunner;
 };
 
 export type InkWorkbenchLaunchOptions = {

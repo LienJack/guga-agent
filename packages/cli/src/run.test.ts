@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readCliConfigWithSources } from "./config";
 import { runCli } from "./commands/run";
+import type { ProviderOAuthLoginRunner } from "./provider-login";
 import { renderHostEvent } from "./render/events";
 import { PassThrough, Readable } from "node:stream";
 import { mkdtemp } from "node:fs/promises";
@@ -69,7 +70,8 @@ describe("CLI run command", () => {
   });
 
   it("prints a friendly error when headless run has no configured model", async () => {
-    const io = captureIo({ env: {} });
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-home-"));
+    const io = captureIo({ env: { GUGA_HOME: gugaHome } });
 
     await expect(runCli(["run", "hello"], io)).resolves.toBe(2);
 
@@ -78,7 +80,8 @@ describe("CLI run command", () => {
   });
 
   it("prints a friendly error when interactive mode has no configured model", async () => {
-    const io = captureIo({ stdin: ttyReadable("/exit\n"), tty: true, env: {} });
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-home-"));
+    const io = captureIo({ stdin: ttyReadable("/exit\n"), tty: true, env: { GUGA_HOME: gugaHome } });
 
     await expect(runCli([], io)).resolves.toBe(2);
 
@@ -146,6 +149,77 @@ describe("CLI run command", () => {
     await expect(runCli(["login", "openai"], io)).resolves.toBe(2);
 
     expect(io.stderr()).toContain("login requires --api-key or --api-key-env");
+  });
+
+  it("logs in an OAuth provider through an injected runner without leaking tokens", async () => {
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-home-"));
+    const oauthLoginRunner: ProviderOAuthLoginRunner = async ({ providerId, store }) => {
+      return {
+        ok: true,
+        credential: store.saveCredential({
+          providerId,
+          kind: "oauth",
+          accessToken: "oauth-login-secret-1234",
+          tokenType: "bearer",
+          account: { login: "octo" }
+        })
+      };
+    };
+    const io = captureIo({ env: { GUGA_HOME: gugaHome }, oauthLoginRunner });
+
+    await expect(runCli(["login", "copilot"], io)).resolves.toBe(0);
+
+    expect(io.stdout()).toContain("logged in provider copilot");
+    expect(io.stdout()).toContain("auth: configured");
+    expect(io.stdout()).not.toContain("oauth-login-secret-1234");
+    await expect(runCli(["auth", "status", "copilot"], io)).resolves.toBe(0);
+    expect(io.stdout()).toContain("copilot: configured (oauth)");
+    const config = readCliConfigWithSources({ env: { GUGA_HOME: gugaHome }, cwd: process.cwd() }).config;
+    expect(config.providers).toContainEqual(expect.objectContaining({
+      id: "copilot",
+      metadata: { authType: "oauth" }
+    }));
+  });
+
+  it("fails Copilot OAuth login clearly when no GitHub OAuth app client id is configured", async () => {
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-home-"));
+    const io = captureIo({ env: { GUGA_HOME: gugaHome } });
+
+    await expect(runCli(["login", "copilot"], io)).resolves.toBe(2);
+
+    expect(io.stderr()).toContain("Copilot OAuth login requires GUGA_COPILOT_CLIENT_ID");
+    expect(io.stderr()).not.toContain("token");
+  });
+
+  it("keeps Codex OAuth disabled by default until official third-party contract is confirmed", async () => {
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-home-"));
+    const io = captureIo({ env: { GUGA_HOME: gugaHome } });
+
+    await expect(runCli(["login", "codex"], io)).resolves.toBe(2);
+
+    expect(io.stderr()).toContain("Codex OAuth browser/device endpoints are not enabled by default");
+  });
+
+  it("logs out an OAuth provider and status becomes missing", async () => {
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-home-"));
+    const oauthLoginRunner: ProviderOAuthLoginRunner = async ({ providerId, store }) => ({
+      ok: true,
+      credential: store.saveCredential({
+        providerId,
+        kind: "oauth",
+        accessToken: "oauth-login-secret-1234",
+        tokenType: "bearer"
+      })
+    });
+    const io = captureIo({ env: { GUGA_HOME: gugaHome }, oauthLoginRunner });
+
+    await expect(runCli(["login", "codex"], io)).resolves.toBe(0);
+    await expect(runCli(["logout", "codex"], io)).resolves.toBe(0);
+    await expect(runCli(["auth", "status", "codex"], io)).resolves.toBe(0);
+
+    expect(io.stdout()).toContain("logged out provider codex");
+    expect(io.stdout()).toContain("codex: missing (oauth)");
+    expect(io.stdout()).not.toContain("oauth-login-secret-1234");
   });
 
   it("prints structured events with --debug-events", async () => {
@@ -241,7 +315,12 @@ describe("CLI run command", () => {
   });
 });
 
-function captureIo(options: { env?: NodeJS.ProcessEnv; stdin?: NodeJS.ReadableStream; tty?: boolean } = {}) {
+function captureIo(options: {
+  env?: NodeJS.ProcessEnv;
+  stdin?: NodeJS.ReadableStream;
+  tty?: boolean;
+  oauthLoginRunner?: ProviderOAuthLoginRunner;
+} = {}) {
   const stdout: string[] = [];
   const stderr: string[] = [];
   return {
@@ -265,7 +344,8 @@ function captureIo(options: { env?: NodeJS.ProcessEnv; stdin?: NodeJS.ReadableSt
       }
     }),
     ...(options.stdin ? { stdin: options.stdin } : {}),
-    ...(options.env ? { env: options.env } : {})
+    ...(options.env ? { env: options.env } : {}),
+    ...(options.oauthLoginRunner ? { oauthLoginRunner: options.oauthLoginRunner } : {})
   };
 }
 
