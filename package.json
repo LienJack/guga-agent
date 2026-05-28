@@ -7,6 +7,7 @@
     "build": "pnpm -r build",
     "demo:ai-sdk-bridge": "vitest run scripts/ai-sdk-bridge-demo.test.ts --reporter=verbose",
     "demo:ai-sdk-bridge:real": "vitest run scripts/ai-sdk-bridge-real-demo.test.ts --reporter=verbose",
+    "install:cli": "pnpm --filter @guga-agent/cli build && node scripts/install-cli-alias.mjs",
     "smoke:packages": "pnpm build && node scripts/package-esm-smoke.mjs",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"

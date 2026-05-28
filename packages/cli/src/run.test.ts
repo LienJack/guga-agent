@@ -41,6 +41,24 @@ describe("CLI run command", () => {
     expect(io.stderr()).toContain("guga interactive workbench requires a TTY");
   });
 
+  it("prints a friendly error when headless run has no configured model", async () => {
+    const io = captureIo({ env: {} });
+
+    await expect(runCli(["run", "hello"], io)).resolves.toBe(2);
+
+    expect(io.stderr()).toContain("No model configured. Set GUGA_MODEL");
+    expect(io.stderr()).not.toContain("CliHostFactoryError");
+  });
+
+  it("prints a friendly error when interactive mode has no configured model", async () => {
+    const io = captureIo({ stdin: ttyReadable("/exit\n"), tty: true, env: {} });
+
+    await expect(runCli([], io)).resolves.toBe(2);
+
+    expect(io.stderr()).toContain("No model configured. Set GUGA_MODEL");
+    expect(io.stderr()).not.toContain("CliHostFactoryError");
+  });
+
   it("lists configured models", async () => {
     const io = captureIo({
       env: {

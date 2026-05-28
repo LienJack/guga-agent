@@ -2,6 +2,36 @@
 
 Command-line entry point for running Guga through the shared host protocol.
 
+## Quick Install
+
+From the repository root:
+
+```bash
+pnpm install:cli
+source ~/.zshrc
+guga
+```
+
+`pnpm install:cli` builds the CLI and installs an idempotent shell alias:
+
+```bash
+alias guga='node /path/to/guga-agent/packages/cli/dist/index.js'
+```
+
+The path is generated on each developer machine from that local clone, so the committed installer does not hard-code one person's home directory.
+
+By default the alias is installed into the current user's shell startup file:
+
+- zsh: `~/.zshrc`
+- bash: `~/.bashrc`
+- other shells: `~/.profile`
+
+Use a custom shell rc file when needed:
+
+```bash
+pnpm install:cli -- --shell-rc ~/.bashrc
+```
+
 ## Commands
 
 ```bash

@@ -55,7 +55,7 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
         io.stderr.write(`${parsed.error}\n`);
         return 2;
       }
-      return runCommand({ ...parsed.args, headless: true }, io);
+      return await runCommand({ ...parsed.args, headless: true }, io);
     }
     if (!command || command.startsWith("--") || command === "chat" || command === "interactive") {
       const parsed = parseInteractiveArgs(command && !command.startsWith("--") ? rest : argv);
@@ -63,7 +63,7 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
         io.stderr.write(`${parsed.error}\n`);
         return 2;
       }
-      return runInteractiveCommand(parsed.args, io);
+      return await runInteractiveCommand(parsed.args, io);
     }
     if (command !== "run") {
       io.stderr.write(cliUsage());
@@ -77,7 +77,7 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
       io.stderr.write(`${parsed.error}\n`);
       return 2;
     }
-    return runCommand(parsed.args, io);
+    return await runCommand(parsed.args, io);
   } catch (error) {
     return handleCliError(error, io);
   }
