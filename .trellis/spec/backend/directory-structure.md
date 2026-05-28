@@ -6,7 +6,7 @@
 
 ## Overview
 
-Guga Agent backend/runtime code is a TypeScript workspace with a small core kernel plus built-in capability modules and optional extension packages. Keep the core kernel small: it owns contracts, in-memory runtime primitives, execution pipeline, permission kernel, scheduler, result policy, and test fixtures. Default filesystem, shell, git, and AI SDK provider bridge implementations may live under `packages/core/src/builtins/*`; do not add CLI, Web, persistence, or UI projection inside `packages/core`.
+Guga Agent backend/runtime code is a TypeScript workspace with a small core kernel plus explicit built-in capability modules and optional extension/plugin packages. Keep the core kernel small: it owns contracts, in-memory runtime primitives, execution pipeline, permission kernel, scheduler, result policy, and test fixtures. Default filesystem, shell, and git implementations live under `packages/core/src/builtins/*`; the AI SDK provider bridge lives under `packages/core/src/provider-ai-sdk/*`. Do not add CLI, Web, persistence, UI projection, or optional ecosystem integrations to core kernel layers.
 
 ---
 
@@ -38,6 +38,7 @@ packages/
       state/
       tools/
       testing/
+  extension-sdk/
 ```
 
 ---
@@ -57,7 +58,7 @@ packages/
 - `provider-ai-sdk/`: built-in AI SDK provider bridge and SDK-specific mappers. It is a sibling module to `builtins/` so provider concerns do not crowd the tool built-ins directory.
 - `testing/`: mock provider and test tool fixtures for core tests only; these are not default runtime capabilities.
 
-Do not put real provider SDKs or real tools in the core kernel layers (`contracts`, `registry`, `hooks`, `permissions`, `tools`, `runtime`, `loop`, or `state`). Built-in tool implementations belong under `packages/core/src/builtins`; the AI SDK provider bridge belongs under `packages/core/src/provider-ai-sdk`. MCP and other optional ecosystem integrations stay outside core as extensions.
+Do not put real provider SDKs or real tools in the core kernel layers (`contracts`, `registry`, `hooks`, `permissions`, `tools`, `runtime`, `loop`, or `state`). Built-in tool implementations belong under `packages/core/src/builtins`; the AI SDK provider bridge belongs under `packages/core/src/provider-ai-sdk`. Optional ecosystem integrations such as MCP, skills, memory, artifact, replay/audit, eval, and delegation stay outside core as extensions.
 
 ---
 

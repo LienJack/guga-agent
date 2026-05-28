@@ -14,6 +14,7 @@ export type BuiltInCoreCapabilitySet = {
 };
 
 export type DefaultCoreCapabilitiesOptions = {
+  workspaceRoot?: string;
   filesystem?: BuiltInFilesystemOptions | false;
   git?: BuiltInGitOptions | false;
   shell?: BuiltInShellOptions | false;
@@ -50,15 +51,16 @@ export function createDefaultCoreCapabilities(options: DefaultCoreCapabilitiesOp
   const providers: Provider[] = [];
   const models: ModelMetadata[] = [];
   const tools: ToolDefinition[] = [];
+  const workspaceRoot = options.workspaceRoot ?? process.cwd();
 
-  if (options.filesystem) {
-    tools.push(...createBuiltInFilesystemTools(options.filesystem));
+  if (options.filesystem !== false) {
+    tools.push(...createBuiltInFilesystemTools(options.filesystem ?? { workspaceRoot }));
   }
-  if (options.git) {
-    tools.push(...createBuiltInGitTools(options.git));
+  if (options.git !== false) {
+    tools.push(...createBuiltInGitTools(options.git ?? { workspaceRoot }));
   }
-  if (options.shell) {
-    tools.push(createBuiltInShellTool(options.shell));
+  if (options.shell !== false) {
+    tools.push(createBuiltInShellTool(options.shell ?? { workspaceRoot }));
   }
   if (options.aiSdk) {
     const aiSdk = createLazyBuiltInAiSdkProviderCapabilities(options.aiSdk.config, options.aiSdk.factory);

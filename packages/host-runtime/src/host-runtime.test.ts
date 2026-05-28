@@ -13,7 +13,7 @@ describe("HostRuntime", () => {
       now: () => new Date("2026-05-27T00:00:00.000Z"),
       idFactory: deterministicIds(["session-1", "run-1"])
     });
-    const session = host.createSession({ title: "Test" });
+    const session = await host.createSession({ title: "Test" });
 
     const run = await host.startRun({
       sessionId: session.id,
@@ -34,7 +34,7 @@ describe("HostRuntime", () => {
       "usage.recorded",
       "run.completed"
     ]);
-    expect(host.getSession(session.id)).toMatchObject({
+    await expect(host.getSession(session.id)).resolves.toMatchObject({
       lastRunId: run.id,
       lastRunStatus: "completed",
       branches: [
@@ -59,7 +59,7 @@ describe("HostRuntime", () => {
       now: () => new Date("2026-05-27T00:00:00.000Z"),
       idFactory: deterministicIds(["session-1", "run-1"])
     });
-    const session = host.createSession();
+    const session = await host.createSession();
 
     const run = await host.startRun({ sessionId: session.id, input: "use tool", providerId: "mock" });
 
@@ -101,7 +101,7 @@ describe("HostRuntime", () => {
       now: () => new Date("2026-05-27T00:00:00.000Z"),
       idFactory: deterministicIds(["session-1", "run-1"])
     });
-    const session = host.createSession();
+    const session = await host.createSession();
 
     const run = await host.startRun({ sessionId: session.id, input: "retry" });
 
@@ -133,7 +133,7 @@ describe("HostRuntime", () => {
       now: () => new Date("2026-05-27T00:00:00.000Z"),
       idFactory: deterministicIds(["session-1", "run-1"])
     });
-    const session = host.createSession();
+    const session = await host.createSession();
 
     const run = host.startRunDetached({ sessionId: session.id, input: "wait", providerId: "slow" });
 
@@ -172,7 +172,7 @@ describe("HostRuntime", () => {
       now: () => new Date("2026-05-27T00:00:00.000Z"),
       idFactory: deterministicIds(["session-1", "run-1", "input-1"])
     });
-    const session = host.createSession();
+    const session = await host.createSession();
     const run = host.startRunDetached({ sessionId: session.id, input: "wait", providerId: "slow" });
     await waitFor(() => !!finishRun);
 
@@ -228,7 +228,7 @@ describe("HostRuntime", () => {
       now: () => new Date("2026-05-27T00:00:00.000Z"),
       idFactory: deterministicIds(["session-1", "run-1", "input-1", "run-2"])
     });
-    const session = host.createSession();
+    const session = await host.createSession();
     const run = host.startRunDetached({ sessionId: session.id, input: "wait", providerId: "controlled" });
     await waitFor(() => !!finishRun);
 
@@ -236,7 +236,7 @@ describe("HostRuntime", () => {
     finishRun?.("done");
 
     await waitForRunStatus(host, run.id, "completed");
-    await waitFor(() => host.listSessions().length === 1 && host.listAuditSummaries().length === 2);
+    await waitFor(async () => (await host.listSessions()).length === 1 && host.listAuditSummaries().length === 2);
     const runs = host.listAuditSummaries().map((summary) => summary.runId);
     expect(runs).toEqual(["run-run-1", "run-run-2"]);
     expect(host.getRun("run-run-1")?.queuedInputs).toEqual([]);
@@ -263,7 +263,7 @@ describe("HostRuntime", () => {
       now: () => new Date("2026-05-27T00:00:00.000Z"),
       idFactory: deterministicIds(["session-1", "run-1", "interaction-1"])
     });
-    const session = host.createSession();
+    const session = await host.createSession();
     const run = host.startRunDetached({ sessionId: session.id, input: "wait", providerId: "slow" });
     await waitFor(() => !!finishRun);
 
@@ -289,12 +289,12 @@ describe("HostRuntime", () => {
     await waitForRunStatus(host, run.id, "completed");
   });
 
-  it("forks and resumes session branches", () => {
+  it("forks and resumes session branches", async () => {
     const host = new HostRuntime({
       now: () => new Date("2026-05-27T00:00:00.000Z"),
       idFactory: deterministicIds(["session-1", "branch-1"])
     });
-    const session = host.createSession({ title: "Branches" });
+    const session = await host.createSession({ title: "Branches" });
 
     const forked = host.forkSession(session.id, { summary: "Try another path" });
 
@@ -312,7 +312,7 @@ describe("HostRuntime", () => {
         expect.objectContaining({ id: "branch-branch-1" })
       ])
     });
-    expect(host.resumeSession(session.id, { branchId: "main" })).toMatchObject({ activeBranchId: "main" });
+    await expect(host.resumeSession(session.id, { branchId: "main" })).resolves.toMatchObject({ activeBranchId: "main" });
   });
 
   it("stores structured run failures", async () => {
@@ -322,7 +322,7 @@ describe("HostRuntime", () => {
       now: () => new Date("2026-05-27T00:00:00.000Z"),
       idFactory: deterministicIds(["session-1", "run-1"])
     });
-    const session = host.createSession();
+    const session = await host.createSession();
 
     const run = await host.startRun({ sessionId: session.id, input: "missing provider", providerId: "missing" });
 
@@ -372,7 +372,7 @@ describe("HostRuntime", () => {
       now: () => new Date("2026-05-27T00:00:00.000Z"),
       idFactory: deterministicIds(["session-1", "run-1"])
     });
-    const session = host.createSession();
+    const session = await host.createSession();
 
     const pendingRun = host.startRun({ sessionId: session.id, input: "wait", providerId: "slow" });
     expect(host.cancelRun("run-run-1")).toMatchObject({ status: "cancelled" });
@@ -396,7 +396,7 @@ describe("HostRuntime", () => {
       { type: "final", content: "done" }
     ]));
     host.registerTool(writeTool());
-    const session = host.createSession();
+    const session = await host.createSession();
     const runPromise = host.startRun({ sessionId: session.id, input: "write", providerId: "mock" });
     await waitFor(() => host.listRunEvents("run-run-1").some((event) => event.type === "permission.requested"));
     host.enqueueRunInput("run-run-1", { mode: "follow_up", text: "later" });
@@ -433,7 +433,7 @@ describe("HostRuntime", () => {
       })
     ]));
     host.registerTool(writeTool());
-    const session = host.createSession();
+    const session = await host.createSession();
     const runPromise = host.startRun({ sessionId: session.id, input: "write", providerId: "mock" });
     const permissionId = "run-run-1:write:1";
     await waitFor(() => host.getPermission(permissionId)?.status === "pending");
@@ -480,7 +480,7 @@ describe("HostRuntime", () => {
       { type: "final", content: "allowed" }
     ]));
     host.registerTool(writeTool());
-    const session = host.createSession();
+    const session = await host.createSession();
     const runPromise = host.startRun({ sessionId: session.id, input: "write", providerId: "mock" });
     const permissionId = "run-run-1:write:1";
 
@@ -524,9 +524,9 @@ async function waitForRunStatus(
   throw new Error(`Timed out waiting for run ${runId} to reach ${status}`);
 }
 
-async function waitFor(predicate: () => boolean): Promise<void> {
+async function waitFor(predicate: () => boolean | Promise<boolean>): Promise<void> {
   for (let attempt = 0; attempt < 50; attempt += 1) {
-    if (predicate()) {
+    if (await predicate()) {
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1));

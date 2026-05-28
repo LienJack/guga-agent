@@ -59,8 +59,16 @@ describe("delegation plugin runtime integration", () => {
     const result = await runtime.run({ input: "delegate", providerId: "mock", runId: "run-delegate-headless" });
 
     expect(childRunner).not.toHaveBeenCalled();
+    expect(projectedTools[0]).toEqual([
+      "fs_read",
+      "fs_list",
+      "fs_search",
+      "git_status",
+      "git_diff",
+      "git_commit_message"
+    ]);
     expect(projectedTools[0]).not.toContain("delegate_task");
-    expect(result).toMatchObject({ ok: true, finalAnswer: "" });
+    expect(result).toMatchObject({ ok: true, finalAnswer: "fs_read,fs_list,fs_search,git_status,git_diff,git_commit_message" });
     await runtime.dispose();
   });
 

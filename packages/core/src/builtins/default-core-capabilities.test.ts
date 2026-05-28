@@ -5,6 +5,24 @@ import { createTestTool } from "../testing/test-tool";
 import { createDefaultCoreCapabilities, registerBuiltInCoreCapabilities } from "./default-core-capabilities";
 
 describe("default core capabilities", () => {
+  it("creates filesystem, git, and shell built-ins by default for the current workspace", () => {
+    const capabilities = createDefaultCoreCapabilities();
+
+    expect(capabilities.providers).toEqual([]);
+    expect(capabilities.models).toEqual([]);
+    expect(capabilities.tools?.map((tool) => tool.name).sort()).toEqual([
+      "fs_edit",
+      "fs_list",
+      "fs_read",
+      "fs_search",
+      "fs_write",
+      "git_commit_message",
+      "git_diff",
+      "git_status",
+      "shell_exec"
+    ]);
+  });
+
   it("registers supplied built-in providers, models, and tools with built-in descriptor metadata", () => {
     const registry = new CapabilityRegistry();
     const provider = createMockProvider([{ type: "final", content: "ok" }], { id: "builtin-provider" });
@@ -75,6 +93,18 @@ describe("default core capabilities", () => {
     await expect(capabilities.tools?.find((tool) => tool.name === "git_status")?.execute({}, {
       call: { id: "call-git", name: "git_status", input: {} }
     })).resolves.toEqual({ ok: true, content: "clean" });
+  });
+
+  it("allows hosts to disable individual built-in groups", () => {
+    const capabilities = createDefaultCoreCapabilities({
+      filesystem: false,
+      git: false,
+      shell: false
+    });
+
+    expect(capabilities.tools).toEqual([]);
+    expect(capabilities.providers).toEqual([]);
+    expect(capabilities.models).toEqual([]);
   });
 });
 

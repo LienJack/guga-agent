@@ -85,23 +85,34 @@ describe("profile-code-agent", () => {
     });
   });
 
-  it("creates a plugin bundle from existing first-party capabilities", async () => {
-    const runtime = createAgentRuntime({
-      plugins: createCodeAgentPlugins({
-        workspaceRoot: "/workspace",
-        includeOperations: true
-      })
-    });
+  it("creates runtime options with core built-ins and optional extensions", async () => {
+    const runtime = createAgentRuntime(createCodeAgentRuntimeOptions({
+      workspaceRoot: "/workspace",
+      includeOperations: true
+    }));
 
     await runtime.run({ input: "initialize", providerId: "missing", runId: "run-code-bundle" });
 
     expect(runtime.listCapabilityDescriptors?.()).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: "tool", name: "fs_read", ownerPluginId: "code-agent-filesystem" }),
-      expect.objectContaining({ type: "tool", name: "shell_exec", ownerPluginId: "code-agent-shell" }),
-      expect.objectContaining({ type: "tool", name: "git_status", ownerPluginId: "code-agent-git" }),
+      expect.objectContaining({ type: "tool", name: "fs_read", source: "built-in", layer: "built-in-core" }),
+      expect.objectContaining({ type: "tool", name: "shell_exec", source: "built-in", layer: "built-in-core" }),
+      expect.objectContaining({ type: "tool", name: "git_status", source: "built-in", layer: "built-in-core" }),
       expect.objectContaining({ type: "operation", name: "audit.summary", ownerPluginId: "code-agent-audit-export" }),
       expect.objectContaining({ type: "operation", name: "eval.run", ownerPluginId: "code-agent-eval-runner" })
     ]));
+  });
+
+  it("creates an optional extension plugin bundle without duplicating core built-ins", () => {
+    const plugins = createCodeAgentPlugins({
+      workspaceRoot: "/workspace",
+      includeOperations: true
+    });
+
+    expect(plugins.map((plugin) => plugin.id)).toEqual([
+      "code-agent-ops-health",
+      "code-agent-audit-export",
+      "code-agent-eval-runner"
+    ]);
   });
 
   it("creates runtime options without host or CLI dependencies", () => {
@@ -110,7 +121,8 @@ describe("profile-code-agent", () => {
       includeOperations: false
     });
 
-    expect(options.plugins).toHaveLength(3);
+    expect(options.plugins).toEqual([]);
+    expect(options.builtIns).toMatchObject({ capabilities: { tools: expect.any(Array) } });
     expect(options.permissions?.profile).toBe("ask-on-write");
   });
 

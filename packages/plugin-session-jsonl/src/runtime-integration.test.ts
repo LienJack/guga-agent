@@ -130,7 +130,12 @@ describe("jsonl session runtime integration", () => {
         runId: "run-jsonl-replay",
         turn: 0,
         messages: [{ role: "user", content: "hello" }],
-        tools: [expect.objectContaining({ name: "echo" })]
+        tools: expect.arrayContaining([
+          expect.objectContaining({ name: "fs_read" }),
+          expect.objectContaining({ name: "git_status" }),
+          expect.objectContaining({ name: "shell_exec" }),
+          expect.objectContaining({ name: "echo" })
+        ])
       }
     });
     expect(providerSpy).not.toHaveBeenCalled();

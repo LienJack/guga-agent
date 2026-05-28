@@ -196,7 +196,19 @@ export class PluginHost {
     contribution: PluginContribution,
     options: CapabilityRegistrationOptions = {}
   ): void {
-    this.registry.registerProvider(provider, pluginCapabilityOptions(pluginId, options));
+    const registrationOptions = pluginCapabilityOptions(pluginId, options);
+    try {
+      this.registry.registerProvider(provider, registrationOptions);
+    } catch (error) {
+      if (error instanceof CoreError) {
+        this.registry.recordCapabilityConflict("provider", provider.id, {
+          ...registrationOptions,
+          status: "rejected-conflict",
+          reason: error.message
+        });
+      }
+      throw error;
+    }
     contribution.providers.push(provider.id);
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
@@ -250,7 +262,19 @@ export class PluginHost {
     contribution: PluginContribution,
     options: CapabilityRegistrationOptions = {}
   ): void {
-    this.registry.registerModel(model, pluginCapabilityOptions(pluginId, options));
+    const registrationOptions = pluginCapabilityOptions(pluginId, options);
+    try {
+      this.registry.registerModel(model, registrationOptions);
+    } catch (error) {
+      if (error instanceof CoreError) {
+        this.registry.recordCapabilityConflict("model", `${model.providerId}/${model.modelId}`, {
+          ...registrationOptions,
+          status: "rejected-conflict",
+          reason: error.message
+        });
+      }
+      throw error;
+    }
     contribution.models.push({ providerId: model.providerId, modelId: model.modelId });
     this.eventBus.publish({
       type: AgentEventType.PluginCapabilityRegistered,
