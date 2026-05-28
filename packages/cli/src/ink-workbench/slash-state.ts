@@ -90,6 +90,8 @@ export function applySlashPaletteIntent(state: SlashPaletteState, intent: KeyInt
       const command = getHighlightedSlashCommand(state);
       return command === undefined ? { state } : { state, effect: { type: "select", command } };
     }
+    case "complete":
+      return { state };
     case "left":
     case "right":
     case "newline":

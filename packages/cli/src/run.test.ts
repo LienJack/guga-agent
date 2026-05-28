@@ -292,6 +292,18 @@ describe("CLI run command", () => {
     })).toEqual(["tool shell progress 50%: running tests"]);
   });
 
+  it("renders explicit reasoning deltas in headless event output", () => {
+    expect(renderHostEvent({
+      type: "message.reasoning_delta",
+      seq: 1,
+      occurredAt: "2026-05-27T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      messageId: "reasoning-1",
+      text: "checking tools"
+    })).toEqual(["reasoning: checking tools"]);
+  });
+
   it("reads real provider config from environment", async () => {
     const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-home-"));
     expect(readCliConfigWithSources({

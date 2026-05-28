@@ -10,6 +10,7 @@ export type PromptInputTarget =
 export interface PromptState {
   readonly editor: EditorState;
   readonly target: PromptInputTarget;
+  readonly preservedEditor?: EditorState;
 }
 
 export type PromptEffect =
@@ -63,6 +64,10 @@ export function applyPromptIntent(
     return submitPrompt(state, options);
   }
 
+  if (keyIntent.type === "complete") {
+    return { state };
+  }
+
   const editorResult = applyEditorIntent(state.editor, keyIntent);
   const nextState = { ...state, editor: editorResult.state };
   const slashEffect = slashEffectForEdit(state.editor.text, editorResult.state.text, state.target);
@@ -70,7 +75,17 @@ export function applyPromptIntent(
 }
 
 export function setPromptInputTarget(state: PromptState, target: PromptInputTarget): PromptState {
-  return { ...state, target };
+  return withoutPreservedEditor({ ...state, target });
+}
+
+export function replacePromptText(state: PromptState, text: string): PromptState {
+  return {
+    ...state,
+    editor: createEditorState({
+      text,
+      history: state.editor.history
+    })
+  };
 }
 
 export function getPromptText(state: PromptState): string {
@@ -139,4 +154,9 @@ function slashQueryForText(text: string): string | null {
 
 function withEffect(state: PromptState, effect: PromptEffect): PromptActionResult {
   return { state, effect };
+}
+
+function withoutPreservedEditor(state: PromptState): PromptState {
+  const { preservedEditor: _preservedEditor, ...rest } = state;
+  return rest;
 }

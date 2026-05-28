@@ -12,6 +12,9 @@ export function renderHostEvent(event: HostEvent, options: RenderEventOptions = 
   if (event.type === "message.delta") {
     return [event.text];
   }
+  if (event.type === "message.reasoning_delta") {
+    return [`reasoning: ${event.text}`];
+  }
   if (event.type === "tool.started") {
     return [`tool ${event.name} started`];
   }

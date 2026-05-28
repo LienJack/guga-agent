@@ -55,6 +55,34 @@ guga run "hello" --mock --debug-events
 - `guga logout <provider>` removes the local Guga-owned credential for that provider.
 - `guga --list-models` prints configured model aliases and provider defaults.
 
+## Interactive Workbench
+
+TTY 模式下的裸 `guga` 会进入 Ink workbench；非 TTY 的 `guga run` 和 `guga -p` 保持 headless 输出，不加载 Ink/React。
+
+Workbench 的底部输入框会保留可见光标和输入回显。提交后的 prompt 会进入 transcript；运行中输入会按当前模式发送为 `steer` 或 `follow_up`。如果 host stream 断开，输入会锁定，只有 `/reload` 会尝试从最后安全 `seq` 重放并续流。
+
+常用 slash 命令：
+
+```text
+/model
+/profile
+/resume
+/tools
+/mcp
+/skills
+/permissions
+/status
+/compact
+/reload
+/abort
+```
+
+`/tools`、`/mcp`、`/skills` 和 `/permissions` 展示 host capability 的 source、status、namespace、owner、reason 和 trust 信息。`/compact` 当前是保留命令；它会明确显示未实现，而不是伪装成已支持。
+
+Permission 和 interaction prompt 会临时接管输入焦点。它们不会清掉你正在输入的 prompt 或 running input 草稿；完成响应后，原草稿会回到输入框。
+
+Transcript 会区分 user、assistant、reasoning/status、tool、permission、interaction、queue、abort、error、artifact、context 和 retry。Reasoning/status 只来自 host 明确暴露的 `message.reasoning_delta`，不会展示隐藏 chain-of-thought。
+
 ## Configuration
 
 Guga uses a local user workspace called Guga Home. By default it is `~/.guga`; set `GUGA_HOME` to move the whole workspace:

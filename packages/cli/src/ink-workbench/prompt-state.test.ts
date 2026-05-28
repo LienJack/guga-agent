@@ -76,6 +76,15 @@ describe("prompt state", () => {
     expect(result.effect).toBeUndefined();
   });
 
+  it("maps Tab to completion without mutating a plain editor buffer", () => {
+    const intent = mapKeypressToIntent({ name: "tab", sequence: "\t" });
+    const result = applyPromptIntent(createPromptState({ text: "/mod" }), intent);
+
+    expect(intent).toEqual({ type: "complete" });
+    expect(result.state.editor.text).toBe("/mod");
+    expect(result.effect).toBeUndefined();
+  });
+
   it("keeps non-ASCII and wide-character smoke input intact", () => {
     let result = applyPromptIntent(createPromptState(), { type: "text", value: "你好🙂" });
     result = applyPromptIntent(result.state, { type: "left" });

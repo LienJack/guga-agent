@@ -47,8 +47,23 @@ describe("host stdio adapter", () => {
       expect.objectContaining({ type: "message_update", text: "hi" })
     ]);
     expect(hostEventToPiCompatibleEvents({
-      type: "tool.progress",
+      type: "message.reasoning_delta",
       seq: 3,
+      occurredAt: "2026-05-27T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      messageId: "reasoning-1",
+      text: "checking tools"
+    })).toEqual([
+      expect.objectContaining({
+        type: "reasoning_update",
+        message_id: "reasoning-1",
+        text: "checking tools"
+      })
+    ]);
+    expect(hostEventToPiCompatibleEvents({
+      type: "tool.progress",
+      seq: 4,
       occurredAt: "2026-05-27T00:00:00.000Z",
       sessionId: "session-1",
       runId: "run-1",

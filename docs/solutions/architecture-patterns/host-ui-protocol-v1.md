@@ -278,11 +278,15 @@ Run lifecycle:
 Message stream:
 
 - `message.delta`
+- `message.reasoning_delta`
 - `message.completed`
+
+`message.reasoning_delta` 只表示 provider/core 明确暴露的 reasoning/status 文本。客户端可以把它渲染为“思考/状态”轨迹，但不得由 assistant prose 反推，也不得展示 hidden chain-of-thought。
 
 Tool lifecycle:
 
 - `tool.started`
+- `tool.progress`
 - `tool.completed`
 - `tool.failed`
 
@@ -365,6 +369,26 @@ Not allowed as client-only state:
 - session branch state
 - usage/audit facts
 
+## M42 Ink Workbench Slice
+
+M42 已把 CLI 的 Ink workbench 固定为 Host UI Protocol 的一个客户端实现，而不是独立协议：
+
+- Prompt editor 在空输入、普通输入、stream redraw、CJK/emoji 和 bracketed paste 下保持可见光标与回显。
+- `run.started.input` 投影为 user transcript block，提交后用户输入不会从 transcript 消失。
+- 明确的 `message.reasoning_delta` 投影为独立 reasoning block，并在 run terminal 时收口为 completed。
+- Tool transcript 从 typed lifecycle events 展示 input、progress、output、artifact ids 和 error detail。
+- `/tools`、`/mcp`、`/skills`、`/permissions` 使用 `HostClient.listCapabilities()`，展示 `source`、`namespace`、`ownerPluginId`、`status`、`reason` 和 trust 信息。
+- Permission / interaction overlay 通过 focus stack 抢占 Enter/Escape，但会保留并恢复原 prompt/run-input 草稿。
+- Disconnected state 锁定 host-writing input；`/reload` 从 replay events 重建投影，再以最后安全 `seq` 续流，避免 delta 重复追加。
+- Headless renderer 和 Pi-compatible stdio adapter 都消费同一组 HostEvents；reasoning/status 不只存在于 Ink UI。
+
+明确不属于 M42 的平台面：
+
+- OpenCode 风格 Desktop/Web/mDNS/ACP/Zed/LSP/WebSocket PTY。
+- Gemini CLI 的 SDK、A2A server、extension registry、sandbox/trusted-folder policy 和 telemetry pipeline。
+- Claude Code teams/tasks/background-agent 平台面。
+- 长输出 inspector、完整 `@` mention、branch tree 管理 UI 和 crash checkpoint 数据模型。
+
 ## Implementation Gaps Against Current Code
 
 Current code already has:
@@ -374,19 +398,15 @@ Current code already has:
 - `@guga-agent/host-local-server` REST/SSE routes.
 - `@guga-agent/host-sdk` typed client.
 
-Required v1 completion work:
+Remaining follow-up work:
 
-1. Add `/protocol` and `ProtocolInfoResource`.
-2. Add `waiting-for-interaction` run status.
-3. Add `run.cancelled` as a terminal event instead of representing cancellation only as `run.failed`.
-4. Add `interaction.cancelled` event/resource transition.
-5. Add first-class permission resources and `respondPermission` SDK/server/runtime flow.
-6. Wire permission resolver bridge so code-agent write/execute asks become Host permission resources.
-7. Define and implement queue consumption, especially `follow_up` after terminal run.
-8. Ensure SSE `afterSeq` replay, event IDs, and client reconnect behavior are tested.
-9. Keep Ink/React imports out of host protocol/runtime/SDK and renderer-neutral workbench packages.
-10. Add cross-transport contract tests for HTTP and in-memory HostClient implementations.
-11. Ensure fork semantics stay branch-within-session and expose optional `profileId` / `modelId` session metadata.
+1. Add cross-transport contract tests for HTTP and in-memory HostClient implementations.
+2. Wire code-agent write/execute asks fully into first-class permission resources where a runtime path still bypasses host permission events.
+3. Define full queue consumption semantics for `follow_up` after terminal run.
+4. Add rich inspectors for long tool output, diffs, shell output and artifacts.
+5. Add complete `@` mention/resource candidate discovery.
+6. Extend replay/recovery from process-lifetime event replay into durable crash checkpoint recovery.
+7. Ensure fork semantics stay branch-within-session and expose optional `profileId` / `modelId` session metadata everywhere sessions are listed.
 
 ## Guga 落点
 

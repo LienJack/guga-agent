@@ -32,6 +32,8 @@ export function applyEditorIntent(state: EditorState, intent: KeyIntent): Editor
       return { state: insertText(state, intent.value) };
     case "paste":
       return { state: insertText(state, intent.value) };
+    case "complete":
+      return { state };
     case "newline":
       return { state: insertText(state, "\n") };
     case "backspace":

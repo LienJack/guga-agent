@@ -32,6 +32,14 @@ describe("workbench views", () => {
       usageLabel: "tokens 0 in 0 out 0",
       inputLocked: false
     });
+    expect(view.welcome).toMatchObject({
+      visible: true,
+      title: "Welcome to Guga",
+      modelLabel: "guga-mock",
+      contextLabel: "context unknown",
+      costLabel: "cost unknown",
+      cwdLabel: "/workspace/app"
+    });
     expect(view.connection).toEqual({
       status: "connected",
       inputLocked: false
@@ -75,5 +83,36 @@ describe("workbench views", () => {
       inputLocked: true,
       disconnectedReason: "seq-discontinuity"
     });
+  });
+
+  it("renders failed tool terminal details visibly", () => {
+    const state = reduceHostEvent(createInitialWorkbenchState({
+      projectPath: "/workspace/app",
+      profileId: "code",
+      slashCommands: []
+    }), {
+      type: "tool.failed",
+      seq: 1,
+      occurredAt: "2026-05-28T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      callId: "call-1",
+      name: "shell",
+      error: {
+        code: "TOOL_DENIED",
+        message: "Permission denied"
+      }
+    });
+
+    expect(createWorkbenchViewModel(state).transcript[0]).toMatchObject({
+      title: "Tool failed: shell",
+      detail: "Permission denied"
+    });
+    expect(createWorkbenchViewModel(state).welcome.visible).toBe(false);
+
+    const cleared = reduceWorkbenchAction(state, { type: "ui.clear" });
+    const view = createWorkbenchViewModel(cleared);
+    expect(view.transcript).toEqual([]);
+    expect(view.welcome.visible).toBe(false);
   });
 });

@@ -24,13 +24,22 @@ export function reduceHostEvent(state: WorkbenchState, event: HostEvent): Workbe
 function reduceKnownHostEvent(state: WorkbenchState, event: HostEvent): WorkbenchState {
   switch (event.type) {
     case "run.started":
-      return {
+      return withTranscriptBlock({
         ...baseEventState(state, event),
         activeSessionId: event.sessionId,
         activeRunId: event.runId,
         runStatus: "running",
         statusText: "Running"
-      };
+      }, {
+        id: `user:${event.runId}:${event.seq}`,
+        kind: "user",
+        sessionId: event.sessionId,
+        runId: event.runId,
+        text: event.input,
+        firstSeq: event.seq,
+        lastSeq: event.seq,
+        occurredAt: event.occurredAt
+      });
     case "run.completed":
       return {
         ...withAssistantFinal(withoutPendingForRun(baseEventState(state, event), event.runId), event),
@@ -38,11 +47,11 @@ function reduceKnownHostEvent(state: WorkbenchState, event: HostEvent): Workbenc
         statusText: "Completed"
       };
     case "run.failed":
-      return withTranscriptBlock({
+      return withTranscriptBlock(markRunMessageBlocksCompleted({
         ...withoutPendingForRun(baseEventState(state, event), event.runId),
         runStatus: isAbortError(event.error.code) ? "cancelled" : "failed",
         statusText: isAbortError(event.error.code) ? "Aborted" : `Failed: ${event.error.message}`
-      }, {
+      }, event.runId, event.seq, event.occurredAt), {
         id: `${isAbortError(event.error.code) ? "abort" : "error"}:${event.runId}:${event.seq}`,
         kind: isAbortError(event.error.code) ? "abort" : "error",
         sessionId: event.sessionId,
@@ -53,11 +62,11 @@ function reduceKnownHostEvent(state: WorkbenchState, event: HostEvent): Workbenc
         error: event.error
       });
     case "run.cancelled":
-      return withTranscriptBlock({
+      return withTranscriptBlock(markRunMessageBlocksCompleted({
         ...withoutPendingForRun(baseEventState(state, event), event.runId),
         runStatus: "cancelled",
         statusText: "Aborted"
-      }, {
+      }, event.runId, event.seq, event.occurredAt), {
         id: `abort:${event.runId}:${event.seq}`,
         kind: "abort",
         sessionId: event.sessionId,
@@ -72,8 +81,20 @@ function reduceKnownHostEvent(state: WorkbenchState, event: HostEvent): Workbenc
       });
     case "message.delta":
       return withAssistantDelta(baseEventState(state, event), event);
+    case "message.reasoning_delta":
+      return withReasoningDelta(baseEventState(state, event), event);
     case "message.completed":
-      return updateTranscriptBlock(baseEventState(state, event), `assistant:${event.messageId}`, (block) => {
+      return updateTranscriptBlock(updateTranscriptBlock(baseEventState(state, event), `reasoning:${event.messageId}`, (block) => {
+        if (block.kind !== "reasoning") {
+          return block;
+        }
+        return {
+          ...block,
+          status: "completed",
+          lastSeq: event.seq,
+          occurredAt: event.occurredAt
+        };
+      }), `assistant:${event.messageId}`, (block) => {
         if (block.kind !== "assistant") {
           return block;
         }
@@ -507,17 +528,44 @@ function withAssistantDelta(state: WorkbenchState, event: Extract<HostEvent, { t
   }));
 }
 
+function withReasoningDelta(state: WorkbenchState, event: Extract<HostEvent, { type: "message.reasoning_delta" }>): WorkbenchState {
+  return updateTranscriptBlock(state, `reasoning:${event.messageId}`, (block) => {
+    if (block.kind !== "reasoning") {
+      return block;
+    }
+    return {
+      ...block,
+      text: `${block.text}${event.text}`,
+      status: "streaming",
+      lastSeq: event.seq,
+      occurredAt: event.occurredAt
+    };
+  }, () => ({
+    id: `reasoning:${event.messageId}`,
+    kind: "reasoning",
+    sessionId: event.sessionId,
+    runId: event.runId,
+    messageId: event.messageId,
+    text: event.text,
+    status: "streaming",
+    firstSeq: event.seq,
+    lastSeq: event.seq,
+    occurredAt: event.occurredAt
+  }));
+}
+
 function withAssistantFinal(state: WorkbenchState, event: Extract<HostEvent, { type: "run.completed" }>): WorkbenchState {
   if (event.finalAnswer === undefined || event.finalAnswer.length === 0) {
-    return markRunAssistantBlocksCompleted(state, event.runId, event.seq, event.occurredAt);
+    return markRunMessageBlocksCompleted(state, event.runId, event.seq, event.occurredAt);
   }
+  const completedMessages = markRunMessageBlocksCompleted(state, event.runId, event.seq, event.occurredAt);
   const existingAssistant = state.transcriptBlocks.find(
     (block): block is AssistantTranscriptBlock => block.kind === "assistant" && block.runId === event.runId
   );
   if (existingAssistant) {
-    return markRunAssistantBlocksCompleted(state, event.runId, event.seq, event.occurredAt);
+    return completedMessages;
   }
-  return withTranscriptBlock(state, {
+  return withTranscriptBlock(completedMessages, {
     id: `assistant:final:${event.runId}`,
     kind: "assistant",
     sessionId: event.sessionId,
@@ -531,11 +579,11 @@ function withAssistantFinal(state: WorkbenchState, event: Extract<HostEvent, { t
   });
 }
 
-function markRunAssistantBlocksCompleted(state: WorkbenchState, runId: string, seq: number, occurredAt: string): WorkbenchState {
+function markRunMessageBlocksCompleted(state: WorkbenchState, runId: string, seq: number, occurredAt: string): WorkbenchState {
   return {
     ...state,
     transcriptBlocks: state.transcriptBlocks.map((block) => {
-      if (block.kind !== "assistant" || block.runId !== runId) {
+      if ((block.kind !== "assistant" && block.kind !== "reasoning") || block.runId !== runId) {
         return block;
       }
       return {

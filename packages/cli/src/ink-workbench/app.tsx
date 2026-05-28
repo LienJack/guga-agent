@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Box, Text, useApp, useInput } from "ink";
+import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { createWorkbenchViewModel } from "../workbench/views";
 import { mapKeypressToIntent, type KeyIntent, type TerminalKeypress } from "../tui/keys";
 import { StatusBar } from "./components/status-bar";
+import { WelcomePanel } from "./components/welcome-panel";
 import { Transcript } from "./components/transcript";
 import { PromptEditor } from "./components/prompt-editor";
 import { SlashPalette } from "./components/slash-palette";
@@ -12,6 +13,7 @@ import {
   applyPromptIntent,
   createPromptState,
   getPromptText,
+  replacePromptText,
   setPromptInputTarget,
   type PromptEffect,
   type PromptState
@@ -40,12 +42,15 @@ import { parseInteractionResponse } from "./controller";
 
 export function InkWorkbenchApp({ controller }: { readonly controller: WorkbenchController }) {
   const { exit } = useApp();
+  const { stdout } = useStdout();
   const [state, setState] = useState(controller.state);
   const [prompt, setPrompt] = useState<PromptState>(() => createPromptState());
   const [slash, setSlash] = useState<SlashPaletteState | undefined>();
   const [selector, setSelector] = useState<SelectorState | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const view = useMemo(() => createWorkbenchViewModel(state), [state]);
+  const columns = typeof stdout.columns === "number" ? stdout.columns : 100;
+  const colorMode = process.env.NO_COLOR === undefined ? "color" : "mono";
   const focus = useMemo(() => createAppFocusState({
     slashOpen: slash !== undefined,
     selectorOpen: selector !== undefined,
@@ -97,6 +102,10 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
     }
 
     if (owner?.kind === "slash" && slash) {
+      if (intent.type === "complete") {
+        completeSlashFromPrompt();
+        return;
+      }
       if (isPromptEditingIntent(intent)) {
         await handlePromptIntent(intent, { kind: "prompt" });
         return;
@@ -130,6 +139,10 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
   async function handlePromptIntent(intent: KeyIntent, owner: FocusTarget | undefined): Promise<void> {
     if (intent.type === "abort" && (owner?.kind === "permission" || owner?.kind === "interaction")) {
       setNotice(owner.kind === "permission" ? "Permission response required." : "Interaction response required.");
+      return;
+    }
+    if (intent.type === "submit" && state.disconnected && getPromptText(prompt).trim() !== "/reload") {
+      setNotice(state.disconnected.lockHint);
       return;
     }
 
@@ -196,6 +209,15 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
     }
   }
 
+  function completeSlashFromPrompt(): void {
+    const highlighted = slash ? getHighlightedSlashCommand(slash) : undefined;
+    if (!highlighted) {
+      return;
+    }
+    setSlash(undefined);
+    setPrompt((current) => replacePromptText(current, `${highlighted.command} `));
+  }
+
   async function submitText(text: string): Promise<void> {
     await applyControllerResponse(controller.submitText(text));
   }
@@ -216,6 +238,7 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
       </Text>
       <Text dimColor>{view.startup.configSourceLabel}</Text>
       <StatusBar status={view.statusBar} />
+      <WelcomePanel welcome={view.welcome} columns={columns} colorMode={colorMode} />
       <Transcript blocks={view.transcript} />
       {notice ? <Text dimColor>{notice}</Text> : null}
       {view.pendingPermission ? <Text>Permission: type allow or deny</Text> : null}
@@ -274,7 +297,16 @@ function retargetPrompt(state: PromptState, target: PromptState["target"]): Prom
     return state;
   }
   if (target.kind === "permission-response" || target.kind === "interaction-response") {
-    return createPromptState({ target });
+    return {
+      ...createPromptState({ target, history: state.editor.history }),
+      preservedEditor: state.preservedEditor ?? state.editor
+    };
+  }
+  if ((state.target.kind === "permission-response" || state.target.kind === "interaction-response") && state.preservedEditor) {
+    return setPromptInputTarget({
+      ...state,
+      editor: state.preservedEditor
+    }, target);
   }
   return setPromptInputTarget(state, target);
 }
@@ -306,6 +338,7 @@ function inkInputToKeyIntent(input: string, key: {
   readonly rightArrow?: boolean;
   readonly upArrow?: boolean;
   readonly downArrow?: boolean;
+  readonly tab?: boolean;
 }): KeyIntent {
   const name = key.return ? "return"
     : key.escape ? "escape"
@@ -315,6 +348,8 @@ function inkInputToKeyIntent(input: string, key: {
             : key.rightArrow ? "right"
               : key.upArrow ? "up"
                 : key.downArrow ? "down"
+                  : key.tab ? "tab"
+                  : input === "\t" ? "tab"
                   : undefined;
   const mapped: TerminalKeypress = {
     ctrl: key.ctrl === true,
