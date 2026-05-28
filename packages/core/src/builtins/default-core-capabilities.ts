@@ -2,11 +2,29 @@ import type { CapabilityRegistrationOptions } from "../contracts/plugins";
 import type { ModelMetadata, Provider } from "../contracts/provider";
 import type { ToolDefinition } from "../contracts/tools";
 import { CapabilityRegistry } from "../registry/capability-registry";
+import { createBuiltInFilesystemTools, type BuiltInFilesystemOptions } from "./filesystem";
+import { createBuiltInGitTools, type BuiltInGitOptions } from "./git";
+import { createBuiltInShellTool, type BuiltInShellOptions } from "./shell";
+import {
+  createBuiltInAiSdkProviderCapabilities,
+  type AiSdkProviderConfig,
+  type AiSdkProviderFactoryOptions
+} from "./provider-ai-sdk";
 
 export type BuiltInCoreCapabilitySet = {
   providers?: Provider[];
   models?: ModelMetadata[];
   tools?: ToolDefinition[];
+};
+
+export type DefaultCoreCapabilitiesOptions = {
+  filesystem?: BuiltInFilesystemOptions | false;
+  git?: BuiltInGitOptions | false;
+  shell?: BuiltInShellOptions | false;
+  aiSdk?: false | {
+    config: AiSdkProviderConfig;
+    factory?: AiSdkProviderFactoryOptions;
+  };
 };
 
 export type BuiltInCoreCapabilityRegistration = {
@@ -32,12 +50,27 @@ export const BUILT_IN_CORE_REGISTRATION = {
   }
 } as const satisfies CapabilityRegistrationOptions;
 
-export function createDefaultCoreCapabilities(): BuiltInCoreCapabilitySet {
-  return {
-    providers: [],
-    models: [],
-    tools: []
-  };
+export function createDefaultCoreCapabilities(options: DefaultCoreCapabilitiesOptions = {}): BuiltInCoreCapabilitySet {
+  const providers: Provider[] = [];
+  const models: ModelMetadata[] = [];
+  const tools: ToolDefinition[] = [];
+
+  if (options.filesystem) {
+    tools.push(...createBuiltInFilesystemTools(options.filesystem));
+  }
+  if (options.git) {
+    tools.push(...createBuiltInGitTools(options.git));
+  }
+  if (options.shell) {
+    tools.push(createBuiltInShellTool(options.shell));
+  }
+  if (options.aiSdk) {
+    const aiSdk = createBuiltInAiSdkProviderCapabilities(options.aiSdk.config, options.aiSdk.factory);
+    providers.push(aiSdk.provider);
+    models.push(aiSdk.model);
+  }
+
+  return { providers, models, tools };
 }
 
 export function registerBuiltInCoreCapabilities(

@@ -329,13 +329,46 @@ export { createAgentRuntime } from "./runtime/create-agent-runtime";
 export {
   BUILT_IN_CORE_OWNER,
   BUILT_IN_CORE_REGISTRATION,
+  AiSdkProviderErrorCategory,
+  createAiSdkProvider,
+  createAiSdkProviderPlugin,
+  createBuiltInAiSdkProviderCapabilities,
+  createBuiltInFilesystemTools,
+  createBuiltInGitTools,
+  createBuiltInShellTool,
   createDefaultCoreCapabilities,
-  registerBuiltInCoreCapabilities
-} from "./builtins";
+  createLocalFilesystemBackend,
+  createLocalGitBackend,
+  createLocalShellBackend,
+  filterShellEnvironment,
+  isDangerousGitOperation,
+  registerBuiltInCoreCapabilities,
+  resolveWorkspacePath,
+  summarizeCommand
+} from "./builtins/index";
 export type {
+  AiSdkBridgeMode,
+  AiSdkGenerateText,
+  AiSdkGenerateTextResult,
+  AiSdkProviderConfig,
+  AiSdkProviderFactoryOptions,
+  AiSdkToolCallLike,
+  BuiltInAiSdkProviderCapabilities,
   BuiltInCoreCapabilityRegistration,
-  BuiltInCoreCapabilitySet
-} from "./builtins";
+  BuiltInCoreCapabilitySet,
+  BuiltInFilesystemOptions,
+  BuiltInGitOptions,
+  BuiltInShellOptions,
+  DefaultCoreCapabilitiesOptions,
+  FilesystemBackend,
+  FilesystemPluginOptions,
+  GitBackend,
+  GitPluginOptions,
+  ShellBackend,
+  ShellExecutionResult,
+  ShellPluginOptions,
+  WorkspacePathResolution
+} from "./builtins/index";
 export { createMockProvider } from "./testing/mock-provider";
 export { createExamplePlugin } from "./testing/example-plugin";
 export { createTestTool } from "./testing/test-tool";
