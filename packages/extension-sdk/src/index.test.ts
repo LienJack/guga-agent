@@ -6,6 +6,7 @@ import type {
   SkillMetadata,
   ToolDefinition
 } from "@guga-agent/core";
+import { createAgentRuntime, createMockProvider } from "@guga-agent/core";
 import { defineExtension, ExtensionSdkError, type ExtensionSetupContext } from "./index";
 
 const extensionSource = {
@@ -180,6 +181,50 @@ describe("defineExtension", () => {
 
     expect(shutdownContext?.isActive()).toBe(false);
     expect(() => shutdownContext?.assertActive()).toThrow(ExtensionSdkError);
+  });
+
+  it("supports a non-MCP in-process extension fixture through the runtime", async () => {
+    const extension = defineExtension({
+      id: "in-process-fixture",
+      source: extensionSource,
+      namespace: "fixture",
+      declaredEffects: ["hook.observe"],
+      setup(context) {
+        context.tool(createTool("fixture_echo"));
+        context.hook({
+          id: "fixture-runtime-start",
+          phase: "runtime.start",
+          effect: "observe",
+          handler() {}
+        } as HookRegistration);
+      }
+    });
+    const runtime = createAgentRuntime({ plugins: [extension] });
+    runtime.registerProvider(createMockProvider([{ type: "final", content: "ok" }]));
+
+    await expect(runtime.run({ input: "hello", providerId: "mock", runId: "run-extension-fixture" })).resolves.toMatchObject({
+      ok: true,
+      finalAnswer: "ok"
+    });
+    expect(runtime.listCapabilityDescriptors()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "tool",
+        name: "fixture_echo",
+        source: "plugin",
+        layer: "extension",
+        namespace: "fixture",
+        ownerPluginId: "in-process-fixture",
+        owner: { kind: "extension", id: "in-process-fixture", packageName: "@guga-agent/extension-sdk-test" }
+      }),
+      expect.objectContaining({
+        type: "hook",
+        name: "fixture-runtime-start",
+        source: "plugin",
+        layer: "extension",
+        namespace: "fixture",
+        ownerPluginId: "in-process-fixture"
+      })
+    ]));
   });
 });
 
