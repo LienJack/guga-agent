@@ -13,7 +13,7 @@ Runtime work is TypeScript-first and test-first around behavior-bearing units. T
 ## Forbidden Patterns
 
 - Do not import real provider SDK types into `packages/core/src/loop`, `state`, `registry`, `runtime`, or `contracts`.
-- Do not add real tools such as filesystem, shell, browser, git, or MCP to `packages/core`.
+- Do not add real tools to core kernel layers. Default filesystem, shell, git, and provider bridge implementations may live only under `packages/core/src/builtins/*`; MCP and other optional ecosystem integrations stay outside core as extensions.
 - Do not bypass `ExecutionPipeline` for model-produced tool intents.
 - Do not execute side-effecting tools before `PermissionKernel` resolves allow/deny.
 - Do not let provider exceptions or tool exceptions escape without structured runtime handling.
@@ -40,20 +40,23 @@ Runtime work is TypeScript-first and test-first around behavior-bearing units. T
 
 ### 2. Signatures
 
-- Core capability descriptors are serializable objects with `type`, `name`, `source`, `status`, and optional `ownerPluginId`, `namespace`, and `reason`.
-- Plugin contexts may register `SkillMetadata`, but concrete skill body loading and MCP clients must live outside `packages/core`.
+- Core capability descriptors are serializable objects with `type`, `name`, `source`, `status`, and optional `layer`, `owner`, `ownerPluginId`, `namespace`, `extension`, `override`, and `reason`.
+- Plugin contexts may register `SkillMetadata`, but concrete skill body loading and MCP clients must live outside core built-ins.
 - MCP tools must register as normal `ToolDefinition` values and use `runtime.source.kind = "mcp"`.
 
 ### 3. Contracts
 
 - `source` must distinguish `host`, `plugin`, `mcp`, and `built-in`.
+- `layer` must distinguish `built-in-core` from `extension` when a capability is not plain host/kernel state.
 - `ownerPluginId` is required for plugin-contributed descriptors.
+- Built-in core capability implementations must not be imported by `packages/core/src/contracts`, registry, hook, permission, or execution-pipeline modules.
 - `namespace` should identify a stable grouping such as a skill namespace or MCP server name.
 - Discovery output must not include executable functions, child processes, AbortSignals, or other non-serializable runtime objects.
 
 ### 4. Validation & Error Matrix
 
 - Duplicate capability id without an explicit allowed override -> `CAPABILITY_ALREADY_REGISTERED`.
+- Extension override of built-in or already overridden tool -> `CAPABILITY_OVERRIDE_DENIED`.
 - Plugin shutdown/dispose -> remove plugin-owned descriptors and callable capabilities.
 - MCP/local name collision -> fail closed or report a skipped conflict; do not silently overwrite.
 - Skill with missing `name` or `description` -> invalid skill metadata; do not register it.

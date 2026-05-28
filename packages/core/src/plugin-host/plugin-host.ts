@@ -217,7 +217,20 @@ export class PluginHost {
     const previousTool =
       options?.override && options.override.replaces === tool.name ? this.registry.getTool(tool.name) : undefined;
 
-    this.registry.registerTool(tool, { ...options, source: options?.source ?? "plugin", ownerPluginId: pluginId });
+    const registrationOptions = { ...options, source: options?.source ?? "plugin", ownerPluginId: pluginId };
+    try {
+      this.registry.registerTool(tool, registrationOptions);
+    } catch (error) {
+      if (error instanceof CoreError) {
+        const { override: _override, ...conflictOptions } = registrationOptions;
+        this.registry.recordCapabilityConflict("tool", tool.name, {
+          ...conflictOptions,
+          status: "rejected-conflict",
+          reason: error.message
+        });
+      }
+      throw error;
+    }
     contribution.tools.push(
       previousTool ? { type: "overrode", name: tool.name, previous: previousTool } : { type: "registered", name: tool.name }
     );
@@ -453,7 +466,7 @@ export class PluginHost {
       for (const tool of [...contribution.tools].reverse()) {
         if (tool.type === "overrode") {
           this.registry.registerTool(tool.previous, {
-            override: { replaces: tool.name, reason: `restore plugin override from ${contribution.pluginId}` }
+            override: { replaces: tool.name, reason: `restore plugin override from ${contribution.pluginId}`, mode: "restore" }
           });
         } else {
           this.registry.removeTool(tool.name);

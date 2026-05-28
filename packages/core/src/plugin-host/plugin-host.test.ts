@@ -272,6 +272,37 @@ describe("PluginHost", () => {
     );
   });
 
+  it("records rejected conflict descriptors for plugin tool collisions", async () => {
+    const registry = new CapabilityRegistry();
+    registry.registerTool(createTestTool({ name: "duplicate-tool", content: "host" }));
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+
+    const plugin: LocalPlugin = {
+      id: "duplicate-tool-plugin",
+      init(context) {
+        context.registerTool(createTestTool({ name: "duplicate-tool", content: "plugin" }));
+      }
+    };
+
+    const result = await new PluginHost({ plugins: [plugin], registry, hookKernel, eventBus }).initialize({
+      runId: "run-duplicate-tool"
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "CAPABILITY_ALREADY_REGISTERED" }
+    });
+    expect(registry.listCapabilityDescriptors()).toContainEqual({
+      type: "tool",
+      name: "duplicate-tool",
+      source: "plugin",
+      status: "rejected-conflict",
+      ownerPluginId: "duplicate-tool-plugin",
+      reason: "Tool already registered: duplicate-tool"
+    });
+  });
+
   it("restores the previous tool when cleaning up an explicit tool override", async () => {
     const registry = new CapabilityRegistry();
     registry.registerTool(createTestTool({ name: "override-me", content: "old" }));

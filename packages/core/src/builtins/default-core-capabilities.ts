@@ -5,11 +5,7 @@ import { CapabilityRegistry } from "../registry/capability-registry";
 import { createBuiltInFilesystemTools, type BuiltInFilesystemOptions } from "./filesystem";
 import { createBuiltInGitTools, type BuiltInGitOptions } from "./git";
 import { createBuiltInShellTool, type BuiltInShellOptions } from "./shell";
-import {
-  createBuiltInAiSdkProviderCapabilities,
-  type AiSdkProviderConfig,
-  type AiSdkProviderFactoryOptions
-} from "./provider-ai-sdk";
+import type { AiSdkProviderConfig, AiSdkProviderFactoryOptions } from "./provider-ai-sdk";
 
 export type BuiltInCoreCapabilitySet = {
   providers?: Provider[];
@@ -65,7 +61,7 @@ export function createDefaultCoreCapabilities(options: DefaultCoreCapabilitiesOp
     tools.push(createBuiltInShellTool(options.shell));
   }
   if (options.aiSdk) {
-    const aiSdk = createBuiltInAiSdkProviderCapabilities(options.aiSdk.config, options.aiSdk.factory);
+    const aiSdk = createLazyBuiltInAiSdkProviderCapabilities(options.aiSdk.config, options.aiSdk.factory);
     providers.push(aiSdk.provider);
     models.push(aiSdk.model);
   }
@@ -99,4 +95,28 @@ export function registerBuiltInCoreCapabilities(
   }
 
   return { registered };
+}
+
+function createLazyBuiltInAiSdkProviderCapabilities(
+  config: AiSdkProviderConfig,
+  factory?: AiSdkProviderFactoryOptions
+): {
+  provider: Provider;
+  model: ModelMetadata;
+} {
+  const providerId = config.id ?? "ai-sdk";
+  return {
+    provider: {
+      id: providerId,
+      async generate(request) {
+        const { createAiSdkProvider } = await import("./provider-ai-sdk");
+        return createAiSdkProvider(config, factory).generate(request);
+      }
+    },
+    model: {
+      providerId,
+      modelId: config.modelId,
+      ...(config.metadata ?? {})
+    }
+  };
 }

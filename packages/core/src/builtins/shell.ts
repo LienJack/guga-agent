@@ -171,7 +171,7 @@ function shellTool(options: ShellPluginOptions, backend: ShellBackend, timeoutMs
       timeoutMs,
       resultBudget: { maxContentChars: 12_000, strategy: "truncate" },
       renderer: { category: "execute" },
-      source: { kind: "core", packageName: "-agent/core" },
+      source: { kind: "core", packageName: "@guga-agent/core" },
       backend: { kind: "local-shell" },
       availability: { status: "available" },
       visibility: "model"

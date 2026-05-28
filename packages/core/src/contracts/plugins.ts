@@ -91,6 +91,7 @@ export type CapabilityOverrideTarget = {
 export type CapabilityOverrideDeclaration = {
   replaces: string;
   reason: string;
+  mode?: "override" | "restore";
   target?: CapabilityOverrideTarget;
   declaredEffects?: CapabilityDeclaredEffect[];
   trust?: TrustDescriptor;

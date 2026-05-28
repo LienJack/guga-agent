@@ -19,6 +19,7 @@ provider tool intent -> core pipeline -> hooks -> permission -> tool -> result p
 - Minimal `AgentLoop` for tool-calling runs through either direct mock providers or the provider router.
 - `ProviderRouter` for Guga-owned model selection, retry, fallback, and observable model-call facts.
 - `createAgentRuntime()` as the host-facing public entry point.
+- Built-in core capability composition under `packages/core/src/builtins` and `@guga-agent/core/builtins` for default filesystem, git, shell, and AI SDK bridge capabilities.
 - Local trusted plugins mounted with `createAgentRuntime({ plugins })`.
 - `ExecutionPipeline`, `PermissionKernel`, `ToolScheduler`, `ResultPolicy`, and lifecycle events for auditable tool execution.
 - Hook contracts for runtime start, pre-tool gate compatibility, tool call/execute/result phases, runtime shutdown, and contract-first model request/response phases.
@@ -26,11 +27,10 @@ provider tool intent -> core pipeline -> hooks -> permission -> tool -> result p
 
 ## What The Core Does Not Include
 
-- Real provider SDK integrations.
-- AI SDK, OpenAI, Anthropic, LangChain, or provider-specific public contract types.
-- Filesystem, shell, browser, git, MCP, or other real tools.
+- Provider SDK types in public contracts, loop, registry, permissions, hooks, or execution pipeline.
+- Browser, MCP, skills, memory, artifact, replay, eval, delegation, or other optional ecosystem integrations as built-ins.
 - Provider marketplace, credential pools, provider health scoring, or pricing tables.
-- Plugin manifests, directory scanning, remote install, sandboxing, signing, namespaces, reload, or stale context guard.
+- Marketplace, remote install, sandboxing, signing, or package search.
 - Full host UI permission dialogs, durable result stores, enterprise policy engines, or remote sandbox backends.
 - Concrete durable session store, replay plugin, artifact store implementation, or UI projection.
 - Context compaction, skills, long-term memory, multi-agent orchestration, or eval infrastructure.
@@ -45,13 +45,25 @@ Core records capability ownership and source metadata while keeping concrete imp
 - `ownerPluginId`: the plugin that contributed the capability when applicable.
 - `namespace`: a stable grouping such as an MCP server name or skill namespace.
 
-`diffCapabilityDescriptors(before, after)` provides a small host-facing primitive for explaining added, removed, changed, and conflict-skipped capabilities. Concrete skills and MCP behavior live in first-party plugins such as `@guga-agent/plugin-skills` and `@guga-agent/plugin-mcp`.
+`diffCapabilityDescriptors(before, after)` provides a small host-facing primitive for explaining added, removed, changed, skipped-conflict, and rejected-conflict capabilities. Concrete skills and MCP behavior live in optional extensions such as `@guga-agent/plugin-skills` and `@guga-agent/plugin-mcp`.
 
 ## Minimal Usage Shape
 
 The host application creates a runtime, registers capabilities, subscribes to events, and runs a turn. The mock provider and test tool are exported for M0 verification only; they are not default runtime capabilities.
 
 The public API intentionally stays small so later plugin/provider/tool phases can extend the runtime without rewriting the core loop.
+
+Built-in helpers are intentionally exposed through the explicit subpath:
+
+```ts
+import {
+  createBuiltInFilesystemTools,
+  createBuiltInShellTool,
+  createDefaultCoreCapabilities
+} from "@guga-agent/core/builtins";
+```
+
+The root `@guga-agent/core` barrel does not export built-in implementation values. This keeps `import { createAgentRuntime } from "@guga-agent/core"` from statically loading optional AI SDK dependencies. Hosts that want a custom built-in set can compose it through `@guga-agent/core/builtins` and pass it to `createAgentRuntime({ builtIns: { capabilities } })`.
 
 ## Provider Runtime Boundary
 
@@ -61,11 +73,11 @@ Core owns provider-neutral runtime semantics. Providers can describe available m
 
 Tool calls from a model are only tool intent. They are converted into Guga `ToolCall` values and executed through the core `ExecutionPipeline`. The pipeline performs lookup, schema checks, tool hooks, permission resolution, execution, result budgeting, and lifecycle events. Provider bridges must not execute tools on their own.
 
-Real SDK dependencies live in bridge packages such as `@guga-agent/provider-ai-sdk`, not in `@guga-agent/core`.
+The built-in AI SDK bridge lives under `@guga-agent/core/builtins`, but provider SDK types do not leak into core public contracts. `@guga-agent/provider-ai-sdk` remains a compatibility import path.
 
 ## Tool Runtime Boundary
 
-Real tools live in plugin packages such as `@guga-agent/plugin-tools-filesystem`, `@guga-agent/plugin-tools-shell`, and `@guga-agent/plugin-tools-git`. Core owns the contracts and final execution authority; first-party and custom tools enter through the same registry and pipeline.
+Default filesystem, shell, and git implementations live under `@guga-agent/core/builtins`. Compatibility packages such as `@guga-agent/plugin-tools-filesystem`, `@guga-agent/plugin-tools-shell`, and `@guga-agent/plugin-tools-git` re-export those built-in paths. Core owns the contracts and final execution authority; built-in and extension tools enter through the same registry and pipeline.
 
 Side-effecting tools declare permission metadata and are evaluated by `PermissionKernel` before execution. Denied, cancelled, timed-out, missing, schema-invalid, hook-blocked, and thrown tool calls become structured model-visible tool observations. Large outputs pass through `ResultPolicy` so model-visible content stays bounded while runtime metadata records budget facts.
 

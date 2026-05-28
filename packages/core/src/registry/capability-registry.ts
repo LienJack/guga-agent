@@ -585,7 +585,7 @@ function normalizeOverrideDescriptor(
   }
 
   return {
-    status: override.reason.startsWith("restore ") ? "restored" : "active",
+    status: override.mode === "restore" ? "restored" : "active",
     target: override.target ?? { type, name },
     reason: override.reason
   };

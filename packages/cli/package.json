@@ -17,7 +17,7 @@
   "scripts": {
     "build": "pnpm --filter @guga-agent/host-sdk build && tsc -p tsconfig.json && node ../../scripts/fix-esm-extensions.mjs dist",
     "test": "pnpm --filter @guga-agent/host-sdk build && vitest run",
-    "typecheck": "pnpm --filter @guga-agent/host-sdk build && tsc -p tsconfig.json --noEmit"
+    "typecheck": "pnpm --filter @guga-agent/host-sdk build && pnpm --filter @guga-agent/profile-code-agent build && pnpm --filter @guga-agent/profile-deep-research-agent build && pnpm --filter @guga-agent/profile-review-agent build && pnpm --filter @guga-agent/provider-ai-sdk build && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@guga-agent/core": "workspace:*",

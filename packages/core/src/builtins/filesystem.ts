@@ -119,7 +119,7 @@ function filesystemTools(workspaceRoot: string, backend: FilesystemBackend): Too
         },
         resultBudget: { maxContentChars: 8_000, strategy: "truncate" },
         renderer: { category: "read" },
-        source: { kind: "core", packageName: "-agent/core" },
+        source: { kind: "core", packageName: "@guga-agent/core" },
         backend: { kind: "local-workspace" },
         availability: { status: "available" },
         visibility: "model"
@@ -144,7 +144,7 @@ function filesystemTools(workspaceRoot: string, backend: FilesystemBackend): Too
           resources: { mode: "extractor", extract: (input) => [{ kind: "path", access: "write", value: pathFrom(input) }] }
         },
         renderer: { category: "edit" },
-        source: { kind: "core", packageName: "-agent/core" },
+        source: { kind: "core", packageName: "@guga-agent/core" },
         backend: { kind: "local-workspace" },
         availability: { status: "available" },
         visibility: "model"
@@ -170,7 +170,7 @@ function filesystemTools(workspaceRoot: string, backend: FilesystemBackend): Too
           resources: { mode: "extractor", extract: (input) => [{ kind: "path", access: "write", value: pathFrom(input) }] }
         },
         renderer: { category: "edit" },
-        source: { kind: "core", packageName: "-agent/core" },
+        source: { kind: "core", packageName: "@guga-agent/core" },
         backend: { kind: "local-workspace" },
         availability: { status: "available" },
         visibility: "model"
@@ -206,7 +206,7 @@ function filesystemTools(workspaceRoot: string, backend: FilesystemBackend): Too
         scheduler: { concurrency: "read-only", resources: { mode: "none" } },
         resultBudget: { maxContentChars: 8_000, strategy: "truncate" },
         renderer: { category: "search" },
-        source: { kind: "core", packageName: "-agent/core" },
+        source: { kind: "core", packageName: "@guga-agent/core" },
         backend: { kind: "local-workspace" },
         availability: { status: "available" },
         visibility: "model"
@@ -229,7 +229,7 @@ function filesystemTools(workspaceRoot: string, backend: FilesystemBackend): Too
         scheduler: { concurrency: "read-only", resources: { mode: "none" } },
         resultBudget: { maxContentChars: 8_000, strategy: "truncate" },
         renderer: { category: "search" },
-        source: { kind: "core", packageName: "-agent/core" },
+        source: { kind: "core", packageName: "@guga-agent/core" },
         backend: { kind: "local-workspace" },
         availability: { status: "available" },
         visibility: "model"

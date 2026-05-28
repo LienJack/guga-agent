@@ -111,7 +111,7 @@ function gitRuntime(access: "read" | "write"): ToolRuntimeMetadata {
     },
     resultBudget: { maxContentChars: 12_000, strategy: "truncate" },
     renderer: { category: "git" },
-    source: { kind: "core", packageName: "-agent/core" },
+    source: { kind: "core", packageName: "@guga-agent/core" },
     backend: { kind: "local-git" },
     availability: { status: "available" },
     visibility: "model"

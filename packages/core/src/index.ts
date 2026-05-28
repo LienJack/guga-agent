@@ -326,26 +326,6 @@ export { ToolScheduler } from "./tools/tool-scheduler";
 export { ResultPolicy } from "./tools/result-policy";
 export { AgentRuntime as DefaultAgentRuntime } from "./runtime/agent-runtime";
 export { createAgentRuntime } from "./runtime/create-agent-runtime";
-export {
-  BUILT_IN_CORE_OWNER,
-  BUILT_IN_CORE_REGISTRATION,
-  AiSdkProviderErrorCategory,
-  createAiSdkProvider,
-  createAiSdkProviderPlugin,
-  createBuiltInAiSdkProviderCapabilities,
-  createBuiltInFilesystemTools,
-  createBuiltInGitTools,
-  createBuiltInShellTool,
-  createDefaultCoreCapabilities,
-  createLocalFilesystemBackend,
-  createLocalGitBackend,
-  createLocalShellBackend,
-  filterShellEnvironment,
-  isDangerousGitOperation,
-  registerBuiltInCoreCapabilities,
-  resolveWorkspacePath,
-  summarizeCommand
-} from "./builtins/index";
 export type {
   AiSdkBridgeMode,
   AiSdkGenerateText,
