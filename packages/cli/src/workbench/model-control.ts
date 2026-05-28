@@ -1,22 +1,16 @@
 import type { CliConfig, SelectedCliModel } from "../config";
-import { listCliModels, selectCliModel } from "../config";
 import { isCliProfileId, type CliProfileId } from "../host-factory";
+import { resolveModelRegistry, selectResolvedModel, unavailableReasonText, type ResolvedModelView } from "../model-registry";
 
-export type ModelOption = SelectedCliModel & {
-  isDefault: boolean;
-};
+export type ModelOption = ResolvedModelView;
 
 export type ProfileSelection = {
   profileId: CliProfileId;
   requiresNewSession: boolean;
 };
 
-export function listModelOptions(config: CliConfig): ModelOption[] {
-  const defaultId = config.defaultModel ?? config.modelId;
-  return listCliModels(config).map((model, index) => ({
-    ...model,
-    isDefault: model.id === defaultId || (defaultId === undefined && index === 0)
-  }));
+export function listModelOptions(config: CliConfig, env: NodeJS.ProcessEnv = process.env): ModelOption[] {
+  return resolveModelRegistry({ config, env });
 }
 
 export function selectModelOrThrow(
@@ -24,11 +18,16 @@ export function selectModelOrThrow(
   selector: string,
   env: NodeJS.ProcessEnv = process.env
 ): SelectedCliModel {
-  const selected = selectCliModel(config, selector, env);
+  const selected = selectResolvedModel({ config, selector, env });
   if (!selected) {
     throw new Error(`Unknown model: ${selector}`);
   }
   return selected;
+}
+
+export function formatModelOption(model: ModelOption): string {
+  const availability = model.available ? "" : ` [unavailable: ${unavailableReasonText(model.unavailableReasons)}]`;
+  return `${model.isDefault ? "*" : " "} ${model.id} -> ${model.modelId}${availability}`;
 }
 
 export function selectProfileOrThrow(selector: string): ProfileSelection {

@@ -67,7 +67,7 @@ export function mapAiSdkError(
   metadata: { providerId: string; modelId: string; requestId?: string }
 ): ProviderError {
   const statusCode = statusFromError(error);
-  const message = error instanceof Error ? error.message : "AI SDK provider call failed";
+  const message = redactSensitiveText(error instanceof Error ? error.message : "AI SDK provider call failed");
 
   const mapped: ProviderError = {
     category: categoryFromError(error, statusCode, message),
@@ -76,8 +76,7 @@ export function mapAiSdkError(
     retryable: isRetryable(statusCode),
     providerId: metadata.providerId,
     modelId: metadata.modelId,
-    metadata: { source: "ai-sdk" },
-    cause: error
+    metadata: { source: "ai-sdk" }
   };
 
   if (metadata.requestId !== undefined) {
@@ -88,6 +87,12 @@ export function mapAiSdkError(
   }
 
   return mapped;
+}
+
+export function redactSensitiveText(value: string): string {
+  return value
+    .replace(/sk-[A-Za-z0-9_-]{6,}/g, "sk-<redacted>")
+    .replace(/(api[_-]?key|token|secret|authorization)(["'\s:=]+)([^"'\s]+)/gi, "$1$2<redacted>");
 }
 
 function categoryFromError(error: unknown, statusCode: number | undefined, message: string): ProviderError["category"] {

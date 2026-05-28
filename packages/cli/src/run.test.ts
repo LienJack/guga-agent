@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { readCliConfig } from "./config";
+import { readCliConfigWithSources } from "./config";
 import { runCli } from "./commands/run";
 import { renderHostEvent } from "./render/events";
 import { Readable } from "node:stream";
+import { mkdtemp } from "node:fs/promises";
+import { readFileSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 describe("CLI run command", () => {
   it("runs with a mock provider and prints the final answer", async () => {
@@ -46,7 +50,7 @@ describe("CLI run command", () => {
 
     await expect(runCli(["run", "hello"], io)).resolves.toBe(2);
 
-    expect(io.stderr()).toContain("No model configured. Set GUGA_MODEL");
+    expect(io.stderr()).toContain("No model configured. Run `guga init --model <id>`");
     expect(io.stderr()).not.toContain("CliHostFactoryError");
   });
 
@@ -55,13 +59,26 @@ describe("CLI run command", () => {
 
     await expect(runCli([], io)).resolves.toBe(2);
 
-    expect(io.stderr()).toContain("No model configured. Set GUGA_MODEL");
+    expect(io.stderr()).toContain("No model configured. Run `guga init --model <id>`");
     expect(io.stderr()).not.toContain("CliHostFactoryError");
   });
 
+  it("initializes local CLI config for first real-provider use", async () => {
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-home-"));
+    const io = captureIo({ env: { GUGA_HOME: gugaHome } });
+
+    await expect(runCli(["init", "--model", "gpt-test"], io)).resolves.toBe(0);
+
+    expect(io.stdout()).toContain(`Created Guga config: ${join(realpathSync.native(gugaHome), "config.toml")}`);
+    expect(io.stdout()).toContain("model: gpt-test");
+    expect(io.stderr()).toBe("");
+  });
+
   it("lists configured models", async () => {
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-home-"));
     const io = captureIo({
       env: {
+        GUGA_HOME: gugaHome,
         GUGA_MODEL: "gpt-test"
       }
     });
@@ -70,6 +87,42 @@ describe("CLI run command", () => {
 
     expect(io.stdout()).toContain("* gpt-test -> gpt-test");
     expect(io.stderr()).toBe("");
+  });
+
+  it("logs in a provider with a managed local credential reference", async () => {
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-home-"));
+    const io = captureIo({ env: { GUGA_HOME: gugaHome } });
+
+    await expect(runCli(["login", "openai", "--api-key", "sk-login-secret-1234", "--model", "gpt-test"], io)).resolves.toBe(0);
+
+    expect(io.stdout()).toContain("configured provider openai");
+    expect(io.stdout()).not.toContain("sk-login-secret-1234");
+    expect(io.stderr()).toBe("");
+    const credential = readFileSync(join(gugaHome, "credentials/providers/openai.json"), "utf8");
+    expect(credential).toContain("sk-login-secret-1234");
+    const config = readCliConfigWithSources({ env: { GUGA_HOME: gugaHome }, cwd: process.cwd() }).config;
+    expect(config.providers).toEqual([
+      expect.objectContaining({
+        id: "openai",
+        mode: "openai",
+        credentialRef: "credentials/providers/openai.json"
+      })
+    ]);
+    expect(config.models).toEqual([
+      expect.objectContaining({
+        id: "openai",
+        providerId: "openai",
+        modelId: "gpt-test"
+      })
+    ]);
+  });
+
+  it("does not hang login when no credential material is supplied", async () => {
+    const io = captureIo({ env: {} });
+
+    await expect(runCli(["login", "openai"], io)).resolves.toBe(2);
+
+    expect(io.stderr()).toContain("login requires --api-key or --api-key-env");
   });
 
   it("prints structured events with --debug-events", async () => {
@@ -142,14 +195,19 @@ describe("CLI run command", () => {
     })).toEqual(["tool shell progress 50%: running tests"]);
   });
 
-  it("reads real provider config from environment", () => {
-    expect(readCliConfig({
-      GUGA_PROVIDER: "ai-sdk",
-      GUGA_PROVIDER_MODE: "openai-compatible",
-      GUGA_MODEL: "local-model",
-      GUGA_BASE_URL: "http://localhost:11434/v1",
-      GUGA_API_KEY: "test"
-    })).toEqual({
+  it("reads real provider config from environment", async () => {
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-home-"));
+    expect(readCliConfigWithSources({
+      env: {
+        GUGA_HOME: gugaHome,
+        GUGA_PROVIDER: "ai-sdk",
+        GUGA_PROVIDER_MODE: "openai-compatible",
+        GUGA_MODEL: "local-model",
+        GUGA_BASE_URL: "http://localhost:11434/v1",
+        GUGA_API_KEY: "test"
+      },
+      cwd: process.cwd()
+    }).config).toEqual({
       providerId: "ai-sdk",
       providerMode: "openai-compatible",
       modelId: "local-model",

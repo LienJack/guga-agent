@@ -1,10 +1,22 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { extname, resolve } from "node:path";
+import { dirname, extname, resolve } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import { GugaHomeError, resolveGugaHome } from "./guga-home";
 
 export type CliProviderMode = "gateway" | "openai-compatible" | "openai" | "anthropic";
+
+export type CliProviderConfig = {
+  id: string;
+  label?: string;
+  mode?: CliProviderMode;
+  baseURL?: string;
+  apiKey?: string;
+  apiKeyEnv?: string;
+  credentialRef?: string;
+  defaultModel?: string;
+  metadata?: Record<string, unknown>;
+};
 
 export type CliModelConfig = {
   id: string;
@@ -15,6 +27,21 @@ export type CliModelConfig = {
   apiKey?: string;
   apiKeyEnv?: string;
   baseURL?: string;
+  purpose?: string;
+  capabilities?: {
+    toolCalling?: boolean;
+    streaming?: boolean;
+    reasoning?: boolean;
+    usage?: "required" | "optional" | "unavailable";
+  };
+};
+
+export type CliConfigDiagnostic = {
+  severity: "info" | "warning" | "error";
+  code: string;
+  message: string;
+  providerId?: string;
+  modelId?: string;
 };
 
 export type CliConfig = {
@@ -26,7 +53,11 @@ export type CliConfig = {
   baseURL?: string;
   defaultModel?: string;
   defaultProfile?: string;
+  providers?: CliProviderConfig[];
   models?: CliModelConfig[];
+  fallbackModels?: string[];
+  auxiliaryModels?: Record<string, string[]>;
+  diagnostics?: CliConfigDiagnostic[];
 };
 
 export type CliConfigSourceKind = "env" | "guga_config" | "project" | "user" | "default";
@@ -53,6 +84,22 @@ export type ReadCliConfigOptions = {
   env?: NodeJS.ProcessEnv;
   cwd?: string;
   homeDir?: string;
+};
+
+export type InitCliConfigOptions = ReadCliConfigOptions & {
+  scope?: "user" | "project";
+  force?: boolean;
+  providerId?: string;
+  providerMode?: CliProviderMode;
+  modelId?: string;
+  baseURL?: string;
+  apiKeyEnv?: string;
+};
+
+export type InitCliConfigResult = {
+  path: string;
+  created: boolean;
+  config: CliConfig;
 };
 
 export class CliConfigError extends Error {
@@ -184,6 +231,50 @@ export function listCliModels(config: CliConfig): SelectedCliModel[] {
   }];
 }
 
+export function initCliConfig(options: InitCliConfigOptions = {}): InitCliConfigResult {
+  const env = options.env ?? process.env;
+  const cwd = options.cwd ?? process.cwd();
+  const homeDir = options.homeDir ?? homedir();
+  let home;
+  try {
+    home = resolveGugaHome({ env, cwd, homeDir });
+  } catch (error) {
+    if (error instanceof GugaHomeError) {
+      throw new CliConfigPathError(error);
+    }
+    throw error;
+  }
+
+  const providerMode = options.providerMode ?? providerModeFromEnv(env) ?? "openai";
+  const modelId = options.modelId ?? env.GUGA_MODEL ?? defaultModelForProviderMode(providerMode);
+  const apiKeyEnv = options.apiKeyEnv ?? apiKeyEnvForProviderMode(providerMode);
+  const baseURL = options.baseURL ?? env.GUGA_BASE_URL;
+  const config: CliConfig = {
+    providerId: options.providerId ?? env.GUGA_PROVIDER ?? "ai-sdk",
+    providerMode,
+    defaultModel: "default",
+    ...(apiKeyEnv ? { apiKeyEnv } : {}),
+    ...(baseURL ? { baseURL } : {}),
+    models: [{
+      id: "default",
+      modelId
+    }]
+  };
+  const target = options.scope === "project"
+    ? { toml: home.config.projectToml, json: home.config.projectJson }
+    : { toml: home.config.userToml, json: home.config.userJson };
+  const existing = firstExistingConfig([
+    { path: target.toml, format: "toml" },
+    { path: target.json, format: "json" }
+  ], options.scope ?? "user");
+  if (existing && options.force !== true) {
+    return { path: existing.path, created: false, config: parseConfigFile(existing.path, existing.format) };
+  }
+  mkdirSync(dirname(target.toml), { recursive: true });
+  writeFileSync(target.toml, formatCliConfigToml(config));
+  return { path: target.toml, created: true, config };
+}
+
 function readCliConfigFile(options: {
   env: NodeJS.ProcessEnv;
   cwd: string;
@@ -272,21 +363,39 @@ function formatForPath(path: string): CliConfigFileFormat {
 }
 
 function normalizeCliConfig(config: CliConfig): CliConfig {
-  const { providerMode, models, ...rest } = config;
+  const { providerMode, providers, models, diagnostics, ...rest } = config;
+  const normalizedDiagnostics = [...(diagnostics ?? [])];
+  const normalizedProviderMode = normalizeProviderMode(providerMode, (value) => {
+    normalizedDiagnostics.push({
+      severity: "error",
+      code: "INVALID_PROVIDER_MODE",
+      message: `Unknown provider mode: ${value}`
+    });
+  });
   return {
     ...rest,
-    ...(isProviderMode(providerMode) ? { providerMode } : {}),
+    ...(normalizedProviderMode ? { providerMode: normalizedProviderMode } : {}),
+    ...(providers ? { providers: normalizeProviders(providers, normalizedDiagnostics) } : {}),
     ...(models ? {
       models: models
         .filter((model) => typeof model.id === "string" && typeof model.modelId === "string")
         .map((model) => {
           const { providerMode: modelProviderMode, ...modelRest } = model;
+          const normalizedModelProviderMode = normalizeProviderMode(modelProviderMode, (value) => {
+            normalizedDiagnostics.push({
+              severity: "error",
+              code: "INVALID_PROVIDER_MODE",
+              message: `Unknown provider mode for model ${model.id}: ${value}`,
+              modelId: model.id
+            });
+          });
           return {
             ...modelRest,
-            ...(isProviderMode(modelProviderMode) ? { providerMode: modelProviderMode } : {})
+            ...(normalizedModelProviderMode ? { providerMode: normalizedModelProviderMode } : {})
           };
         })
-    } : {})
+    } : {}),
+    ...(normalizedDiagnostics.length > 0 ? { diagnostics: normalizedDiagnostics } : {})
   };
 }
 
@@ -301,13 +410,32 @@ function sourcesForConfig(config: CliConfig, source: CliConfigSourceKind): CliCo
 }
 
 function mergeCliConfig(base: CliConfig, override: CliConfig): CliConfig {
-  const { models: baseModels, ...baseRest } = base;
-  const { models: overrideModels, ...overrideRest } = override;
+  const { models: baseModels, providers: baseProviders, diagnostics: baseDiagnostics, ...baseRest } = base;
+  const { models: overrideModels, providers: overrideProviders, diagnostics: overrideDiagnostics, ...overrideRest } = override;
   return {
     ...baseRest,
     ...definedEntries(overrideRest),
-    ...mergeModels(baseModels, overrideModels)
+    ...mergeProviders(baseProviders, overrideProviders),
+    ...mergeModels(baseModels, overrideModels),
+    ...mergeDiagnostics(baseDiagnostics, overrideDiagnostics)
   };
+}
+
+function mergeProviders(
+  baseProviders: CliProviderConfig[] | undefined,
+  overrideProviders: CliProviderConfig[] | undefined
+): Pick<CliConfig, "providers"> {
+  if (!overrideProviders) {
+    return baseProviders ? { providers: baseProviders } : {};
+  }
+  const byId = new Map<string, CliProviderConfig>();
+  for (const provider of baseProviders ?? []) {
+    byId.set(provider.id, provider);
+  }
+  for (const provider of overrideProviders) {
+    byId.set(provider.id, { ...byId.get(provider.id), ...provider });
+  }
+  return { providers: [...byId.values()] };
 }
 
 function mergeModels(
@@ -331,6 +459,14 @@ function definedEntries<T extends Record<string, unknown>>(value: T): Partial<T>
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as Partial<T>;
 }
 
+function mergeDiagnostics(
+  baseDiagnostics: CliConfigDiagnostic[] | undefined,
+  overrideDiagnostics: CliConfigDiagnostic[] | undefined
+): Pick<CliConfig, "diagnostics"> {
+  const merged = [...(baseDiagnostics ?? []), ...(overrideDiagnostics ?? [])];
+  return merged.length > 0 ? { diagnostics: merged } : {};
+}
+
 function resolveApiKey(model: CliModelConfig, config: CliConfig, env: NodeJS.ProcessEnv): string | undefined {
   if (model.apiKeyEnv) {
     return env[model.apiKeyEnv];
@@ -349,4 +485,95 @@ function isProviderMode(value: string | undefined): value is CliProviderMode {
     || value === "openai-compatible"
     || value === "openai"
     || value === "anthropic";
+}
+
+function normalizeProviders(
+  providers: CliProviderConfig[],
+  diagnostics: CliConfigDiagnostic[]
+): CliProviderConfig[] {
+  return providers
+    .filter((provider) => typeof provider.id === "string")
+    .map((provider) => {
+      const { mode, ...rest } = provider;
+      const normalizedMode = normalizeProviderMode(mode, (value) => {
+        diagnostics.push({
+          severity: "error",
+          code: "INVALID_PROVIDER_MODE",
+          message: `Unknown provider mode for provider ${provider.id}: ${value}`,
+          providerId: provider.id
+        });
+      });
+      return {
+        ...rest,
+        ...(normalizedMode ? { mode: normalizedMode } : {})
+      };
+    });
+}
+
+function normalizeProviderMode(
+  value: string | undefined,
+  onInvalid: (value: string) => void
+): CliProviderMode | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (isProviderMode(value)) {
+    return value;
+  }
+  onInvalid(value);
+  return undefined;
+}
+
+function providerModeFromEnv(env: NodeJS.ProcessEnv): CliProviderMode | undefined {
+  if (isProviderMode(env.GUGA_PROVIDER_MODE)) {
+    return env.GUGA_PROVIDER_MODE;
+  }
+  if (env.ANTHROPIC_API_KEY) {
+    return "anthropic";
+  }
+  return undefined;
+}
+
+function defaultModelForProviderMode(providerMode: CliProviderMode): string {
+  if (providerMode === "anthropic") {
+    return "claude-sonnet-4-5";
+  }
+  return "gpt-4o-mini";
+}
+
+function apiKeyEnvForProviderMode(providerMode: CliProviderMode): string | undefined {
+  if (providerMode === "anthropic") {
+    return "ANTHROPIC_API_KEY";
+  }
+  if (providerMode === "openai" || providerMode === "openai-compatible") {
+    return "OPENAI_API_KEY";
+  }
+  return undefined;
+}
+
+function formatCliConfigToml(config: CliConfig): string {
+  const lines: string[] = [];
+  appendTomlString(lines, "defaultModel", config.defaultModel);
+  appendTomlString(lines, "providerId", config.providerId);
+  appendTomlString(lines, "providerMode", config.providerMode);
+  appendTomlString(lines, "apiKeyEnv", config.apiKeyEnv);
+  appendTomlString(lines, "baseURL", config.baseURL);
+  for (const model of config.models ?? []) {
+    lines.push("");
+    lines.push("[[models]]");
+    appendTomlString(lines, "id", model.id);
+    appendTomlString(lines, "modelId", model.modelId);
+    appendTomlString(lines, "label", model.label);
+    appendTomlString(lines, "providerId", model.providerId);
+    appendTomlString(lines, "providerMode", model.providerMode);
+    appendTomlString(lines, "apiKeyEnv", model.apiKeyEnv);
+    appendTomlString(lines, "baseURL", model.baseURL);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function appendTomlString(lines: string[], key: string, value: string | undefined): void {
+  if (value !== undefined) {
+    lines.push(`${key} = ${JSON.stringify(value)}`);
+  }
 }

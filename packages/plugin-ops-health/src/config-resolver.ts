@@ -12,16 +12,19 @@ export type ResolveCredentialConfigOptions = CredentialConfigInput & {
 };
 
 export function resolveCredentialConfig(options: ResolveCredentialConfigOptions): CredentialConfigView {
+  const requiredKeys = options.requiredKeys ?? Object.keys(options.values ?? {});
   const values = options.source === "env"
-    ? valuesFromEnv(options.requiredKeys ?? Object.keys(options.env ?? {}), options.env ?? process.env)
+    ? valuesFromEnv(requiredKeys, options.env ?? process.env)
     : options.values ?? {};
-  const requiredKeys = options.requiredKeys ?? Object.keys(values);
   const missing = requiredKeys.filter((key) => !values[key]);
-  const diagnostics: OperationalDiagnostic[] = missing.map((key) => ({
-    severity: "error",
-    code: "CREDENTIAL_MISSING",
-    message: `Missing credential value for ${key}`
-  }));
+  const diagnostics: OperationalDiagnostic[] = [
+    ...missing.map((key) => ({
+      severity: "error",
+      code: "CREDENTIAL_MISSING",
+      message: `Missing credential value for ${key}`
+    }) satisfies OperationalDiagnostic),
+    ...staticCredentialDiagnostics(options.source, values)
+  ];
 
   return {
     providerId: options.providerId,
@@ -30,6 +33,20 @@ export function resolveCredentialConfig(options: ResolveCredentialConfigOptions)
     redacted: redactRecord(values),
     diagnostics
   };
+}
+
+function staticCredentialDiagnostics(
+  source: CredentialConfigInput["source"],
+  values: Record<string, string | undefined>
+): OperationalDiagnostic[] {
+  if (source !== "static" || Object.values(values).every((value) => !value)) {
+    return [];
+  }
+  return [{
+    severity: "warning",
+    code: "CREDENTIAL_STATIC_SECRET",
+    message: "Credential values are stored directly in config; prefer env or managed local credentials."
+  }];
 }
 
 export function redactSecret(value: string | undefined): string {

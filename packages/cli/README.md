@@ -38,6 +38,7 @@ pnpm install:cli -- --shell-rc ~/.bashrc
 guga
 guga run "summarize the repo"
 guga -p "summarize the repo"
+guga login openai --api-key-env OPENAI_API_KEY
 guga --list-models
 guga run "hello" --mock --debug-events
 ```
@@ -45,6 +46,7 @@ guga run "hello" --mock --debug-events
 - `guga` starts the interactive terminal workbench for a project.
 - `guga run "<prompt>"` runs one headless turn and prints the streamed result.
 - `guga -p "<prompt>"` is the short one-shot alias for the headless path.
+- `guga login <provider>` configures a named provider using an env var or a Guga-managed local credential reference.
 - `guga --list-models` prints configured model aliases and provider defaults.
 
 ## Configuration
@@ -81,25 +83,50 @@ Example `~/.guga/config.toml`:
 
 ```toml
 defaultModel = "gpt"
+fallbackModels = ["sonnet"]
 defaultProfile = "code"
-providerId = "ai-sdk"
-providerMode = "openai"
+
+[[providers]]
+id = "openai"
+mode = "openai"
+apiKeyEnv = "OPENAI_API_KEY"
+
+[[providers]]
+id = "anthropic"
+mode = "anthropic"
+apiKeyEnv = "ANTHROPIC_API_KEY"
 
 [[models]]
 id = "gpt"
 label = "GPT"
+providerId = "openai"
 modelId = "gpt-5"
-apiKeyEnv = "OPENAI_API_KEY"
+
+[[models]]
+id = "sonnet"
+providerId = "anthropic"
+modelId = "claude-sonnet"
 
 [[models]]
 id = "local"
 modelId = "llama3.1"
+providerId = "local"
 providerMode = "openai-compatible"
 baseURL = "http://localhost:11434/v1"
 apiKeyEnv = "LOCAL_OPENAI_API_KEY"
 ```
 
-Use `apiKeyEnv` for secrets. Raw `apiKey` values are supported for compatibility but display paths redact secrets and docs avoid recommending them.
+Use `apiKeyEnv` for secrets when possible. `guga login openai --api-key <key>` writes a local credential reference under Guga Home and stores only the reference in config. Raw `apiKey` values are supported only for compatibility and diagnostics mark them as risky.
+
+Workbench has provider-aware guidance:
+
+```text
+/login openai
+/models
+/model sonnet
+```
+
+`/models` and `--list-models` share the same availability view. Missing auth, invalid config, unhealthy providers, and unsupported capabilities are shown as unavailable reasons. Health is unknown by default and does not make network calls unless a future explicit check injects one.
 
 Common environment overrides:
 
@@ -114,6 +141,10 @@ GUGA_API_KEY=...
 Legacy JSON config remains supported when the TOML file for that layer does not exist. A project config can override one model alias while preserving unrelated user aliases.
 
 Session history is append-only local history under `sessions/`; compaction and branch summaries are session facts, not long-term memory. The `memory/` directory is for governed memory projections and is not auto-populated from every transcript or injected into prompts by default.
+
+Fallback is explicit: `fallbackModels` names backup aliases for the primary route. Auxiliary models use a model `purpose` field such as `summarizer`; the router, not the provider bridge, owns retry/fallback selection.
+
+OAuth flows, including Gemini OAuth, are intentionally not part of this API-key/env/local-credential MVP. The provider/auth schema keeps room for a future OAuth credential source without changing model selection semantics.
 
 ## Models And Profiles
 

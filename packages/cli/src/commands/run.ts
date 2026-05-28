@@ -1,5 +1,5 @@
 import type { HostEvent } from "@guga-agent/host-protocol";
-import { CliConfigError, listCliModels, readCliConfig, selectCliModel } from "../config";
+import { CliConfigError, initCliConfig, readCliConfig, type CliProviderMode } from "../config";
 import {
   CliHostFactoryError,
   createCliHost,
@@ -7,6 +7,8 @@ import {
   type CliHost,
   type CliProfileId
 } from "../host-factory";
+import { resolveModelRegistry, selectResolvedModel, unavailableReasonText } from "../model-registry";
+import { loginProvider } from "../provider-login";
 import { renderHostEvent } from "../render/events";
 import { createFallbackTerminalAdapter } from "../tui/terminal";
 import { executeWorkbenchCommand, formatCommandHelp, parseWorkbenchInput } from "../workbench/commands";
@@ -38,6 +40,25 @@ type InteractiveArgs = Omit<RunArgs, "prompt" | "headless" | "ops"> & {
   ops: boolean;
 };
 
+type InitArgs = {
+  scope: "user" | "project";
+  force: boolean;
+  providerId?: string;
+  providerMode?: CliProviderMode;
+  modelId?: string;
+  baseURL?: string;
+  apiKeyEnv?: string;
+};
+
+type LoginArgs = {
+  providerId: string;
+  mode?: CliProviderMode;
+  apiKey?: string;
+  apiKeyEnv?: string;
+  staticSecret: boolean;
+  modelId?: string;
+};
+
 export async function runCli(argv: string[], io: CliIO): Promise<number> {
   try {
     const [command, ...rest] = argv;
@@ -47,6 +68,22 @@ export async function runCli(argv: string[], io: CliIO): Promise<number> {
     }
     if (command === "--list-models") {
       return listModelsCommand(io);
+    }
+    if (command === "init") {
+      const parsed = parseInitArgs(rest);
+      if (!parsed.ok) {
+        io.stderr.write(`${parsed.error}\n`);
+        return 2;
+      }
+      return initCommand(parsed.args, io);
+    }
+    if (command === "login") {
+      const parsed = parseLoginArgs(rest);
+      if (!parsed.ok) {
+        io.stderr.write(`${parsed.error}\n`);
+        return 2;
+      }
+      return loginCommand(parsed.args, io);
     }
     if (command === "-p") {
       const parsed = parseRunArgs(rest);
@@ -422,6 +459,142 @@ function parseInteractiveArgs(argv: string[]): { ok: true; args: InteractiveArgs
   return { ok: true, args };
 }
 
+function parseInitArgs(argv: string[]): { ok: true; args: InitArgs } | { ok: false; error: string } {
+  let scope: "user" | "project" = "user";
+  let force = false;
+  let providerId: string | undefined;
+  let providerMode: CliProviderMode | undefined;
+  let modelId: string | undefined;
+  let baseURL: string | undefined;
+  let apiKeyEnv: string | undefined;
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--user") {
+      scope = "user";
+    } else if (arg === "--project") {
+      scope = "project";
+    } else if (arg === "--force") {
+      force = true;
+    } else if (arg === "--provider") {
+      const value = argv[index + 1];
+      index += 1;
+      if (!value) {
+        return { ok: false, error: "--provider requires a value" };
+      }
+      providerId = value;
+    } else if (arg === "--provider-mode") {
+      const value = argv[index + 1];
+      index += 1;
+      if (!isCliProviderMode(value)) {
+        return { ok: false, error: `Unknown provider mode: ${value ?? "(missing)"}` };
+      }
+      providerMode = value;
+    } else if (arg === "--model") {
+      const value = argv[index + 1];
+      index += 1;
+      if (!value) {
+        return { ok: false, error: "--model requires a value" };
+      }
+      modelId = value;
+    } else if (arg === "--base-url") {
+      const value = argv[index + 1];
+      index += 1;
+      if (!value) {
+        return { ok: false, error: "--base-url requires a value" };
+      }
+      baseURL = value;
+    } else if (arg === "--api-key-env") {
+      const value = argv[index + 1];
+      index += 1;
+      if (!value) {
+        return { ok: false, error: "--api-key-env requires a value" };
+      }
+      apiKeyEnv = value;
+    } else if (arg?.startsWith("--")) {
+      return { ok: false, error: `Unknown option: ${arg}` };
+    } else if (arg) {
+      return { ok: false, error: `Unknown argument: ${arg}` };
+    }
+  }
+
+  return {
+    ok: true,
+    args: {
+      scope,
+      force,
+      ...(providerId ? { providerId } : {}),
+      ...(providerMode ? { providerMode } : {}),
+      ...(modelId ? { modelId } : {}),
+      ...(baseURL ? { baseURL } : {}),
+      ...(apiKeyEnv ? { apiKeyEnv } : {})
+    }
+  };
+}
+
+function parseLoginArgs(argv: string[]): { ok: true; args: LoginArgs } | { ok: false; error: string } {
+  const [providerId, ...rest] = argv;
+  if (!providerId || providerId.startsWith("--")) {
+    return { ok: false, error: "login requires a provider id" };
+  }
+  let mode: CliProviderMode | undefined;
+  let apiKey: string | undefined;
+  let apiKeyEnv: string | undefined;
+  let modelId: string | undefined;
+  let staticSecret = false;
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+    if (arg === "--mode" || arg === "--provider-mode") {
+      const value = rest[index + 1];
+      index += 1;
+      if (!isCliProviderMode(value)) {
+        return { ok: false, error: `Unknown provider mode: ${value ?? "(missing)"}` };
+      }
+      mode = value;
+    } else if (arg === "--api-key") {
+      const value = rest[index + 1];
+      index += 1;
+      if (!value) {
+        return { ok: false, error: "--api-key requires a value" };
+      }
+      apiKey = value;
+    } else if (arg === "--api-key-env") {
+      const value = rest[index + 1];
+      index += 1;
+      if (!value) {
+        return { ok: false, error: "--api-key-env requires a value" };
+      }
+      apiKeyEnv = value;
+    } else if (arg === "--model") {
+      const value = rest[index + 1];
+      index += 1;
+      if (!value) {
+        return { ok: false, error: "--model requires a value" };
+      }
+      modelId = value;
+    } else if (arg === "--static") {
+      staticSecret = true;
+    } else if (arg?.startsWith("--")) {
+      return { ok: false, error: `Unknown option: ${arg}` };
+    } else if (arg) {
+      return { ok: false, error: `Unknown argument: ${arg}` };
+    }
+  }
+
+  return {
+    ok: true,
+    args: {
+      providerId,
+      staticSecret,
+      ...(mode ? { mode } : {}),
+      ...(apiKey ? { apiKey } : {}),
+      ...(apiKeyEnv ? { apiKeyEnv } : {}),
+      ...(modelId ? { modelId } : {})
+    }
+  };
+}
+
 async function* readLines(input: NodeJS.ReadableStream): AsyncIterable<string> {
   let buffer = "";
   input.setEncoding("utf8");
@@ -540,20 +713,27 @@ function parseActiveRunInteractionResponse(text: string): unknown {
 
 function printConfiguredModels(io: CliIO): void {
   const config = readCliConfig(io.env);
-  const models = listCliModels(config);
+  const models = resolveModelRegistry({
+    config,
+    ...(io.env ? { env: io.env } : {})
+  });
   if (models.length === 0) {
     io.stdout.write("configured model: (none)\n");
     return;
   }
   for (const model of models) {
-    const marker = model.id === (config.defaultModel ?? config.modelId) ? "*" : " ";
-    io.stdout.write(`${marker} ${model.id} -> ${model.modelId ?? model.id}${model.label ? ` (${model.label})` : ""}\n`);
+    const marker = model.isDefault ? "*" : " ";
+    const availability = model.available ? "" : ` [unavailable: ${unavailableReasonText(model.unavailableReasons)}]`;
+    io.stdout.write(`${marker} ${model.id} -> ${model.modelId}${model.label ? ` (${model.label})` : ""}${availability}\n`);
   }
 }
 
 function currentConfigModelLabel(env: NodeJS.ProcessEnv | undefined): string {
   const config = readCliConfig(env);
-  const selected = selectCliModel(config, undefined, env);
+  const selected = selectResolvedModel({
+    config,
+    ...(env ? { env } : {})
+  });
   return selected?.id ?? selected?.modelId ?? "(none)";
 }
 
@@ -564,6 +744,7 @@ async function printOperationalStatus(host: CliHost, io: CliIO): Promise<void> {
   const runCount = status.audit.length;
   const totalTokens = status.metrics.counters["usage.total_tokens"] ?? 0;
   io.stdout.write(`operations: providers=${providerCount} operations=${operationCount} runs=${runCount} totalTokens=${totalTokens}\n`);
+  io.stdout.write(`model: provider=${host.providerId ?? "(unknown)"} model=${host.modelId ?? "(unknown)"}\n`);
   io.stdout.write(`guga-home: ${host.storage.home}\n`);
   io.stdout.write(`storage: sessions=${host.storage.sessionsRoot} artifacts=${host.storage.artifactsRoot} memory=${host.storage.memoryRoot}\n`);
   for (const diagnostic of status.diagnostics.filter((candidate) => candidate.severity !== "info")) {
@@ -573,6 +754,53 @@ async function printOperationalStatus(host: CliHost, io: CliIO): Promise<void> {
 
 function listModelsCommand(io: CliIO): number {
   printConfiguredModels(io);
+  return 0;
+}
+
+function initCommand(args: InitArgs, io: CliIO): number {
+  const result = initCliConfig({
+    scope: args.scope,
+    force: args.force,
+    ...(io.env ? { env: io.env } : {}),
+    ...(args.providerId ? { providerId: args.providerId } : {}),
+    ...(args.providerMode ? { providerMode: args.providerMode } : {}),
+    ...(args.modelId ? { modelId: args.modelId } : {}),
+    ...(args.baseURL ? { baseURL: args.baseURL } : {}),
+    ...(args.apiKeyEnv ? { apiKeyEnv: args.apiKeyEnv } : {})
+  });
+  const model = result.config.models?.[0]?.modelId ?? result.config.modelId ?? "(none)";
+  io.stdout.write(`${result.created ? "Created" : "Existing"} Guga config: ${result.path}\n`);
+  io.stdout.write(`model: ${model}\n`);
+  if (result.config.apiKeyEnv) {
+    io.stdout.write(`api key env: ${result.config.apiKeyEnv}\n`);
+  }
+  if (!result.created) {
+    io.stdout.write("Use --force to overwrite it.\n");
+  }
+  return 0;
+}
+
+function loginCommand(args: LoginArgs, io: CliIO): number {
+  if (!args.apiKey && !args.apiKeyEnv) {
+    io.stderr.write("login requires --api-key or --api-key-env; interactive secret prompts are not available in this environment\n");
+    return 2;
+  }
+  const result = loginProvider({
+    providerId: args.providerId,
+    staticSecret: args.staticSecret,
+    ...(args.mode ? { mode: args.mode } : {}),
+    ...(args.apiKey ? { apiKey: args.apiKey } : {}),
+    ...(args.apiKeyEnv ? { apiKeyEnv: args.apiKeyEnv } : {}),
+    ...(args.modelId ? { modelId: args.modelId } : {}),
+    ...(io.env ? { env: io.env } : {})
+  });
+  io.stdout.write(`configured provider ${result.providerId}: ${result.configPath}\n`);
+  if (result.credentialPath) {
+    io.stdout.write(`credential: ${result.credentialPath}\n`);
+  }
+  for (const warning of result.warnings) {
+    io.stderr.write(`${warning}\n`);
+  }
   return 0;
 }
 
@@ -617,9 +845,18 @@ function handleCliError(error: unknown, io: CliIO): number {
   throw error;
 }
 
+function isCliProviderMode(value: string | undefined): value is CliProviderMode {
+  return value === "gateway"
+    || value === "openai-compatible"
+    || value === "openai"
+    || value === "anthropic";
+}
+
 function cliUsage(): string {
   return [
     "usage: guga [--model id] [--profile code|deep-research|review] [--mock]",
+    "       guga init [--user|--project] [--model id] [--provider-mode openai|anthropic|openai-compatible|gateway] [--force]",
+    "       guga login <provider> [--api-key key|--api-key-env VAR] [--mode openai|anthropic|openai-compatible|gateway] [--model id] [--static]",
     "       guga run <prompt> [--provider id] [--model id] [--profile code|deep-research|review] [--mock] [--debug-events] [--ops]",
     "       guga -p <prompt> [--provider id] [--model id] [--profile code|deep-research|review] [--mock]",
     "       guga --list-models",

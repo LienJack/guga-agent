@@ -138,7 +138,7 @@ export function mapAiSdkResultToProviderResponse(result: AiSdkGenerateTextResult
   const usage = mapAiSdkUsage(result.usage);
   const finishReason = mapAiSdkFinishReason(result.finishReason);
   const raw = result.providerMetadata
-    ? [{ label: "ai-sdk.providerMetadata", value: result.providerMetadata }]
+    ? [{ label: "ai-sdk.providerMetadata", value: redactAiSdkMetadata(result.providerMetadata) }]
     : undefined;
 
   const toolCalls = (result.toolCalls ?? []).map(mapAiSdkToolCall);
@@ -160,6 +160,30 @@ export function mapAiSdkResultToProviderResponse(result: AiSdkGenerateTextResult
     finishReason,
     ...(raw ? { raw } : {})
   };
+}
+
+export function redactAiSdkMetadata(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(redactAiSdkMetadata);
+  }
+  if (typeof value !== "object" || value === null) {
+    return typeof value === "string" && looksSensitiveKey("", value) ? "<redacted>" : value;
+  }
+  const result: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    result[key] = looksSensitiveKey(key, entry) ? "<redacted>" : redactAiSdkMetadata(entry);
+  }
+  return result;
+}
+
+function looksSensitiveKey(key: string, value: unknown): boolean {
+  const normalized = key.toLowerCase();
+  return typeof value === "string"
+    && (normalized.includes("key")
+      || normalized.includes("token")
+      || normalized.includes("secret")
+      || normalized.includes("authorization")
+      || value.startsWith("sk-"));
 }
 
 export function createModel(config: AiSdkProviderConfig): unknown {

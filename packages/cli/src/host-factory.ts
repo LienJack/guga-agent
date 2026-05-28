@@ -1,5 +1,11 @@
-import { createMockProvider, type AgentRuntimeOptions, type LocalPlugin } from "@guga-agent/core";
-import { createAiSdkProviderPlugin } from "@guga-agent/core/builtins";
+import {
+  createMockProvider,
+  type AgentRuntimeOptions,
+  type LocalPlugin,
+  type ModelMetadata,
+  type ProviderRouterPolicy
+} from "@guga-agent/core";
+import { createAiSdkProvider } from "@guga-agent/core/builtins";
 import { HostRuntime } from "@guga-agent/host-runtime";
 import { createLocalGugaHost, type LocalGugaHost } from "@guga-agent/host-sdk";
 import { createAuditExportPlugin } from "@guga-agent/plugin-audit-export";
@@ -19,10 +25,10 @@ import {
   CliConfigPathError,
   type CliConfigWithSources,
   readCliConfigWithSources,
-  selectCliModel,
   type SelectedCliModel
 } from "./config";
 import { GugaHomeError, type GugaHomePaths, resolveGugaHome } from "./guga-home";
+import { resolveModelRegistry, selectResolvedModel, type ResolvedModelView } from "./model-registry";
 
 export type CliProfileId = typeof CODE_AGENT_PROFILE_ID | typeof DEEP_RESEARCH_PROFILE_ID | typeof REVIEW_AGENT_PROFILE_ID;
 
@@ -94,8 +100,19 @@ export async function createCliHost(options: CliHostFactoryOptions = {}): Promis
     gugaHome,
     stores: options.stores
   });
-  const selectedModel = selectCliModel(config.config, options.modelSelector, env);
-  if (options.modelSelector && config.config.models?.length && !selectedModel) {
+  const modelView = resolveModelRegistry({
+    config: config.config,
+    env,
+    credentialRoot: gugaHome.home,
+    ...(options.modelSelector ? { selector: options.modelSelector } : {})
+  });
+  const selectedModel = selectResolvedModel({
+    config: config.config,
+    env,
+    credentialRoot: gugaHome.home,
+    ...(options.modelSelector ? { selector: options.modelSelector } : {})
+  });
+  if (!options.mock && options.modelSelector && modelView.length > 0 && !selectedModel) {
     throw new CliHostFactoryError("MODEL_NOT_FOUND", `Unknown model: ${options.modelSelector}`);
   }
 
@@ -125,23 +142,19 @@ export async function createCliHost(options: CliHostFactoryOptions = {}): Promis
       throw new CliHostFactoryError("MODEL_NOT_FOUND", `Unknown model: ${options.modelSelector}`);
     }
     throw new CliHostFactoryError(
-    "MODEL_REQUIRED",
-      "No model configured. Set GUGA_MODEL, add .guga/config.toml, or pass --mock for a deterministic local smoke."
+      "MODEL_REQUIRED",
+      "No model configured. Run `guga init --model <id>`, set GUGA_MODEL, add .guga/config.toml, or pass --mock for a deterministic local smoke."
     );
   }
 
-  const providerId = options.providerId ?? selectedModel.providerId ?? config.config.providerId ?? "ai-sdk";
-  const providerPlugin = createAiSdkProviderPlugin({
-    id: providerId,
-    mode: selectedModel.providerMode ?? config.config.providerMode ?? "openai",
-    modelId: selectedModel.modelId ?? selectedModel.id,
-    ...(selectedModel.apiKey ? { apiKey: selectedModel.apiKey } : {}),
-    ...(selectedModel.baseURL ? { baseURL: selectedModel.baseURL } : {})
-  });
+  const providerId = options.providerId ?? selectedModel.providerId;
+  const providerPlugins = createProviderPlugins(modelView, config, env, gugaHome.home);
+  const routerPolicy = createRouterPolicy(selectedModel.availability, modelView, config.config.fallbackModels);
   const hostRuntime = new HostRuntime({
     runtimeOptions: {
       ...runtimeOptions,
-      model: providerPlugin
+      plugins: [...(runtimeOptions.plugins ?? []), ...providerPlugins],
+      routerPolicy
     }
   });
 
@@ -151,8 +164,94 @@ export async function createCliHost(options: CliHostFactoryOptions = {}): Promis
     config,
     storage: diagnosticsForHome(gugaHome),
     selectedModel,
-    providerId,
+    ...(providerId ? { providerId } : {}),
     modelId: selectedModel.modelId ?? selectedModel.id
+  };
+}
+
+function createProviderPlugins(
+  modelView: ResolvedModelView[],
+  config: CliConfigWithSources,
+  env: NodeJS.ProcessEnv,
+  credentialRoot: string
+): LocalPlugin[] {
+  const availableModels = modelView.filter((model) => model.available);
+  const byProvider = new Map<string, ResolvedModelView[]>();
+  for (const model of availableModels) {
+    byProvider.set(model.providerId, [...(byProvider.get(model.providerId) ?? []), model]);
+  }
+  return [...byProvider.entries()].map(([providerId, models]) => {
+    const firstModel = models[0] as ResolvedModelView;
+    const selected = selectResolvedModel({
+      config: config.config,
+      selector: firstModel.id,
+      env,
+      credentialRoot
+    });
+    const provider = createAiSdkProvider({
+      id: providerId,
+      mode: selected?.providerMode ?? firstModel.providerMode ?? "openai",
+      modelId: selected?.modelId ?? firstModel.modelId,
+      ...(selected?.apiKey ? { apiKey: selected.apiKey } : {}),
+      ...(selected?.baseURL ? { baseURL: selected.baseURL } : {})
+    });
+    const metadata = models.map(modelMetadataForView);
+    return {
+      id: providerId,
+      name: `AI SDK Provider Bridge (${providerId})`,
+      init(context) {
+        context.registerProvider(provider);
+        for (const model of metadata) {
+          context.registerModel?.(model);
+        }
+      }
+    };
+  });
+}
+
+function createRouterPolicy(
+  selected: ResolvedModelView,
+  modelView: ResolvedModelView[],
+  fallbackAliases: string[] | undefined
+): ProviderRouterPolicy {
+  const primary = modelIdentifier(selected);
+  const fallbackCandidates = (fallbackAliases ?? [])
+    .map((alias) => modelView.find((model) => model.available && (model.id === alias || model.modelId === alias)))
+    .filter((model): model is ResolvedModelView => Boolean(model))
+    .map(modelIdentifier);
+  const primaryCandidates = [primary, ...fallbackCandidates.filter((candidate) =>
+    candidate.providerId !== primary.providerId || candidate.modelId !== primary.modelId
+  )];
+  const purposePolicies = new Map<string, ResolvedModelView[]>();
+  for (const model of modelView.filter((candidate) => candidate.available && candidate.purpose && candidate.purpose !== "primary")) {
+    purposePolicies.set(model.purpose as string, [...(purposePolicies.get(model.purpose as string) ?? []), model]);
+  }
+  return {
+    primary,
+    purposes: [
+      { purpose: "primary", candidates: primaryCandidates },
+      ...[...purposePolicies.entries()].map(([purpose, models]) => ({
+        purpose,
+        candidates: models.map(modelIdentifier)
+      }))
+    ]
+  };
+}
+
+function modelIdentifier(model: ResolvedModelView): { providerId: string; modelId: string } {
+  return {
+    providerId: model.providerId,
+    modelId: model.modelId
+  };
+}
+
+function modelMetadataForView(model: ResolvedModelView): ModelMetadata {
+  return {
+    providerId: model.providerId,
+    modelId: model.modelId,
+    ...(model.displayName ? { displayName: model.displayName } : {}),
+    ...(model.capabilities ? { capabilities: model.capabilities } : {}),
+    ...(model.purpose ? { purposes: [model.purpose] } : {})
   };
 }
 

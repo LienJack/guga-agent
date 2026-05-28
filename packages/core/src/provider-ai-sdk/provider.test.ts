@@ -29,6 +29,32 @@ describe("AI SDK provider bridge", () => {
     });
   });
 
+  it("redacts sensitive provider metadata from raw references", () => {
+    expect(
+      mapAiSdkResultToProviderResponse({
+        text: "hello",
+        providerMetadata: {
+          gateway: {
+            generationId: "gen-1",
+            apiKey: "sk-test-secret-1234",
+            nested: { token: "raw-token-value" }
+          }
+        }
+      })
+    ).toMatchObject({
+      raw: [{
+        label: "ai-sdk.providerMetadata",
+        value: {
+          gateway: {
+            generationId: "gen-1",
+            apiKey: "<redacted>",
+            nested: { token: "<redacted>" }
+          }
+        }
+      }]
+    });
+  });
+
   it("maps AI SDK tool calls to Guga tool intent responses", () => {
     expect(
       mapAiSdkResultToProviderResponse({

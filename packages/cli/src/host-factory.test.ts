@@ -44,7 +44,7 @@ describe("CLI host factory", () => {
   });
 
   it("uses file configured model aliases for real provider setup", async () => {
-    const configPath = await writeTempConfig({
+    const tempConfig = await writeTempConfig({
       providerId: "ai-sdk",
       providerMode: "openai-compatible",
       defaultModel: "fast",
@@ -55,7 +55,8 @@ describe("CLI host factory", () => {
     });
     const host = await createCliHost({
       env: {
-        GUGA_CONFIG: configPath,
+        GUGA_CONFIG: tempConfig.configPath,
+        GUGA_HOME: tempConfig.gugaHome,
         GUGA_API_KEY: "test-key"
       }
     });
@@ -161,10 +162,10 @@ async function runNoop(host: Awaited<ReturnType<typeof createCliHost>>): Promise
   await drainRun(host, run.id);
 }
 
-async function writeTempConfig(value: unknown): Promise<string> {
+async function writeTempConfig(value: unknown): Promise<{ configPath: string; gugaHome: string }> {
   const root = await mkdtemp(join(tmpdir(), "guga-host-factory-"));
-  const path = join(root, ".guga/config.json");
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(value));
-  return path;
+  const configPath = join(root, ".guga/config.json");
+  mkdirSync(dirname(configPath), { recursive: true });
+  writeFileSync(configPath, JSON.stringify(value));
+  return { configPath, gugaHome: join(root, "home") };
 }

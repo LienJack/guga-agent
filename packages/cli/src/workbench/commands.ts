@@ -2,7 +2,8 @@ import type { CapabilityResource } from "@guga-agent/host-protocol";
 import type { HostClient } from "@guga-agent/host-sdk";
 import type { CliConfig } from "../config";
 import type { CliHostStorageDiagnostics } from "../host-factory";
-import { listModelOptions, selectModelOrThrow, selectProfileOrThrow } from "./model-control";
+import { formatModelOption, listModelOptions, selectModelOrThrow, selectProfileOrThrow } from "./model-control";
+import { loginGuidance } from "../provider-login";
 import {
   createWorkbenchSession,
   forkWorkbenchSession,
@@ -19,6 +20,7 @@ export const WORKBENCH_SLASH_COMMANDS = [
   "/clear",
   "/models",
   "/model",
+  "/login",
   "/profile",
   "/permissions",
   "/mcp",
@@ -110,14 +112,21 @@ export async function executeWorkbenchCommand(
     case "/clear":
       return commandOk("clear", "transcript cleared");
     case "/models": {
-      const models = listModelOptions(context.config);
+      const models = listModelOptions(context.config, context.env);
       return commandOk(
         "list-models",
         models.length === 0
           ? "No configured models."
-          : models.map((model) => `${model.isDefault ? "*" : " "} ${model.id} -> ${model.modelId ?? model.id}`).join("\n"),
+          : models.map(formatModelOption).join("\n"),
         models
       );
+    }
+    case "/login": {
+      const providerId = intent.args.trim();
+      if (!providerId) {
+        return commandError("/login requires a provider id.", ["/login openai", "/login anthropic"]);
+      }
+      return commandOk("status", loginGuidance(providerId));
     }
     case "/model": {
       if (intent.args.trim().length === 0) {

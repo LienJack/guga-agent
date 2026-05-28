@@ -90,6 +90,17 @@ describe("AI SDK mappers", () => {
     })).toMatchObject({ category: AiSdkProviderErrorCategory.ContextOverflow });
   });
 
+  it("redacts provider error messages and drops raw causes", () => {
+    const mapped = mapAiSdkError(new Error("bad apiKey=sk-test-secret-1234"), {
+      providerId: "ai-sdk",
+      modelId: "model"
+    });
+
+    expect(mapped.message).not.toContain("sk-test-secret-1234");
+    expect(mapped.message).toContain("<redacted>");
+    expect(mapped.cause).toBeUndefined();
+  });
+
   it("maps finish reasons conservatively", () => {
     expect(mapAiSdkFinishReason("tool_calls")).toBe("tool-calls");
     expect(mapAiSdkFinishReason("stop")).toBe("stop");

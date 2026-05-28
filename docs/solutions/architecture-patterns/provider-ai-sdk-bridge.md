@@ -34,6 +34,8 @@ The bridge owns SDK-specific request/response mapping inside `packages/core/src/
 - No advanced cost dashboard.
 - No complete enterprise credential platform.
 - Model hook execution is contract-first and grows in later modules.
+- OAuth provider flows such as Gemini OAuth belong in host/auth policy, not in the bridge. The bridge should only consume already-resolved credential material.
+- Raw provider metadata and provider error text must be redacted before entering normal diagnostics.
 
 ## Verification
 

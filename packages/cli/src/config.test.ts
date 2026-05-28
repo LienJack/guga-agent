@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   CliConfigError,
+  initCliConfig,
   readCliConfigWithSources,
   selectCliModel
 } from "./config";
@@ -182,6 +183,69 @@ baseURL = "http://project.example"
       apiKey: "secret",
       baseURL: "http://fast.example"
     });
+  });
+
+  it("initializes a user TOML config that the CLI can read", async () => {
+    const root = await tempRoot();
+
+    const result = initCliConfig({
+      env: {},
+      cwd: root,
+      homeDir: join(root, "home"),
+      modelId: "gpt-test"
+    });
+    const read = readCliConfigWithSources({
+      env: {},
+      cwd: root,
+      homeDir: join(root, "home")
+    });
+
+    expect(result.created).toBe(true);
+    expect(result.path).toBe(join(root, "home/.guga/config.toml"));
+    expect(read.config).toMatchObject({
+      providerId: "ai-sdk",
+      providerMode: "openai",
+      defaultModel: "default",
+      apiKeyEnv: "OPENAI_API_KEY",
+      models: [{ id: "default", modelId: "gpt-test" }]
+    });
+  });
+
+  it("does not overwrite an existing initialized config without force", async () => {
+    const root = await tempRoot();
+    writeRaw(root, "home/.guga/config.toml", `
+defaultModel = "kept"
+
+[[models]]
+id = "kept"
+modelId = "kept-model"
+`);
+
+    const result = initCliConfig({
+      env: {},
+      cwd: root,
+      homeDir: join(root, "home"),
+      modelId: "new-model"
+    });
+
+    expect(result.created).toBe(false);
+    expect(result.config.defaultModel).toBe("kept");
+  });
+
+  it("does not shadow an existing legacy JSON config during init", async () => {
+    const root = await tempRoot();
+    writeConfig(root, "home/.guga/config.json", { modelId: "legacy-model" });
+
+    const result = initCliConfig({
+      env: {},
+      cwd: root,
+      homeDir: join(root, "home"),
+      modelId: "new-model"
+    });
+
+    expect(result.created).toBe(false);
+    expect(result.path).toBe(join(realpathSync.native(join(root, "home")), ".guga/config.json"));
+    expect(result.config.modelId).toBe("legacy-model");
   });
 
   it("throws actionable errors for invalid JSON", async () => {

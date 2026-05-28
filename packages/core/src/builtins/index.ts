@@ -50,7 +50,8 @@ export {
   createAiSdkProviderPlugin,
   createBuiltInAiSdkProviderCapabilities,
   createModel,
-  mapAiSdkResultToProviderResponse
+  mapAiSdkResultToProviderResponse,
+  redactAiSdkMetadata
 } from "../provider-ai-sdk/index";
 export type {
   AiSdkBridgeMode,
@@ -69,6 +70,7 @@ export {
   AiSdkProviderErrorCategory,
   mapAiSdkError,
   mapAiSdkFinishReason,
-  mapAiSdkUsage
+  mapAiSdkUsage,
+  redactSensitiveText
 } from "../provider-ai-sdk/usage-error-mapper";
 export type { AiSdkUsageLike } from "../provider-ai-sdk/usage-error-mapper";
