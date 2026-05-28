@@ -184,3 +184,36 @@ Implemented the M4 context policy plugin runtime, wrote the M4 series article, a
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Fix CLI model-required error handling
+
+**Date**: 2026-05-28
+**Task**: Fix CLI model-required error handling
+**Branch**: `codex/cli-claude-pi-alignment`
+
+### Summary
+
+Committed CLI alignment updates, fixed no-model CLI startup error handling so friendly errors replace stack traces, verified CLI tests/build/typecheck, and archived the active Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0b8f472` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
