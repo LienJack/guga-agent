@@ -8,8 +8,11 @@ export type StdioCommand =
   | { type: "follow_up"; runId: string; text: string }
   | { type: "abort"; runId: string }
   | { type: "get_state"; sessionId?: string; runId?: string }
+  | { type: "get_messages"; runId: string }
   | { type: "switch_session"; sessionId: string; branchId?: string }
   | { type: "fork"; sessionId: string; parentBranchId?: string; createdFromRunId?: string; summary?: string }
+  | { type: "respond_interaction"; requestId: string; response?: unknown }
+  | { type: "extension_ui_response"; request_id: string; response?: unknown }
   | { type: "get_last_assistant_text"; runId: string }
   | { type: "compact"; sessionId: string; runId?: string };
 
@@ -46,12 +49,18 @@ export function hostEventToPiCompatibleEvents(event: HostEvent): PiCompatibleEve
       return [{ type: "message_end", session_id: event.sessionId, run_id: event.runId, message_id: event.messageId }];
     case "tool.started":
       return [{ type: "tool_execution_start", session_id: event.sessionId, run_id: event.runId, call_id: event.callId, name: event.name, input: event.input }];
+    case "tool.progress":
+      return [{ type: "tool_execution_update", session_id: event.sessionId, run_id: event.runId, call_id: event.callId, name: event.name, message: event.message, progress: event.progress }];
     case "tool.completed":
       return [{ type: "tool_execution_end", session_id: event.sessionId, run_id: event.runId, call_id: event.callId, name: event.name, output: event.output, status: "completed" }];
     case "tool.failed":
       return [{ type: "tool_execution_end", session_id: event.sessionId, run_id: event.runId, call_id: event.callId, name: event.name, error: event.error, status: "failed" }];
     case "queue.updated":
       return [{ type: "queue_update", session_id: event.sessionId, run_id: event.runId, pending: event.pending }];
+    case "retry.started":
+      return [{ type: "auto_retry_start", session_id: event.sessionId, run_id: event.runId, attempt: event.attempt, reason: event.reason }];
+    case "retry.completed":
+      return [{ type: "auto_retry_end", session_id: event.sessionId, run_id: event.runId, attempt: event.attempt }];
     case "context.compacted":
       return [{ type: "compaction_end", session_id: event.sessionId, run_id: event.runId, boundary_id: event.boundaryId, summary: event.summary }];
     case "interaction.requested":
@@ -59,9 +68,9 @@ export function hostEventToPiCompatibleEvents(event: HostEvent): PiCompatibleEve
     case "interaction.resolved":
       return [{ type: "extension_ui_response", session_id: event.sessionId, run_id: event.runId, request_id: event.requestId, response: event.response }];
     case "permission.requested":
-      return [{ type: "extension_ui_request", session_id: event.sessionId, run_id: event.runId, request_id: event.requestId, request: { kind: "confirm", message: event.reason ?? `Allow ${event.toolName}?`, toolName: event.toolName, input: event.input } }];
+      return [{ type: "permission_request", session_id: event.sessionId, run_id: event.runId, request_id: event.requestId, tool_name: event.toolName, input: event.input, reason: event.reason }];
     case "permission.resolved":
-      return [{ type: "extension_ui_response", session_id: event.sessionId, run_id: event.runId, request_id: event.requestId, response: event.decision }];
+      return [{ type: "permission_response", session_id: event.sessionId, run_id: event.runId, request_id: event.requestId, response: event.decision }];
     case "artifact.created":
       return [{ type: "artifact_created", session_id: event.sessionId, run_id: event.runId, artifact_id: event.artifactId, name: event.name }];
     case "usage.recorded":
@@ -97,6 +106,8 @@ export async function handleStdioCommand(client: HostClient, command: StdioComma
           return ok(await client.getSession(command.sessionId));
         }
         return failure("BAD_COMMAND", "get_state requires sessionId or runId");
+      case "get_messages":
+        return ok({ events: await client.listRunEvents(command.runId) });
       case "switch_session":
         return ok(await client.resumeSession(command.sessionId, { ...(command.branchId ? { branchId: command.branchId } : {}) }));
       case "fork":
@@ -105,6 +116,10 @@ export async function handleStdioCommand(client: HostClient, command: StdioComma
           ...(command.createdFromRunId ? { createdFromRunId: command.createdFromRunId } : {}),
           ...(command.summary ? { summary: command.summary } : {})
         }));
+      case "respond_interaction":
+        return ok(await client.respondInteraction(command.requestId, command.response));
+      case "extension_ui_response":
+        return ok(await client.respondInteraction(command.request_id, command.response));
       case "get_last_assistant_text": {
         const events = await client.listRunEvents(command.runId);
         const text = events

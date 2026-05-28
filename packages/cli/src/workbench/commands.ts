@@ -13,6 +13,7 @@ export const WORKBENCH_SLASH_COMMANDS = [
   "/new",
   "/resume",
   "/fork",
+  "/tree",
   "/status",
   "/clear",
   "/models",
@@ -20,6 +21,12 @@ export const WORKBENCH_SLASH_COMMANDS = [
   "/profile",
   "/permissions",
   "/mcp",
+  "/tools",
+  "/skills",
+  "/compact",
+  "/follow",
+  "/respond",
+  "/abort",
   "/help",
   "/exit"
 ] as const;
@@ -47,9 +54,16 @@ export type WorkbenchCommandAction =
   | "new-session"
   | "resume-session"
   | "fork-session"
+  | "session-tree"
   | "status"
   | "permissions"
-  | "mcp";
+  | "mcp"
+  | "tools"
+  | "skills"
+  | "compact"
+  | "follow-up"
+  | "respond-interaction"
+  | "abort-run";
 
 export type WorkbenchCommandResult =
   | {
@@ -87,7 +101,7 @@ export async function executeWorkbenchCommand(
 
   switch (intent.command) {
     case "/help":
-      return commandOk("help", WORKBENCH_SLASH_COMMANDS.join(" "));
+      return commandOk("help", formatCommandHelp());
     case "/exit":
     case "/quit":
       return commandOk("exit", "exit");
@@ -155,6 +169,15 @@ export async function executeWorkbenchCommand(
         return commandOk("fork-session", `forked branch ${summary.session.activeBranchId ?? "main"}`, summary);
       });
     }
+    case "/tree": {
+      if (!context.activeSessionId) {
+        return commandError("/tree requires an active session.", []);
+      }
+      return executeHostCommand(async () => {
+        const tree = await context.client.getSessionTree(context.activeSessionId ?? "");
+        return commandOk("session-tree", formatSessionTree(tree), tree);
+      });
+    }
     case "/status": {
       return executeHostCommand(async () => {
         const status = await context.client.getOperationalStatus();
@@ -175,6 +198,55 @@ export async function executeWorkbenchCommand(
         return commandOk("mcp", formatCapabilities(mcp), mcp);
       });
     }
+    case "/tools": {
+      return executeHostCommand(async () => {
+        const capabilities = await context.client.listCapabilities();
+        const tools = capabilities.filter((capability) => capability.type === "tool");
+        return commandOk("tools", formatCapabilities(tools), tools);
+      });
+    }
+    case "/skills": {
+      return executeHostCommand(async () => {
+        const capabilities = await context.client.listCapabilities();
+        const skills = capabilities.filter((capability) => capability.type === "skill");
+        return commandOk("skills", formatCapabilities(skills), skills);
+      });
+    }
+    case "/follow": {
+      if (!context.activeRunId) {
+        return commandError("/follow requires an active run.", []);
+      }
+      const text = intent.args.trim();
+      if (text.length === 0) {
+        return commandError("/follow requires text to queue.", []);
+      }
+      return executeHostCommand(async () => {
+        const run = await context.client.sendRunInput(context.activeRunId ?? "", { mode: "follow_up", text });
+        return commandOk("follow-up", "queued follow-up", run);
+      });
+    }
+    case "/respond": {
+      const [requestId, ...responseParts] = intent.args.trim().split(/\s+/);
+      if (!requestId || responseParts.length === 0) {
+        return commandError("/respond requires a request id and response.", []);
+      }
+      return executeHostCommand(async () => {
+        const interaction = await context.client.respondInteraction(requestId, parseInteractionResponse(responseParts.join(" ")));
+        return commandOk("respond-interaction", `responded to interaction ${interaction.id}`, interaction);
+      });
+    }
+    case "/abort":
+    case "/cancel": {
+      if (!context.activeRunId) {
+        return commandError("/abort requires an active run.", []);
+      }
+      return executeHostCommand(async () => {
+        const run = await context.client.abortRun(context.activeRunId ?? "");
+        return commandOk("abort-run", "abort requested", run);
+      });
+    }
+    case "/compact":
+      return commandOk("compact", "compact is not implemented by the host protocol yet");
     default:
       return commandError(`Unknown command: ${intent.command}`, suggestCommands(intent.command));
   }
@@ -219,6 +291,51 @@ function formatCapabilities(capabilities: CapabilityResource[]): string {
     return "No matching capabilities.";
   }
   return capabilities.map((capability) => `${capability.type}:${capability.name} ${capability.status}`).join("\n");
+}
+
+function formatSessionTree(tree: { activeBranchId: string; branches: Array<{ id: string; parentBranchId?: string; summary?: string; lastRunId?: string; lastRunStatus?: string }> }): string {
+  if (tree.branches.length === 0) {
+    return `active branch: ${tree.activeBranchId}`;
+  }
+  return tree.branches
+    .map((branch) => `${branch.id === tree.activeBranchId ? "*" : " "} ${branch.id}${branch.parentBranchId ? ` <- ${branch.parentBranchId}` : ""}${branch.summary ? ` ${branch.summary}` : ""}${branch.lastRunId ? ` (${branch.lastRunId} ${branch.lastRunStatus ?? "unknown"})` : ""}`)
+    .join("\n");
+}
+
+export function formatCommandHelp(): string {
+  return [
+    "/new [title] - create a session",
+    "/resume <session> [branch] - resume a session branch",
+    "/fork [summary] - fork the active session",
+    "/tree - show session branches",
+    "/models - list configured models",
+    "/model <id> - switch model",
+    "/profile <id> - switch profile",
+    "/tools - list tools",
+    "/skills - list skills",
+    "/permissions - list permission-relevant capabilities",
+    "/mcp - list MCP capabilities",
+    "/follow <text> - queue a follow-up during an active run",
+    "/respond <request-id> <value> - respond to an interaction request",
+    "/abort - abort the active run",
+    "/compact - reserved compaction command",
+    "/clear - clear transcript",
+    "/exit - exit"
+  ].join("\n");
+}
+
+function parseInteractionResponse(text: string): unknown {
+  if (text === "true") {
+    return true;
+  }
+  if (text === "false") {
+    return false;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
 
 function isPermissionRelevantCapability(capability: CapabilityResource): boolean {

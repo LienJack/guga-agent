@@ -10,7 +10,7 @@ import {
 } from "../host-factory";
 import { renderHostEvent } from "../render/events";
 import { createFallbackTerminalAdapter } from "../tui/terminal";
-import { executeWorkbenchCommand, parseWorkbenchInput } from "../workbench/commands";
+import { executeWorkbenchCommand, formatCommandHelp, parseWorkbenchInput } from "../workbench/commands";
 
 export type CliWriter = {
   isTTY?: boolean;
@@ -192,6 +192,7 @@ async function streamRunWithInteractiveInput(
   let eventNext = eventIterator.next();
   let lineTake: LineTake | undefined = lineQueue.take();
   let pendingPermissionId: string | undefined;
+  let pendingInteractionId: string | undefined;
   try {
     while (true) {
       type StreamRace =
@@ -213,6 +214,9 @@ async function streamRunWithInteractiveInput(
         if (event.type === "permission.requested") {
           pendingPermissionId = event.requestId;
         }
+        if (event.type === "interaction.requested") {
+          pendingInteractionId = event.requestId;
+        }
         for (const rendered of renderHostEvent(event, { debug: args.debugEvents })) {
           io.stdout.write(`${rendered}\n`);
         }
@@ -228,7 +232,7 @@ async function streamRunWithInteractiveInput(
         lineTake = undefined;
         continue;
       }
-      await handleActiveRunInput(host, runId, pendingPermissionId, result.value.value.trim(), io);
+      await handleActiveRunInput(host, runId, pendingPermissionId, pendingInteractionId, result.value.value.trim(), io);
       lineTake = lineQueue.take();
     }
   } finally {
@@ -241,6 +245,7 @@ async function handleActiveRunInput(
   host: CliHost,
   runId: string,
   pendingPermissionId: string | undefined,
+  pendingInteractionId: string | undefined,
   line: string,
   io: CliIO
 ): Promise<void> {
@@ -264,6 +269,20 @@ async function handleActiveRunInput(
     io.stdout.write(`permission ${decision} sent\n`);
     return;
   }
+  if (line === "respond" || line.startsWith("respond ") || line === "/respond" || line.startsWith("/respond ")) {
+    const responseArgs = line.replace(/^\/?respond\s*/, "").trim();
+    const [firstArg, ...restArgs] = responseArgs.split(/\s+/);
+    const hasExplicitRequestId = !!firstArg && restArgs.length > 0;
+    const requestId = hasExplicitRequestId ? firstArg : pendingInteractionId;
+    const responseText = hasExplicitRequestId ? restArgs.join(" ") : responseArgs;
+    if (!requestId || responseText === undefined || responseText.length === 0) {
+      io.stderr.write("Usage: /respond [request-id] <response>\n");
+      return;
+    }
+    await host.local.client.respondInteraction(requestId, parseActiveRunInteractionResponse(responseText));
+    io.stdout.write(`interaction response sent\n`);
+    return;
+  }
   if (line.startsWith("/")) {
     const result = await executeWorkbenchCommand(parseWorkbenchInput(line), {
       client: host.local.client,
@@ -277,8 +296,8 @@ async function handleActiveRunInput(
     }
     return;
   }
-  await host.local.client.sendRunInput(runId, { mode: "follow_up", text: line });
-  io.stdout.write("queued follow-up\n");
+  await host.local.client.sendRunInput(runId, { mode: "steer", text: line });
+  io.stdout.write("sent steer\n");
 }
 
 export async function runCommand(args: RunArgs, io: CliIO): Promise<number> {
@@ -500,14 +519,21 @@ function isSessionSummary(value: unknown): value is { session: Awaited<ReturnTyp
 }
 
 function printInteractiveHelp(io: CliIO): void {
-  io.stdout.write([
-    "Commands:",
-    "  /models              list configured models",
-    "  /model <id>          switch model and start a fresh host session",
-    "  /profile <id>        switch profile: default|code|deep-research|review",
-    "  /exit                leave interactive mode",
-    ""
-  ].join("\n"));
+  io.stdout.write(`${formatCommandHelp()}\n`);
+}
+
+function parseActiveRunInteractionResponse(text: string): unknown {
+  if (text === "true") {
+    return true;
+  }
+  if (text === "false") {
+    return false;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
 
 function printConfiguredModels(io: CliIO): void {

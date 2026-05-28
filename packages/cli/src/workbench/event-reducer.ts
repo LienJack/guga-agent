@@ -86,6 +86,37 @@ export function reduceHostEvent(state: WorkbenchState, event: HostEvent): Workbe
         lastSeq: event.seq,
         occurredAt: event.occurredAt
       });
+    case "tool.progress":
+      return updateTranscriptBlock({
+        ...baseEventState(state, event),
+        statusText: event.message ?? `Tool running: ${event.name}`
+      }, `tool:${event.callId}`, (block) => {
+        if (block.kind !== "tool") {
+          return block;
+        }
+        return {
+          ...block,
+          status: "running",
+          ...(event.progress !== undefined ? { progress: event.progress } : {}),
+          ...(event.message ? { progressMessage: event.message } : {}),
+          lastSeq: event.seq,
+          occurredAt: event.occurredAt
+        };
+      }, () => ({
+        id: `tool:${event.callId}`,
+        kind: "tool",
+        sessionId: event.sessionId,
+        runId: event.runId,
+        callId: event.callId,
+        name: event.name,
+        status: "running",
+        ...(event.progress !== undefined ? { progress: event.progress } : {}),
+        ...(event.message ? { progressMessage: event.message } : {}),
+        artifactIds: [],
+        firstSeq: event.seq,
+        lastSeq: event.seq,
+        occurredAt: event.occurredAt
+      }));
     case "tool.completed":
       return updateTranscriptBlock(baseEventState(state, event), `tool:${event.callId}`, (block) => {
         if (block.kind !== "tool") {
@@ -285,6 +316,47 @@ export function reduceHostEvent(state: WorkbenchState, event: HostEvent): Workbe
         ...queue
       });
     }
+    case "retry.started":
+      return withTranscriptBlock({
+        ...baseEventState(state, event),
+        statusText: `Retrying: attempt ${event.attempt}`
+      }, {
+        id: `retry:${event.runId}:${event.attempt}`,
+        kind: "retry",
+        sessionId: event.sessionId,
+        runId: event.runId,
+        attempt: event.attempt,
+        status: "started",
+        reason: event.reason,
+        firstSeq: event.seq,
+        lastSeq: event.seq,
+        occurredAt: event.occurredAt
+      });
+    case "retry.completed":
+      return updateTranscriptBlock({
+        ...baseEventState(state, event),
+        statusText: "Running"
+      }, `retry:${event.runId}:${event.attempt}`, (block) => {
+        if (block.kind !== "retry") {
+          return block;
+        }
+        return {
+          ...block,
+          status: "completed",
+          lastSeq: event.seq,
+          occurredAt: event.occurredAt
+        };
+      }, () => ({
+        id: `retry:${event.runId}:${event.attempt}`,
+        kind: "retry",
+        sessionId: event.sessionId,
+        runId: event.runId,
+        attempt: event.attempt,
+        status: "completed",
+        firstSeq: event.seq,
+        lastSeq: event.seq,
+        occurredAt: event.occurredAt
+      }));
     case "usage.recorded":
       return {
         ...baseEventState(state, event),

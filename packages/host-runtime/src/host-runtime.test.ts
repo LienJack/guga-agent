@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAgentRuntime, createMockProvider, createTestTool, type ToolDefinition } from "@guga-agent/core";
+import { ProviderErrorCategory, createAgentRuntime, createMockProvider, createTestTool, type ToolDefinition } from "@guga-agent/core";
 import { HostRuntime } from "./host-runtime";
 
 describe("HostRuntime", () => {
@@ -34,6 +34,17 @@ describe("HostRuntime", () => {
       "usage.recorded",
       "run.completed"
     ]);
+    expect(host.getSession(session.id)).toMatchObject({
+      lastRunId: run.id,
+      lastRunStatus: "completed",
+      branches: [
+        expect.objectContaining({
+          id: "main",
+          lastRunId: run.id,
+          lastRunStatus: "completed"
+        })
+      ]
+    });
   });
 
   it("projects tool lifecycle events", async () => {
@@ -55,6 +66,49 @@ describe("HostRuntime", () => {
     expect(host.listRunEvents(run.id)).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: "tool.started", callId: "call-1", name: "echo" }),
       expect.objectContaining({ type: "tool.completed", callId: "call-1", name: "echo", output: "tool output" })
+    ]));
+  });
+
+  it("projects provider retry model events into host retry events", async () => {
+    let attempts = 0;
+    const runtime = createAgentRuntime({
+      routerPolicy: {
+        primary: { providerId: "retrying", modelId: "retry-model" },
+        maxRetries: 1
+      }
+    });
+    runtime.registerModel?.({ providerId: "retrying", modelId: "retry-model" });
+    runtime.registerProvider({
+      id: "retrying",
+      async generate() {
+        attempts += 1;
+        if (attempts === 1) {
+          return {
+            type: "failure",
+            error: {
+              category: ProviderErrorCategory.Retryable,
+              code: "RATE_LIMITED",
+              message: "rate limited",
+              retryable: true
+            }
+          };
+        }
+        return { type: "final", content: "recovered" };
+      }
+    });
+    const host = new HostRuntime({
+      runtime,
+      now: () => new Date("2026-05-27T00:00:00.000Z"),
+      idFactory: deterministicIds(["session-1", "run-1"])
+    });
+    const session = host.createSession();
+
+    const run = await host.startRun({ sessionId: session.id, input: "retry" });
+
+    expect(run.status).toBe("completed");
+    expect(host.listRunEvents(run.id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "retry.started", attempt: 1, reason: "rate limited" }),
+      expect.objectContaining({ type: "retry.completed", attempt: 1 })
     ]));
   });
 

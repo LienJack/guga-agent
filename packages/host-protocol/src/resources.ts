@@ -11,6 +11,8 @@ export type HostProtocolFeature =
   | "run-abort"
   | "follow-up-consumption"
   | "steer-deferred"
+  | "tool-progress"
+  | "retry-events"
   | "permissions"
   | "interactions"
   | "sessions"
@@ -25,6 +27,8 @@ export const HOST_PROTOCOL_FEATURES: HostProtocolFeature[] = [
   "run-abort",
   "follow-up-consumption",
   "steer-deferred",
+  "tool-progress",
+  "retry-events",
   "permissions",
   "interactions",
   "sessions",
@@ -38,6 +42,8 @@ export type SessionResource = {
   createdAt: string;
   updatedAt: string;
   activeBranchId?: string;
+  lastRunId?: string;
+  lastRunStatus?: RunStatus;
   branches?: SessionBranchResource[];
 };
 
@@ -47,6 +53,8 @@ export type SessionBranchResource = {
   parentBranchId?: string;
   createdFromRunId?: string;
   summary?: string;
+  lastRunId?: string;
+  lastRunStatus?: RunStatus;
   createdAt: string;
   updatedAt: string;
 };

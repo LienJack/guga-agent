@@ -128,14 +128,16 @@ describe("CLI run command", () => {
 
   it("renders tool progress from host events", () => {
     expect(renderHostEvent({
-      type: "tool.started",
+      type: "tool.progress",
       seq: 1,
       occurredAt: "2026-05-27T00:00:00.000Z",
       sessionId: "session-1",
       runId: "run-1",
       callId: "call-1",
-      name: "shell"
-    })).toEqual(["tool shell started"]);
+      name: "shell",
+      message: "running tests",
+      progress: 0.5
+    })).toEqual(["tool shell progress 50%: running tests"]);
   });
 
   it("reads real provider config from environment", () => {

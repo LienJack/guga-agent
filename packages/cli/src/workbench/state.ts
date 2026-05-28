@@ -55,6 +55,8 @@ export type ToolTranscriptBlock = TranscriptBlockBase<"tool"> & {
   status: "running" | "completed" | "failed";
   input?: unknown;
   output?: unknown;
+  progress?: number;
+  progressMessage?: string;
   artifactIds: string[];
   error?: HostErrorPayload;
 };
@@ -100,6 +102,12 @@ export type ContextTranscriptBlock = TranscriptBlockBase<"context"> & {
   summary?: string;
 };
 
+export type RetryTranscriptBlock = TranscriptBlockBase<"retry"> & {
+  attempt: number;
+  status: "started" | "completed";
+  reason?: string;
+};
+
 export type TranscriptBlock =
   | AssistantTranscriptBlock
   | ToolTranscriptBlock
@@ -109,7 +117,8 @@ export type TranscriptBlock =
   | AbortTranscriptBlock
   | ErrorTranscriptBlock
   | ArtifactTranscriptBlock
-  | ContextTranscriptBlock;
+  | ContextTranscriptBlock
+  | RetryTranscriptBlock;
 
 export type WorkbenchState = {
   startup: WorkbenchStartupMetadata;

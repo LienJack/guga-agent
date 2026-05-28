@@ -46,6 +46,19 @@ describe("host stdio adapter", () => {
     })).toEqual([
       expect.objectContaining({ type: "message_update", text: "hi" })
     ]);
+    expect(hostEventToPiCompatibleEvents({
+      type: "tool.progress",
+      seq: 3,
+      occurredAt: "2026-05-27T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      callId: "call-1",
+      name: "shell",
+      message: "running",
+      progress: 0.5
+    })).toEqual([
+      expect.objectContaining({ type: "tool_execution_update", progress: 0.5 })
+    ]);
   });
 
   it("handles core JSONL commands through an injected host client", async () => {
@@ -71,6 +84,10 @@ describe("host stdio adapter", () => {
       getSession: async () => ({ id: "session-1" }),
       resumeSession: async () => ({ id: "session-1", activeBranchId: "main" }),
       forkSession: async () => ({ id: "session-1", activeBranchId: "branch-1" }),
+      respondInteraction: async (requestId: string, response: unknown) => {
+        calls.push(`respondInteraction:${requestId}:${String(response)}`);
+        return { id: requestId, response };
+      },
       listRunEvents: async () => [
         { type: "message.delta", text: "hello " },
         { type: "message.delta", text: "world" }
@@ -92,11 +109,29 @@ describe("host stdio adapter", () => {
       type: "get_last_assistant_text",
       runId: "run-1"
     })).resolves.toEqual({ ok: true, data: { text: "hello world" } });
+    await expect(handleStdioCommand(client, {
+      type: "get_messages",
+      runId: "run-1"
+    })).resolves.toEqual({
+      ok: true,
+      data: {
+        events: [
+          { type: "message.delta", text: "hello " },
+          { type: "message.delta", text: "world" }
+        ]
+      }
+    });
+    await expect(handleStdioCommand(client, {
+      type: "extension_ui_response",
+      request_id: "interaction-1",
+      response: true
+    })).resolves.toMatchObject({ ok: true });
 
     expect(calls).toEqual([
       "createSession",
       "startRun:hello",
-      "sendRunInput:follow_up:next"
+      "sendRunInput:follow_up:next",
+      "respondInteraction:interaction-1:true"
     ]);
   });
 });

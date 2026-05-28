@@ -10,6 +10,7 @@ export type HostEventType =
   | "message.delta"
   | "message.completed"
   | "tool.started"
+  | "tool.progress"
   | "tool.completed"
   | "tool.failed"
   | "permission.requested"
@@ -19,6 +20,8 @@ export type HostEventType =
   | "interaction.resolved"
   | "interaction.cancelled"
   | "queue.updated"
+  | "retry.started"
+  | "retry.completed"
   | "context.compacted"
   | "artifact.created"
   | "usage.recorded";
@@ -69,6 +72,13 @@ export type ToolStartedHostEvent = RunScopedEvent<"tool.started"> & {
   callId: string;
   name: string;
   input?: unknown;
+};
+
+export type ToolProgressHostEvent = RunScopedEvent<"tool.progress"> & {
+  callId: string;
+  name: string;
+  message?: string;
+  progress?: number;
 };
 
 export type ToolCompletedHostEvent = RunScopedEvent<"tool.completed"> & {
@@ -130,6 +140,15 @@ export type QueueUpdatedHostEvent = RunScopedEvent<"queue.updated"> & {
   pending: QueuedRunInputSummaryResource[];
 };
 
+export type RetryStartedHostEvent = RunScopedEvent<"retry.started"> & {
+  attempt: number;
+  reason: string;
+};
+
+export type RetryCompletedHostEvent = RunScopedEvent<"retry.completed"> & {
+  attempt: number;
+};
+
 export type ContextCompactedHostEvent = RunScopedEvent<"context.compacted"> & {
   boundaryId: string;
   trigger: string;
@@ -166,6 +185,7 @@ export type HostEvent =
   | MessageDeltaHostEvent
   | MessageCompletedHostEvent
   | ToolStartedHostEvent
+  | ToolProgressHostEvent
   | ToolCompletedHostEvent
   | ToolFailedHostEvent
   | PermissionRequestedHostEvent
@@ -175,6 +195,8 @@ export type HostEvent =
   | InteractionResolvedHostEvent
   | InteractionCancelledHostEvent
   | QueueUpdatedHostEvent
+  | RetryStartedHostEvent
+  | RetryCompletedHostEvent
   | ContextCompactedHostEvent
   | ArtifactCreatedHostEvent
   | UsageRecordedHostEvent;

@@ -15,6 +15,10 @@ export function renderHostEvent(event: HostEvent, options: RenderEventOptions = 
   if (event.type === "tool.started") {
     return [`tool ${event.name} started`];
   }
+  if (event.type === "tool.progress") {
+    const suffix = event.progress === undefined ? "" : ` ${Math.round(event.progress * 100)}%`;
+    return [`tool ${event.name} progress${suffix}${event.message ? `: ${event.message}` : ""}`];
+  }
   if (event.type === "tool.completed") {
     return [`tool ${event.name} completed`];
   }
@@ -41,6 +45,12 @@ export function renderHostEvent(event: HostEvent, options: RenderEventOptions = 
   }
   if (event.type === "queue.updated") {
     return [`queued inputs: ${event.pending.length}`];
+  }
+  if (event.type === "retry.started") {
+    return [`retry ${event.attempt} started: ${event.reason}`];
+  }
+  if (event.type === "retry.completed") {
+    return [`retry ${event.attempt} completed`];
   }
   if (event.type === "run.failed") {
     return [`run failed: ${event.error.code} ${event.error.message}`];

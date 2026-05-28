@@ -124,10 +124,37 @@ describe("host protocol events", () => {
     expect(resolved).toMatchObject({ type: "interaction.resolved", response: true });
   });
 
+  it("serializes tool progress and retry events", () => {
+    const sequencer = createHostEventSequencer({
+      now: () => new Date("2026-05-27T00:00:00.000Z")
+    });
+    const progress = sequencer.next({
+      type: "tool.progress",
+      sessionId: "session-1",
+      runId: "run-1",
+      callId: "call-1",
+      name: "shell",
+      message: "running tests",
+      progress: 0.5
+    });
+    const retry = sequencer.next({
+      type: "retry.started",
+      sessionId: "session-1",
+      runId: "run-1",
+      attempt: 2,
+      reason: "rate limited"
+    });
+
+    expect(JSON.parse(JSON.stringify(progress))).toEqual(progress);
+    expect(retry).toMatchObject({ type: "retry.started", attempt: 2 });
+  });
+
   it("exposes protocol discovery constants", () => {
     expect(HOST_PROTOCOL_VERSION).toBe("1");
     expect(HOST_PROTOCOL_FEATURES).toEqual(expect.arrayContaining([
       "run-input-queue",
+      "tool-progress",
+      "retry-events",
       "follow-up-consumption",
       "permissions"
     ]));

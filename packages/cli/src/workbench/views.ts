@@ -83,7 +83,7 @@ function createTranscriptViewBlock(block: TranscriptBlock): TranscriptViewBlock 
       return {
         ...block,
         title: `Tool ${block.status}: ${block.name}`,
-        detail: block.error?.message ?? previewUnknown(block.output ?? block.input)
+        detail: block.error?.message ?? block.progressMessage ?? previewUnknown(block.output ?? block.input)
       };
     case "permission":
       return {
@@ -126,6 +126,12 @@ function createTranscriptViewBlock(block: TranscriptBlock): TranscriptViewBlock 
         ...block,
         title: `Context compacted: ${block.trigger}`,
         detail: block.summary ?? block.boundaryId
+      };
+    case "retry":
+      return {
+        ...block,
+        title: `Retry ${block.status}: attempt ${block.attempt}`,
+        detail: block.reason ?? ""
       };
     default:
       return assertNever(block);

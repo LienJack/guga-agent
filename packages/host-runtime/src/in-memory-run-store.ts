@@ -56,6 +56,8 @@ export class InMemoryRunStore {
   updateSession(sessionId: string, patch: {
     activeBranchId?: string;
     title?: string;
+    lastRunId?: string;
+    lastRunStatus?: RunStatus;
     updatedAt: string;
   }): void {
     const session = this.sessions.get(sessionId);
@@ -66,8 +68,29 @@ export class InMemoryRunStore {
       ...session,
       ...(patch.activeBranchId ? { activeBranchId: patch.activeBranchId } : {}),
       ...(patch.title ? { title: patch.title } : {}),
+      ...(patch.lastRunId ? { lastRunId: patch.lastRunId } : {}),
+      ...(patch.lastRunStatus ? { lastRunStatus: patch.lastRunStatus } : {}),
       updatedAt: patch.updatedAt
     });
+  }
+
+  updateBranch(sessionId: string, branchId: string, patch: {
+    lastRunId?: string;
+    lastRunStatus?: RunStatus;
+    updatedAt: string;
+  }): void {
+    const branches = this.branches.get(sessionId);
+    if (!branches) {
+      return;
+    }
+    this.branches.set(sessionId, branches.map((branch) => branch.id === branchId
+      ? {
+          ...branch,
+          ...(patch.lastRunId ? { lastRunId: patch.lastRunId } : {}),
+          ...(patch.lastRunStatus ? { lastRunStatus: patch.lastRunStatus } : {}),
+          updatedAt: patch.updatedAt
+        }
+      : branch));
   }
 
   putRun(run: RunResource): void {

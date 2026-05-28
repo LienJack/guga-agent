@@ -80,6 +80,11 @@ describe("workbench slash commands", () => {
       action: "status",
       message: "providers=1 tools=1 operations=1 runs=1 tokens=12"
     });
+    await expect(executeWorkbenchCommand(parseWorkbenchInput("/tree"), ctx)).resolves.toMatchObject({
+      ok: true,
+      action: "session-tree",
+      message: expect.stringContaining("* branch-2")
+    });
 
     expect(client.createSession).toHaveBeenCalledWith({ title: "New work" });
     expect(client.resumeSession).toHaveBeenCalledWith("session-1", { branchId: "branch-1" });
@@ -88,6 +93,7 @@ describe("workbench slash commands", () => {
       createdFromRunId: "run-1",
       summary: "alternate"
     });
+    expect(client.getSessionTree).toHaveBeenCalledWith("session-1");
   });
 
   it("reads permission and MCP status from capabilities", async () => {
@@ -103,6 +109,41 @@ describe("workbench slash commands", () => {
       action: "mcp",
       message: expect.stringContaining("tool:mcp_tool registered")
     });
+    await expect(executeWorkbenchCommand(parseWorkbenchInput("/tools"), ctx)).resolves.toMatchObject({
+      ok: true,
+      action: "tools",
+      message: expect.stringContaining("tool:fs_write registered")
+    });
+    await expect(executeWorkbenchCommand(parseWorkbenchInput("/skills"), ctx)).resolves.toMatchObject({
+      ok: true,
+      action: "skills",
+      message: "No matching capabilities."
+    });
+  });
+
+  it("queues follow-ups and aborts active runs through slash commands", async () => {
+    const client = fakeClient();
+    const ctx = context({ client, activeRunId: "run-1" });
+
+    await expect(executeWorkbenchCommand(parseWorkbenchInput("/follow next turn"), ctx)).resolves.toMatchObject({
+      ok: true,
+      action: "follow-up",
+      message: "queued follow-up"
+    });
+    await expect(executeWorkbenchCommand(parseWorkbenchInput("/abort"), ctx)).resolves.toMatchObject({
+      ok: true,
+      action: "abort-run",
+      message: "abort requested"
+    });
+    await expect(executeWorkbenchCommand(parseWorkbenchInput("/respond interaction-1 true"), ctx)).resolves.toMatchObject({
+      ok: true,
+      action: "respond-interaction",
+      message: "responded to interaction interaction-1"
+    });
+
+    expect(client.sendRunInput).toHaveBeenCalledWith("run-1", { mode: "follow_up", text: "next turn" });
+    expect(client.abortRun).toHaveBeenCalledWith("run-1");
+    expect(client.respondInteraction).toHaveBeenCalledWith("interaction-1", true);
   });
 
   it("returns command errors when HostClient resource calls fail", async () => {
@@ -165,7 +206,22 @@ function fakeClient(): HostClient {
     getSessionTree: vi.fn(async (sessionId) => ({
       sessionId,
       activeBranchId: "branch-2",
-      branches: []
+      branches: [
+        {
+          id: "main",
+          sessionId,
+          createdAt: "2026-05-28T00:00:00.000Z",
+          updatedAt: "2026-05-28T00:00:00.000Z"
+        },
+        {
+          id: "branch-2",
+          sessionId,
+          parentBranchId: "main",
+          summary: "alternate",
+          createdAt: "2026-05-28T00:00:00.000Z",
+          updatedAt: "2026-05-28T00:00:00.000Z"
+        }
+      ]
     })),
     startRun: vi.fn(async () => runResource()),
     getRun: vi.fn(async () => runResource()),

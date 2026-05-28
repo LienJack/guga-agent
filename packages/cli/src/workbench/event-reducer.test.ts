@@ -77,8 +77,16 @@ describe("workbench event reducer", () => {
         input: { command: "pwd" }
       }),
       event({
-        type: "tool.completed",
+        type: "tool.progress",
         seq: 2,
+        callId: "call-1",
+        name: "shell",
+        message: "running",
+        progress: 0.5
+      }),
+      event({
+        type: "tool.completed",
+        seq: 3,
         callId: "call-1",
         name: "shell",
         output: "/repo",
@@ -93,9 +101,36 @@ describe("workbench event reducer", () => {
       name: "shell",
       status: "completed",
       output: "/repo",
+      progress: 0.5,
+      progressMessage: "running",
       artifactIds: ["artifact-1"],
       firstSeq: 1,
-      lastSeq: 2
+      lastSeq: 3
+    });
+  });
+
+  it("tracks retry events as transcript status", () => {
+    const state = reduceHostEvents(initialState(), [
+      event({
+        type: "retry.started",
+        attempt: 2,
+        reason: "rate limited"
+      }),
+      event({
+        type: "retry.completed",
+        seq: 2,
+        attempt: 2
+      })
+    ]);
+
+    expect(state.transcriptBlocks[0]).toMatchObject({
+      kind: "retry",
+      attempt: 2,
+      status: "completed",
+      reason: "rate limited"
+    });
+    expect(createWorkbenchViewModel(state).transcript[0]).toMatchObject({
+      title: "Retry completed: attempt 2"
     });
   });
 

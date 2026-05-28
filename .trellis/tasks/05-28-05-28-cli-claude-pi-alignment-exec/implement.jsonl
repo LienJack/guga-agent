@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Entry point for backend/runtime package guidelines before editing host protocol, runtime, server, SDK, or adapters."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Required TypeScript, test, and public contract practices for runtime-facing changes."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Structured error behavior for provider/tool/runtime/control-plane failures."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Plan spans protocol, runtime, HTTP, SDK, CLI, and stdio boundaries."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Use existing command/event parsing and rendering helpers before adding new ones."}
+{"file": "docs/plans/2026-05-28-036-feat-cli-claude-pi-alignment-plan.md", "reason": "Execution plan and acceptance criteria for P0-P4."}

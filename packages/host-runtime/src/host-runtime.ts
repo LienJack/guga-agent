@@ -260,6 +260,7 @@ export class HostRuntime {
       events: []
     };
     this.store.putRun(run);
+    this.updateSessionRunProjection(session.id, session.activeBranchId ?? "main", run);
 
     const sequencer = createHostEventSequencer({ now: this.now });
     const controller = new AbortController();
@@ -635,10 +636,20 @@ export class HostRuntime {
           ...(event.finalAnswer !== undefined ? { finalAnswer: event.finalAnswer } : {}),
           updatedAt: event.occurredAt
         });
+        this.updateSessionRunProjection(event.sessionId, this.store.getSession(event.sessionId)?.activeBranchId ?? "main", {
+          id: runId,
+          status: "completed",
+          updatedAt: event.occurredAt
+        });
       } else if (event.type === "run.failed") {
         this.store.updateRun(runId, {
           status: "failed",
           error: event.error,
+          updatedAt: event.occurredAt
+        });
+        this.updateSessionRunProjection(event.sessionId, this.store.getSession(event.sessionId)?.activeBranchId ?? "main", {
+          id: runId,
+          status: "failed",
           updatedAt: event.occurredAt
         });
       } else if (event.type === "run.cancelled") {
@@ -648,6 +659,11 @@ export class HostRuntime {
             code: "RUN_CANCELLED",
             message: event.reason ?? "Run was cancelled"
           },
+          updatedAt: event.occurredAt
+        });
+        this.updateSessionRunProjection(event.sessionId, this.store.getSession(event.sessionId)?.activeBranchId ?? "main", {
+          id: runId,
+          status: "cancelled",
           updatedAt: event.occurredAt
         });
       } else if (event.type === "permission.requested") {
@@ -706,6 +722,23 @@ export class HostRuntime {
         });
       }
     }
+  }
+
+  private updateSessionRunProjection(
+    sessionId: string,
+    branchId: string,
+    run: { id: string; status: RunResource["status"]; updatedAt: string }
+  ): void {
+    this.store.updateSession(sessionId, {
+      lastRunId: run.id,
+      lastRunStatus: run.status,
+      updatedAt: run.updatedAt
+    });
+    this.store.updateBranch(sessionId, branchId, {
+      lastRunId: run.id,
+      lastRunStatus: run.status,
+      updatedAt: run.updatedAt
+    });
   }
 
   private consumeNextFollowUpInput(runId: string, sequencer: HostEventSequencer): QueuedRunInputResource | undefined {

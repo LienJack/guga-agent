@@ -1,4 +1,4 @@
-import { AgentEventType, type AgentEvent } from "@guga-agent/core";
+import { AgentEventType, ModelEventType, type AgentEvent } from "@guga-agent/core";
 import {
   createHostEventSequencer,
   type HostEvent,
@@ -60,6 +60,30 @@ export function projectAgentEvent(event: AgentEvent, context: AgentEventProjecti
         role: "assistant"
       })
     ];
+  }
+
+  if (event.type === AgentEventType.ModelEvent && event.event.type === ModelEventType.RetryScheduled) {
+    return [context.sequencer.next({
+      type: "retry.started",
+      sessionId: context.sessionId,
+      runId: context.runId,
+      attempt: event.event.nextAttempt,
+      reason: event.event.error.message
+    })];
+  }
+
+  if (
+    event.type === AgentEventType.ModelEvent
+    && (event.event.type === ModelEventType.Finished || event.event.type === ModelEventType.ProviderError)
+    && event.event.attempt !== undefined
+    && event.event.attempt > 0
+  ) {
+    return [context.sequencer.next({
+      type: "retry.completed",
+      sessionId: context.sessionId,
+      runId: context.runId,
+      attempt: event.event.attempt
+    })];
   }
 
   if (event.type === AgentEventType.ToolStarted) {
