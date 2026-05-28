@@ -1,7 +1,7 @@
 ---
 title: feat: 建立 Extension 规范与 Built-in Core Capabilities
 type: feat
-status: active
+status: completed
 date: 2026-05-28
 origin: docs/brainstorms/2026-05-28-m38-extension-spec-built-in-core-capabilities-requirements.md
 ---
@@ -522,6 +522,8 @@ flowchart TB
 已使用命令行 `claude -p` 对本计划做只读评估。第一次评估结论：计划没有 P0 阻断，也没有把 core kernel 错误地变成 extension；主要 P1 风险集中在 built-in 与 extension lifecycle 差异、多重/链式 override 策略、provider-ai-sdk 的 built-in 边界、audit event 枚举、以及 MCP dogfood 过窄。上述 P1 已回写到 U1、U2、U3、U4、U5、U6、U7。
 
 在用户将方向调整为“filesystem/git/shell/provider-ai-sdk 直接进入 `packages/core/src/builtins`”后，又使用命令行 `claude -p` 做了第二次复评。复评结论：无 P0，但新增 P1 风险包括 packages/core 依赖面扩张、root barrel/export surface 过宽、旧 plugin compatibility wrapper 与默认 built-in 双注册、host-level replacement 与 extension override 混淆。上述 P1 已回写到 U1、U2、U3、U6、U7。
+
+实施完成后使用命令行 `claude -p` 做只读复评。第一次实现复评发现一个 P0：`createAgentRuntime` 的静态 import 链会加载 optional AI SDK dependencies；同时指出 root barrel value re-export builtins surface 与 boundary test 覆盖不足。实现已改为 AI SDK bridge lazy import、root barrel 只保留 builtins type-only exports、并将 runtime/root/default composition 纳入 dependency-boundary test。第二次实现复评结论：无 P0；builtins value surface 通过 `@guga-agent/core/builtins` 子入口访问，MCP dogfood 与 override/conflict fail-closed 语义无阻断。
 
 ---
 

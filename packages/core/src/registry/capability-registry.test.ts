@@ -175,6 +175,81 @@ describe("CapabilityRegistry", () => {
     ]);
   });
 
+  it("records built-in capability layer and core ownership metadata", () => {
+    const registry = new CapabilityRegistry();
+    registry.registerTool(tool, {
+      source: "built-in",
+      namespace: "filesystem",
+      declaredEffects: ["filesystem.read"],
+      permissionRequirements: [{ subject: "workspace", actions: ["read"], reason: "Read files for the agent" }]
+    });
+
+    expect(registry.listCapabilityDescriptors()).toEqual([
+      {
+        type: "tool",
+        name: "echo",
+        source: "built-in",
+        status: "registered",
+        layer: "built-in-core",
+        namespace: "filesystem",
+        owner: { kind: "core", id: "guga-core" },
+        declaredEffects: ["filesystem.read"],
+        permissionRequirements: [{ subject: "workspace", actions: ["read"], reason: "Read files for the agent" }]
+      }
+    ]);
+  });
+
+  it("records extension ownership, dependencies, lifecycle, and declared effects", () => {
+    const registry = new CapabilityRegistry();
+    registry.registerTool(tool, {
+      source: "plugin",
+      layer: "extension",
+      namespace: "mcp-fixture",
+      ownerPluginId: "mcp",
+      owner: { kind: "extension", id: "mcp", packageName: "@guga-agent/plugin-mcp" },
+      declaredEffects: ["network.access"],
+      permissionRequirements: [{ subject: "mcp.server.fixture", actions: ["connect"] }],
+      dependencies: [{ kind: "service", name: "fixture", optional: true }],
+      lifecycle: { load: "eager", unload: "remove-contributions", reload: "supported", shutdownTimeoutMs: 500 },
+      extension: {
+        id: "mcp",
+        name: "MCP",
+        source: { kind: "first-party", packageName: "@guga-agent/plugin-mcp" },
+        namespace: "mcp-fixture",
+        owner: { kind: "extension", id: "mcp", packageName: "@guga-agent/plugin-mcp" }
+      }
+    });
+
+    expect(JSON.parse(JSON.stringify(registry.listCapabilityDescriptors()))).toEqual(registry.listCapabilityDescriptors());
+    expect(registry.listCapabilityDescriptors()).toEqual([
+      expect.objectContaining({
+        type: "tool",
+        name: "echo",
+        source: "plugin",
+        status: "registered",
+        layer: "extension",
+        namespace: "mcp-fixture",
+        ownerPluginId: "mcp",
+        owner: { kind: "extension", id: "mcp", packageName: "@guga-agent/plugin-mcp" },
+        declaredEffects: ["network.access"],
+        permissionRequirements: [{ subject: "mcp.server.fixture", actions: ["connect"] }],
+        dependencies: [{ kind: "service", name: "fixture", optional: true }],
+        lifecycle: { load: "eager", unload: "remove-contributions", reload: "supported", shutdownTimeoutMs: 500 }
+      })
+    ]);
+  });
+
+  it("rejects invalid source layer and owner combinations", () => {
+    const registry = new CapabilityRegistry();
+
+    expect(() => registry.registerTool(tool, { source: "built-in", ownerPluginId: "ordinary-plugin" })).toThrow(
+      "Built-in capabilities cannot be owned by an extension"
+    );
+    expect(() => registry.registerProvider(provider, { source: "plugin", layer: "built-in-core" })).toThrow(
+      "Extension capabilities cannot use the built-in-core layer"
+    );
+  });
+
   it("removes skill descriptors with skill metadata", () => {
     const registry = new CapabilityRegistry();
     registry.registerSkill({ name: "docs", description: "Write docs" });
@@ -210,7 +285,55 @@ describe("CapabilityRegistry", () => {
       }],
       skippedConflicts: [
         { type: "tool", name: "read", source: "mcp", status: "skipped-conflict", reason: "name already registered" }
-      ]
+      ],
+      rejectedConflicts: []
+    });
+  });
+
+  it("records skipped and rejected conflict descriptors without replacing the registered capability", () => {
+    const registry = new CapabilityRegistry();
+    registry.registerTool(tool);
+
+    registry.recordCapabilityConflict("tool", "echo", {
+      source: "mcp",
+      layer: "extension",
+      ownerPluginId: "mcp",
+      status: "skipped-conflict",
+      reason: "name already registered"
+    });
+    registry.recordCapabilityConflict("tool", "echo", {
+      source: "plugin",
+      layer: "extension",
+      ownerPluginId: "override-plugin",
+      status: "rejected-conflict",
+      reason: "built-in override denied"
+    });
+
+    expect(registry.requireTool("echo")).toBe(tool);
+    expect(registry.listCapabilityDescriptors()).toEqual(expect.arrayContaining([
+      { type: "tool", name: "echo", source: "host", status: "registered" },
+      {
+        type: "tool",
+        name: "echo",
+        source: "mcp",
+        status: "skipped-conflict",
+        layer: "extension",
+        ownerPluginId: "mcp",
+        reason: "name already registered"
+      },
+      {
+        type: "tool",
+        name: "echo",
+        source: "plugin",
+        status: "rejected-conflict",
+        layer: "extension",
+        ownerPluginId: "override-plugin",
+        reason: "built-in override denied"
+      }
+    ]));
+    expect(diffCapabilityDescriptors([], registry.listCapabilityDescriptors())).toMatchObject({
+      skippedConflicts: [expect.objectContaining({ status: "skipped-conflict" })],
+      rejectedConflicts: [expect.objectContaining({ status: "rejected-conflict" })]
     });
   });
 
@@ -223,6 +346,44 @@ describe("CapabilityRegistry", () => {
     registry.registerTool(replacement, { override: { replaces: "echo", reason: "test" } });
 
     expect(registry.requireTool("echo")).toBe(replacement);
+    expect(registry.listCapabilityDescriptors()).toContainEqual({
+      type: "tool",
+      name: "echo",
+      source: "host",
+      status: "registered",
+      reason: "test",
+      override: {
+        status: "active",
+        target: { type: "tool", name: "echo" },
+        reason: "test"
+      }
+    });
+  });
+
+  it("denies extension overrides of built-in tools and chained extension overrides", () => {
+    const registry = new CapabilityRegistry();
+    registry.registerTool(tool, { source: "built-in" });
+
+    expect(() => registry.registerTool(
+      { ...tool, description: "Extension replacement" },
+      {
+        source: "plugin",
+        layer: "extension",
+        ownerPluginId: "extension",
+        override: { replaces: "echo", reason: "replace built-in" }
+      }
+    )).toThrow("Extension cannot override built-in tool without host policy: echo");
+
+    const hostRegistry = new CapabilityRegistry();
+    hostRegistry.registerTool(tool);
+    hostRegistry.registerTool(
+      { ...tool, description: "First replacement" },
+      { source: "plugin", ownerPluginId: "first", override: { replaces: "echo", reason: "first override" } }
+    );
+    expect(() => hostRegistry.registerTool(
+      { ...tool, description: "Second replacement" },
+      { source: "plugin", ownerPluginId: "second", override: { replaces: "echo", reason: "second override" } }
+    )).toThrow("Chained tool override is not supported: echo");
   });
 
   it("removes model metadata by provider and model id", () => {
