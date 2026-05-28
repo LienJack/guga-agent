@@ -86,7 +86,9 @@ describe("CLI run command", () => {
 
     await expect(runCli(["run", "hello", "--mock", "--ops"], io)).resolves.toBe(0);
 
-    expect(io.stdout()).toContain("operations: providers=1 operations=5 runs=1 totalTokens=3");
+    expect(io.stdout()).toContain("operations: providers=1 operations=13 runs=1 totalTokens=3");
+    expect(io.stdout()).toContain("guga-home:");
+    expect(io.stdout()).toContain("storage: sessions=");
     expect(io.stdout()).not.toContain("test-secret");
     expect(io.stderr()).toBe("");
   });

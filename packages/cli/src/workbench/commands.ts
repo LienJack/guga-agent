@@ -1,6 +1,7 @@
 import type { CapabilityResource } from "@guga-agent/host-protocol";
 import type { HostClient } from "@guga-agent/host-sdk";
 import type { CliConfig } from "../config";
+import type { CliHostStorageDiagnostics } from "../host-factory";
 import { listModelOptions, selectModelOrThrow, selectProfileOrThrow } from "./model-control";
 import {
   createWorkbenchSession,
@@ -31,6 +32,7 @@ export type WorkbenchInputIntent =
 export type WorkbenchCommandContext = {
   client: HostClient;
   config: CliConfig;
+  storage?: CliHostStorageDiagnostics;
   env?: NodeJS.ProcessEnv;
   activeSessionId?: string;
   activeBranchId?: string;
@@ -158,7 +160,7 @@ export async function executeWorkbenchCommand(
     case "/status": {
       return executeHostCommand(async () => {
         const status = await context.client.getOperationalStatus();
-        return commandOk("status", summarizeOperationalStatus(status), status);
+        return commandOk("status", summarizeStatusWithStorage(summarizeOperationalStatus(status), context.storage), status);
       });
     }
     case "/permissions": {
@@ -219,6 +221,19 @@ function formatCapabilities(capabilities: CapabilityResource[]): string {
     return "No matching capabilities.";
   }
   return capabilities.map((capability) => `${capability.type}:${capability.name} ${capability.status}`).join("\n");
+}
+
+function summarizeStatusWithStorage(summary: string, storage: CliHostStorageDiagnostics | undefined): string {
+  if (!storage) {
+    return summary;
+  }
+  return [
+    summary,
+    `home=${storage.home}`,
+    `sessions=${storage.sessionsRoot}`,
+    `artifacts=${storage.artifactsRoot}`,
+    `memory=${storage.memoryRoot}`
+  ].join("\n");
 }
 
 function isPermissionRelevantCapability(capability: CapabilityResource): boolean {

@@ -1,4 +1,3 @@
-import type { LocalGugaHost } from "@guga-agent/host-sdk";
 import type { HostEvent } from "@guga-agent/host-protocol";
 import { CliConfigError, listCliModels, readCliConfig, selectCliModel } from "../config";
 import {
@@ -99,6 +98,7 @@ export async function runInteractiveCommand(args: InteractiveArgs, io: CliIO): P
   io.stdout.write("Type a task and press Enter. Commands: /help, /models, /model <id>, /profile <id>, /exit\n");
   io.stdout.write(`model: ${host.selectedModel?.id ?? host.modelId ?? currentConfigModelLabel(io.env)} profile: ${host.profileId}\n`);
   io.stdout.write(`config: ${describeConfigSource(host)}\n`);
+  io.stdout.write(`home: ${host.storage.home} project: ${host.storage.projectKey}\n`);
   io.stdout.write("> ");
 
   try {
@@ -118,6 +118,7 @@ export async function runInteractiveCommand(args: InteractiveArgs, io: CliIO): P
         const commandResult = await executeWorkbenchCommand(intent, {
           client: host.local.client,
           config: host.config.config,
+          storage: host.storage,
           ...(io.env ? { env: io.env } : {}),
           activeSessionId: session.id,
           ...(session.activeBranchId ? { activeBranchId: session.activeBranchId } : {})
@@ -171,7 +172,7 @@ export async function runInteractiveCommand(args: InteractiveArgs, io: CliIO): P
       });
       await streamRunWithInteractiveInput(host, run.id, lineQueue, args, io);
       if (args.ops) {
-        await printOperationalStatus(host.local, io);
+        await printOperationalStatus(host, io);
       }
       io.stdout.write("> ");
     }
@@ -268,6 +269,7 @@ async function handleActiveRunInput(
     const result = await executeWorkbenchCommand(parseWorkbenchInput(line), {
       client: host.local.client,
       config: host.config.config,
+      storage: host.storage,
       activeRunId: runId
     });
     if (result.ok) {
@@ -311,12 +313,12 @@ export async function runCommand(args: RunArgs, io: CliIO): Promise<number> {
         io.stdout.write(`${finalRun.finalAnswer ?? ""}\n`);
       }
       if (args.ops) {
-        await printOperationalStatus(host.local, io);
+        await printOperationalStatus(host, io);
       }
       return 0;
     }
     if (args.ops) {
-      await printOperationalStatus(host.local, io);
+      await printOperationalStatus(host, io);
     }
     io.stderr.write(`${finalRun.error?.message ?? `Run ended with status ${finalRun.status}`}\n`);
     return 1;
@@ -529,13 +531,15 @@ function currentConfigModelLabel(env: NodeJS.ProcessEnv | undefined): string {
   return selected?.id ?? selected?.modelId ?? "(none)";
 }
 
-async function printOperationalStatus(host: LocalGugaHost, io: CliIO): Promise<void> {
-  const status = await host.client.getOperationalStatus();
+async function printOperationalStatus(host: CliHost, io: CliIO): Promise<void> {
+  const status = await host.local.client.getOperationalStatus();
   const operationCount = status.capabilities.filter((capability) => capability.type === "operation").length;
   const providerCount = status.health.length;
   const runCount = status.audit.length;
   const totalTokens = status.metrics.counters["usage.total_tokens"] ?? 0;
   io.stdout.write(`operations: providers=${providerCount} operations=${operationCount} runs=${runCount} totalTokens=${totalTokens}\n`);
+  io.stdout.write(`guga-home: ${host.storage.home}\n`);
+  io.stdout.write(`storage: sessions=${host.storage.sessionsRoot} artifacts=${host.storage.artifactsRoot} memory=${host.storage.memoryRoot}\n`);
   for (const diagnostic of status.diagnostics.filter((candidate) => candidate.severity !== "info")) {
     io.stdout.write(`operation diagnostic: ${diagnostic.code}: ${diagnostic.message}\n`);
   }
@@ -562,6 +566,11 @@ async function createWorkbenchHost(
 }
 
 function describeConfigSource(host: CliHost): string {
+  if (host.config.sourceStack?.length) {
+    return host.config.sourceStack
+      .map((source) => `${source.source}:${source.path}`)
+      .join(" < ");
+  }
   if (host.config.filePath) {
     return `${host.config.fileSource ?? "config"}:${host.config.filePath}`;
   }

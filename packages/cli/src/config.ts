@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { extname, resolve } from "node:path";
+import { parse as parseToml } from "smol-toml";
+import { GugaHomeError, resolveGugaHome } from "./guga-home";
 
 export type CliProviderMode = "gateway" | "openai-compatible" | "openai" | "anthropic";
 
@@ -31,9 +33,18 @@ export type CliConfigSourceKind = "env" | "guga_config" | "project" | "user" | "
 
 export type CliConfigSourceMap = Partial<Record<keyof CliConfig, CliConfigSourceKind>>;
 
+export type CliConfigFileFormat = "toml" | "json";
+
+export type CliConfigSourceEntry = {
+  source: Exclude<CliConfigSourceKind, "env" | "default">;
+  path: string;
+  format: CliConfigFileFormat;
+};
+
 export type CliConfigWithSources = {
   config: CliConfig;
   sources: CliConfigSourceMap;
+  sourceStack?: CliConfigSourceEntry[];
   filePath?: string;
   fileSource?: Exclude<CliConfigSourceKind, "env" | "default">;
 };
@@ -51,6 +62,18 @@ export class CliConfigError extends Error {
     super(`Invalid Guga config at ${path}: ${message}`);
     this.name = "CliConfigError";
     this.path = path;
+  }
+}
+
+export class CliConfigPathError extends Error {
+  readonly source: "env" | "default";
+  readonly value: string;
+
+  constructor(error: GugaHomeError) {
+    super(error.message);
+    this.name = "CliConfigPathError";
+    this.source = error.source;
+    this.value = error.value;
   }
 }
 
@@ -83,6 +106,7 @@ export function readCliConfigWithSources(options: ReadCliConfigOptions = {}): Cl
   return {
     config,
     sources,
+    ...(fileConfig.sourceStack ? { sourceStack: fileConfig.sourceStack } : {}),
     ...(fileConfig.filePath ? { filePath: fileConfig.filePath } : {}),
     ...(fileConfig.fileSource ? { fileSource: fileConfig.fileSource } : {})
   };
@@ -165,39 +189,86 @@ function readCliConfigFile(options: {
   cwd: string;
   homeDir: string;
 }): CliConfigWithSources {
-  const candidates: Array<{ path: string | undefined; source: Exclude<CliConfigSourceKind, "env" | "default"> }> = [
-    { path: options.env.GUGA_CONFIG, source: "guga_config" },
-    { path: resolve(options.cwd, ".guga/config.json"), source: "project" },
-    { path: resolve(options.homeDir, ".guga/config.json"), source: "user" }
-  ];
-  for (const candidate of candidates) {
-    if (!candidate.path) {
-      continue;
+  let home;
+  try {
+    home = resolveGugaHome(options);
+  } catch (error) {
+    if (error instanceof GugaHomeError) {
+      throw new CliConfigPathError(error);
     }
-    if (!existsSync(candidate.path)) {
-      if (candidate.source === "guga_config") {
-        throw new CliConfigError(candidate.path, "file does not exist");
-      }
-      continue;
-    }
-    const parsed = parseConfigFile(candidate.path);
-    const config = normalizeCliConfig(parsed);
-    return {
-      config,
-      sources: sourcesForConfig(config, candidate.source),
-      filePath: candidate.path,
-      fileSource: candidate.source
-    };
+    throw error;
   }
-  return { config: {}, sources: {} };
+  const layers = [
+    firstExistingConfig([
+      { path: home.config.userToml, format: "toml" },
+      { path: home.config.userJson, format: "json" }
+    ], "user"),
+    firstExistingConfig([
+      { path: home.config.projectToml, format: "toml" },
+      { path: home.config.projectJson, format: "json" }
+    ], "project"),
+    explicitConfig(options.env.GUGA_CONFIG, options.cwd)
+  ].filter((layer): layer is ConfigLayer => Boolean(layer));
+
+  let merged: CliConfig = {};
+  let sources: CliConfigSourceMap = {};
+  const sourceStack: CliConfigSourceEntry[] = [];
+  for (const layer of layers) {
+    const parsed = parseConfigFile(layer.path, layer.format);
+    const config = normalizeCliConfig(parsed);
+    merged = mergeCliConfig(merged, config);
+    sources = { ...sources, ...sourcesForConfig(config, layer.source) };
+    sourceStack.push({ source: layer.source, path: layer.path, format: layer.format });
+  }
+  const last = sourceStack.at(-1);
+  return {
+    config: merged,
+    sources,
+    ...(sourceStack.length > 0 ? { sourceStack } : {}),
+    ...(last ? { filePath: last.path, fileSource: last.source } : {})
+  };
 }
 
-function parseConfigFile(path: string): CliConfig {
-  try {
-    return JSON.parse(readFileSync(path, "utf8")) as CliConfig;
-  } catch (error) {
-    throw new CliConfigError(path, error instanceof Error ? error.message : "Unable to parse config JSON");
+type ConfigLayer = {
+  source: Exclude<CliConfigSourceKind, "env" | "default">;
+  path: string;
+  format: CliConfigFileFormat;
+};
+
+function firstExistingConfig(
+  candidates: Array<{ path: string; format: CliConfigFileFormat }>,
+  source: Exclude<CliConfigSourceKind, "env" | "default">
+): ConfigLayer | undefined {
+  const existing = candidates.find((candidate) => existsSync(candidate.path));
+  return existing ? { source, ...existing } : undefined;
+}
+
+function explicitConfig(path: string | undefined, cwd: string): ConfigLayer | undefined {
+  if (!path) {
+    return undefined;
   }
+  const resolved = resolve(cwd, path);
+  if (!existsSync(resolved)) {
+    throw new CliConfigError(resolved, "file does not exist");
+  }
+  return {
+    source: "guga_config",
+    path: resolved,
+    format: formatForPath(resolved)
+  };
+}
+
+function parseConfigFile(path: string, format: CliConfigFileFormat): CliConfig {
+  try {
+    const text = readFileSync(path, "utf8");
+    return (format === "toml" ? parseToml(text) : JSON.parse(text)) as CliConfig;
+  } catch (error) {
+    throw new CliConfigError(path, error instanceof Error ? error.message : `Unable to parse config ${format.toUpperCase()}`);
+  }
+}
+
+function formatForPath(path: string): CliConfigFileFormat {
+  return extname(path).toLowerCase() === ".toml" ? "toml" : "json";
 }
 
 function normalizeCliConfig(config: CliConfig): CliConfig {
@@ -227,6 +298,37 @@ function sourcesForConfig(config: CliConfig, source: CliConfigSourceKind): CliCo
     }
   }
   return sources;
+}
+
+function mergeCliConfig(base: CliConfig, override: CliConfig): CliConfig {
+  const { models: baseModels, ...baseRest } = base;
+  const { models: overrideModels, ...overrideRest } = override;
+  return {
+    ...baseRest,
+    ...definedEntries(overrideRest),
+    ...mergeModels(baseModels, overrideModels)
+  };
+}
+
+function mergeModels(
+  baseModels: CliModelConfig[] | undefined,
+  overrideModels: CliModelConfig[] | undefined
+): Pick<CliConfig, "models"> {
+  if (!overrideModels) {
+    return baseModels ? { models: baseModels } : {};
+  }
+  const byId = new Map<string, CliModelConfig>();
+  for (const model of baseModels ?? []) {
+    byId.set(model.id, model);
+  }
+  for (const model of overrideModels) {
+    byId.set(model.id, { ...byId.get(model.id), ...model });
+  }
+  return { models: [...byId.values()] };
+}
+
+function definedEntries<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as Partial<T>;
 }
 
 function resolveApiKey(model: CliModelConfig, config: CliConfig, env: NodeJS.ProcessEnv): string | undefined {

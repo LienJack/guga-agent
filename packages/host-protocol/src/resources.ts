@@ -1,5 +1,7 @@
 import type { HostEvent } from "./events";
 
+export type JsonObjectResource = { [key: string]: unknown };
+
 export type HostProtocolInfoResource = {
   version: "1";
   features: HostProtocolFeature[];
@@ -38,6 +40,9 @@ export type SessionResource = {
   createdAt: string;
   updatedAt: string;
   activeBranchId?: string;
+  rootBranchId?: string;
+  activeLeafEventId?: string | null;
+  metadata?: JsonObjectResource;
   branches?: SessionBranchResource[];
 };
 
@@ -49,6 +54,7 @@ export type SessionBranchResource = {
   summary?: string;
   createdAt: string;
   updatedAt: string;
+  metadata?: JsonObjectResource;
 };
 
 export type SessionTreeResource = {
