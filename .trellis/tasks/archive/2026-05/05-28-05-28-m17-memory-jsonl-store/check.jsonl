@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify validation, tests, and no core dependency inversion."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify persistence stays in plugin package."}
+{"file": "docs/research/memory-governance-store.md", "reason": "Verify JSONL store reuses governance projection."}
+{"file": "docs/research/agent-memo.md", "reason": "Verify no premature memory retrieval or automatic writes."}

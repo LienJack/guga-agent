@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend quality entry point for package changes."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Audit snapshot must preserve typed corrupt/partial-tail JSONL behavior."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"M29 should compose existing report, health, and Markdown functions instead of duplicating projection logic."}
+{"file":"docs/research/memory-jsonl-review-health.md","reason":"M25 established durable health projection semantics."}
+{"file":"docs/research/memory-jsonl-audit-snapshot.md","reason":"M29 module research and snapshot guardrails."}

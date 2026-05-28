@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Keep retrieval helpers in the memory plugin package and avoid core changes."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "TypeScript strictness, tests, and dependency-boundary expectations."}
+{"file": "docs/research/memory-scoped-retrieval.md", "reason": "M18 retrieval boundary and non-goals."}
+{"file": "docs/research/memory-governance-store.md", "reason": "Retrieval must consume active governed memory items only."}
+{"file": "docs/research/agent-memo.md", "reason": "Memory search must remain scope-filtered and separate from context injection."}

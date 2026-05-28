@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend quality entry point for plugin capability changes."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Capability discovery changes must keep descriptors serializable and plugin-owned."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"M28 should reuse existing operation descriptor registration patterns from memory plugins."}
+{"file":"docs/research/memory-review-capability.md","reason":"M21 established read-only memory review capability descriptor semantics."}
+{"file":"docs/research/memory-jsonl-capability-surface.md","reason":"M28 module research and operation naming guardrails."}

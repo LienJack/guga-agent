@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/guides/agent-reference-projects-guide.md", "reason": "Defines how architecture and roadmap work should use the reference agent project corpus without jumping directly into raw source."}
+{"file": "docs/research/context-packs/agent-loop.md", "reason": "Baseline evidence for core loop and turn lifecycle stages."}
+{"file": "docs/research/context-packs/tool-registry.md", "reason": "Baseline evidence for tools, permissions, MCP, skills, and plugin capability boundaries."}
+{"file": "docs/research/context-packs/ui-protocol.md", "reason": "Baseline evidence for CLI/Web/server/ACP/SSE terminal protocol decisions."}
+{"file": "docs/research/context-packs/multi-agent.md", "reason": "Baseline evidence for future code-agent delegation and multi-agent orchestration."}
+{"file": "docs/research/source-analysis/design-ideas-index.md", "reason": "Routing index for deeper module-specific research reports."}

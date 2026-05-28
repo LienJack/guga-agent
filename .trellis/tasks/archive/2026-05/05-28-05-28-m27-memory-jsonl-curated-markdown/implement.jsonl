@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend quality entry point for package changes."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"JSONL projection helpers must preserve typed corrupt/partial-tail behavior."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"M27 should compose the existing curated Markdown renderer instead of duplicating formatting logic."}
+{"file":"docs/research/memory-markdown-export.md","reason":"M19 established active-safe curated memory Markdown projection semantics."}
+{"file":"docs/research/memory-jsonl-curated-markdown.md","reason":"M27 module research and guardrails for durable curated Markdown."}

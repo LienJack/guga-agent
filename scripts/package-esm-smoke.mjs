@@ -1,6 +1,9 @@
 const packages = [
   "core",
   "provider-ai-sdk",
+  "plugin-session-jsonl",
+  "plugin-artifact-filesystem",
+  "plugin-replay-audit",
   "plugin-tools-filesystem",
   "plugin-tools-shell",
   "plugin-tools-git"

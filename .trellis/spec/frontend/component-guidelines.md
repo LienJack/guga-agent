@@ -6,54 +6,48 @@
 
 ## Overview
 
-<!--
-Document your project's component conventions here.
-
-Questions to answer:
-- What component patterns do you use?
-- How are props defined?
-- How do you handle composition?
-- What accessibility standards apply?
--->
-
-(To be filled by the team)
+No component framework is currently committed. Treat this file as the boundary for future Web/Desktop work: components should render typed host protocol state and dispatch typed host actions. They should not parse assistant text to infer runtime status.
 
 ---
 
 ## Component Structure
 
-<!-- Standard structure of a component file -->
+When UI packages are added, keep components small and state-driven:
 
-(To be filled by the team)
+- receive typed event/projection data as props;
+- keep host SDK calls in adapters/hooks, not deeply inside presentational components;
+- render explicit loading/error/empty states for long-running agent work;
+- avoid nested card-heavy layouts for dense operational surfaces.
 
 ---
 
 ## Props Conventions
 
-<!-- How props should be defined and typed -->
-
-(To be filled by the team)
+- Props should use exported host protocol/runtime types where possible.
+- Prefer discriminated unions for timeline/event rows.
+- Keep component props serializable unless a UI library requires callbacks.
+- Callback props should be commands such as `onApprovePermission`, `onCancelRun`, or `onOpenArtifact`.
 
 ---
 
 ## Styling Patterns
 
-<!-- How styles are applied (CSS modules, styled-components, Tailwind, etc.) -->
-
-(To be filled by the team)
+No styling system exists yet. Future UI should prioritize dense, readable workbench surfaces over marketing-style sections. Agent workbench UI should make sessions, tool state, permissions, artifacts, diffs, tests, and errors scannable.
 
 ---
 
 ## Accessibility
 
-<!-- A11y requirements and patterns -->
-
-(To be filled by the team)
+- Permission prompts, cancel buttons, artifact links, and tool controls must be keyboard reachable.
+- Long-running status should be represented with text/state, not color alone.
+- Icon buttons need accessible labels or tooltips.
+- Streaming output must not trap focus.
 
 ---
 
 ## Common Mistakes
 
-<!-- Component-related mistakes your team has made -->
-
-(To be filled by the team)
+- Do not infer tool progress by regexing assistant messages.
+- Do not duplicate runtime state in frontend-only stores without reconciliation rules.
+- Do not hide permission requests inside chat bubbles only; they are control-plane events.
+- Do not build a separate frontend agent loop.

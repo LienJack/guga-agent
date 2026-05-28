@@ -1,0 +1,12 @@
+{"file":"AGENTS.md","reason":"Verify workflow and research funnel compliance."}
+{"file":"任务.md","reason":"Verify M8 checklist and required gates are satisfied."}
+{"file":"docs/roadmap.md","reason":"Verify implementation aligns with roadmap scope and non-goals."}
+{"file":"docs/research/context-packs/provider-abstraction.md","reason":"Verify provider/credential decisions match reference-backed evidence."}
+{"file":"docs/research/context-packs/tool-registry.md","reason":"Verify trust/scope/capability changes preserve permission boundaries."}
+{"file":"docs/brainstorms/2026-05-27-m8-production-ops-requirements.md","reason":"Verify acceptance criteria."}
+{"file":"docs/research/production-operations-runtime.md","reason":"Verify implementation matches research-backed production operations decisions."}
+{"file":"docs/plans/2026-05-27-005-feat-production-operations-runtime-plan.md","reason":"Verify implementation units and acceptance criteria."}
+{"file":".trellis/tasks/05-27-05-27-m8-production-ops/prd.md","reason":"Verify PRD requirements and open questions."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Verify project quality guidelines."}
+{"file":"docs/solutions/architecture-patterns/plugin-capability-discovery.md","reason":"Verify M8 extends M6 discovery without breaking existing capability semantics."}
+{"file":"docs/solutions/architecture-patterns/host-protocol-cli-workbench.md","reason":"Verify M8 operational state can feed host/CLI surfaces."}

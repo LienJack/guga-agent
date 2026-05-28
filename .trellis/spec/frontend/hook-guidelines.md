@@ -6,46 +6,42 @@
 
 ## Overview
 
-<!--
-Document your project's hook conventions here.
-
-Questions to answer:
-- What custom hooks do you have?
-- How do you handle data fetching?
-- What are the naming conventions?
-- How do you share stateful logic?
--->
-
-(To be filled by the team)
+No React hooks exist yet. Future UI hooks should wrap host SDK subscriptions, actions, and derived projections. They should stay outside core/runtime packages.
 
 ---
 
 ## Custom Hook Patterns
 
-<!-- How to create and structure custom hooks -->
-
-(To be filled by the team)
+- Use hooks to subscribe to host event streams and derive view state.
+- Keep protocol decoding in one adapter layer.
+- Return explicit state objects such as `{ status, data, error }`.
+- Keep side-effecting actions named and typed.
 
 ---
 
 ## Data Fetching
 
-<!-- How data fetching is handled (React Query, SWR, etc.) -->
+No data-fetching library is chosen. Future UI should use the host SDK for:
 
-(To be filled by the team)
+- session list/read;
+- run start/cancel/resume/fork;
+- permission response;
+- artifact read/list;
+- event stream subscription.
 
 ---
 
 ## Naming Conventions
 
-<!-- Hook naming rules (use*, etc.) -->
-
-(To be filled by the team)
+- Use `use*` names only inside React UI packages.
+- Prefer domain names such as `useRunTimeline`, `usePermissionQueue`, `useArtifactList`, and `useSessionEvents`.
+- Avoid names that hide side effects, such as `useAgentMagic`.
 
 ---
 
 ## Common Mistakes
 
-<!-- Hook-related mistakes your team has made -->
-
-(To be filled by the team)
+- Do not open multiple event streams for the same session without ownership.
+- Do not retry side-effecting commands blindly.
+- Do not store secrets or raw provider payloads in browser state.
+- Do not let hooks mutate core runtime state directly.

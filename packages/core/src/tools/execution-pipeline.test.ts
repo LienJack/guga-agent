@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { AgentEventType } from "../contracts/events";
 import { HookEffect, HookPhase } from "../contracts/hooks";
+import type { DurableEventEnvelope, EventStore } from "../contracts/persistence";
 import type { ToolDefinition } from "../contracts/tools";
 import { EventBus } from "../events/event-bus";
 import { HookKernel } from "../hooks/hook-kernel";
@@ -217,6 +218,49 @@ describe("ExecutionPipeline", () => {
     expect(eventBus.events.map((event) => event.type)).toContain(AgentEventType.ToolFailed);
   });
 
+  it("does not execute a tool when the durable start marker fails", async () => {
+    const registry = new CapabilityRegistry();
+    const execute = vi.fn(() => ({ ok: true as const, content: "should not run" }));
+    registry.registerTool(readTool({ name: "side-effect", execute }));
+    const eventBus = durableEventBus({ failTypes: new Set([AgentEventType.ToolStarted]) });
+    const pipeline = new ExecutionPipeline({ registry, eventBus });
+
+    const result = await pipeline.execute({
+      runId: "run-durable-tool",
+      turn: 0,
+      call: { id: "call-durable", name: "side-effect", input: {} }
+    });
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.result).toMatchObject({
+      ok: false,
+      error: { code: "TOOL_PERSISTENCE_UNAVAILABLE" }
+    });
+    expect(eventBus.events.map((event) => event.type)).not.toContain(AgentEventType.ToolStarted);
+  });
+
+  it("returns an uncertain tool result when the durable terminal marker fails after execution", async () => {
+    const registry = new CapabilityRegistry();
+    const execute = vi.fn(() => ({ ok: true as const, content: "ran" }));
+    registry.registerTool(readTool({ name: "terminal-fail", execute }));
+    const eventBus = durableEventBus({ failTypes: new Set([AgentEventType.ToolCompleted]) });
+    const pipeline = new ExecutionPipeline({ registry, eventBus });
+
+    const result = await pipeline.execute({
+      runId: "run-terminal-fail",
+      turn: 0,
+      call: { id: "call-terminal", name: "terminal-fail", input: {} }
+    });
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(result.result).toMatchObject({
+      ok: true,
+      metadata: { persistenceStatus: "interrupted" }
+    });
+    expect(eventBus.events.map((event) => event.type)).toContain(AgentEventType.ToolStarted);
+    expect(eventBus.events.map((event) => event.type)).not.toContain(AgentEventType.ToolCompleted);
+  });
+
   it("applies each tool's result budget metadata", async () => {
     const registry = new CapabilityRegistry();
     registry.registerTool({
@@ -233,8 +277,12 @@ describe("ExecutionPipeline", () => {
 
     expect(result.result).toMatchObject({
       ok: true,
-      content: expect.stringContaining("Tool output truncated"),
-      budget: { applied: true, originalContentChars: 10 }
+      content: expect.stringContaining("Tool output preview omitted"),
+      budget: {
+        applied: true,
+        originalContentChars: 10,
+        reference: expect.objectContaining({ type: "buffer" })
+      }
     });
   });
 
@@ -477,4 +525,26 @@ function readTool(options: {
     effect: "read",
     execute: options.execute ?? (() => ({ ok: true, content: options.content ?? "ok" }))
   };
+}
+
+function durableEventBus(options: { failTypes?: Set<string> } = {}): EventBus {
+  const events: DurableEventEnvelope[] = [];
+  const store: EventStore = {
+    append(event) {
+      if (options.failTypes?.has(event.eventType)) {
+        return { ok: false, status: "unavailable", reason: `failed ${event.eventType}` };
+      }
+      events.push(event);
+      return { ok: true, status: "appended", event, streamRevision: event.streamRevision };
+    },
+    readStream() {
+      return { ok: true, events, nextRevision: events.length };
+    }
+  };
+  return new EventBus({
+    durableContext: () => ({
+      eventStore: store,
+      session: { sessionId: "session-1", branchId: "main" }
+    })
+  });
 }

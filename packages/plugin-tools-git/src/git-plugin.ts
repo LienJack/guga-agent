@@ -65,7 +65,7 @@ function gitTools(workspaceRoot: string, backend: GitBackend): ToolDefinition[] 
       inputSchema: { type: "object" },
       effect: "read",
       runtime: gitRuntime("read"),
-      async execute(input) {
+      async execute(input: unknown) {
         return { ok: true, content: await backend.diff(root, pathFrom(input)) };
       }
     },
@@ -78,7 +78,7 @@ function gitTools(workspaceRoot: string, backend: GitBackend): ToolDefinition[] 
         ...gitRuntime("read"),
         renderer: { category: "git", label: "Commit assistance" }
       },
-      execute(input) {
+      execute(input: unknown) {
         const summary = summaryFrom(input);
         if (isDangerousGitOperation(summary)) {
           return {

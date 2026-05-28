@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend quality entry point for package changes."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Health Markdown helper must preserve typed corrupt/partial-tail JSONL behavior."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"M30 should compose the existing health renderer instead of duplicating Markdown formatting."}
+{"file":"docs/research/memory-review-health.md","reason":"M24 established health status and Markdown block semantics."}
+{"file":"docs/research/memory-jsonl-health-markdown.md","reason":"M30 module research and guardrails."}

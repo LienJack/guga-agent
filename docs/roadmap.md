@@ -1,6 +1,6 @@
 # Guga Agent Roadmap
 
-这份 roadmap 将 Guga Agent 重新定义为一个 **agent core + plugin ecosystem** 的工程路线。核心判断是：agent 的不可替代能力应该沉淀为极小的 core；provider、工具、上下文策略、skills、MCP、UI、session 存储、eval 和商业运营都通过 plugin 接入。
+这份 roadmap 将 Guga Agent 重新定义为一个 **agent core + plugin ecosystem + desktop workbench** 的工程路线。核心判断是：agent 的不可替代能力应该沉淀为极小的 core；provider、工具、上下文策略、skills、MCP、UI、session 存储、eval 和商业运营都通过 plugin 接入，最终产品体验对齐 OpenClaw 和 Hermes Agent 的桌面端工作台。
 
 设计理念更偏向 pi agent：Guga 不是先做一个大而全的应用，再从应用里拆 SDK；而是先做一个可编程的 agent workbench。core 只负责稳定的生命周期、事件、状态和能力注册，其他能力都在清晰的插件边界里生长。
 
@@ -8,7 +8,33 @@
 
 ## 一句话结论
 
-Guga Agent 的最终形态不是“内置很多功能的 agent”，而是一个 **小内核、强插件、可恢复、可审计、可嵌入** 的 agent runtime。
+Guga Agent 的最终形态不是“内置很多功能的 agent”，而是一个 **小内核、强插件、CLI-first、桌面工作台化、可恢复、可审计、可嵌入** 的 agent runtime。
+
+## 当前基线（2026-05-28）
+
+当前仓库已经完成这份 roadmap 的 M0-M12 主线闭环。`packages/core` 已具备 core contracts、agent loop、capability registry、plugin host、hook kernel、permission/tool runtime、provider router、context projection、durable store/replay contracts 等核心边界；first-party 插件也已经覆盖 provider bridge、filesystem/shell/git tools、default context policy、JSONL session store、filesystem artifact store、replay/audit、skills、MCP、host protocol、CLI、operations、eval、code agent 和 deep research agent。
+
+完成状态以 Trellis archive、package surface、research/solution/blog 文档和质量门禁共同为准：
+
+- M0-M12 主线已经完成：core、plugin host、provider、tools/permissions、context、session/replay、skills/MCP、host adapters、production ops、code agent、deep research agent、CLI/workbench protocol、learning/eval flywheel。
+- M13-M37 后续扩展也已经完成并归档：review/eval agent、多 agent delegation runtime、memory candidate/governance/JSONL/retrieval/Markdown/review/health/audit/capability surface 等。
+- 每个已完成模块都有对应的 `docs/research/`、`docs/plans/`、`docs/solutions/architecture-patterns/` 和 `blog/build-agent-from-zero-*` 记录。
+- 验证门禁在回填本状态前已通过：`pnpm -r typecheck`、`pnpm -r test`、`pnpm build`。
+
+因此本 roadmap 现在是完成基线和后续演进约束，而不是未完成任务队列。后续新增能力仍然要遵守小 core、强插件、事件为事实源、权限在 runtime、上下文为投影的边界。
+
+## 长任务执行纪律
+
+后续每个大模块都必须作为可复用的工程闭环推进，而不是只写代码：
+
+1. 用 `ce-brainstorm` 和 `trellis-brainstorm` 明确需求、范围、MVP、非目标，并创建/更新 Trellis task。
+2. 先按 7-layer research funnel 深度调研参考项目，不直接跳 raw source；调研结论沉淀到 `docs/` 下。
+3. 用 `ce-plan` 写可执行计划，明确 repo-relative 文件、测试、风险、系统影响和验收标准。
+4. 用 `ce-work` 执行实现，并保持每个 implementation unit 可验证。
+5. 用 `ce-code-review` 做合并前 review，处理安全、正确性、测试、维护性和项目标准问题。
+6. 用 `ce-compound` 把解决过程沉淀到 `docs/solutions/`，让后续 agent 能复用。
+7. 用 `write-blog` 在 `blog/` 下补一篇“如果从 0 开始建立 agent”的模块文章。
+8. 用 `trellis-finish-work` 完成任务归档、journal 和收尾。
 
 ## 参考发现
 
@@ -35,7 +61,14 @@ Guga Agent 是一个 agent runtime platform。它应该让宿主项目可以：
 - 通过插件扩展命令、工具、skills、MCP、UI、providers 和 agent hooks。
 - 通过 agent hooks 在受控节点改写 prompt/context、阻断危险动作、贡献资源、补充 UI projection。
 - 从 event log 恢复、回放、审计一次 run。
-- 在 CLI、Web、IDE、API、worker 中复用同一个 core。
+- 先以 CLI 作为最基础形态运行，再在桌面应用、Web、IDE、API、worker 中复用同一个 core。
+
+产品目标分四层对齐：
+
+- **基础使用形态：CLI。** CLI 是 Guga 的最小可用产品，也是所有能力的 dogfood 入口；它必须能完整表达 session、run、permission、tool progress、artifact、resume、fork、debug event。
+- **代码能力：对齐 Claude Code 和 OpenCode。** Guga 的 code-agent 目标不是泛聊天，而是本地 coding agent：读写代码、运行命令、管理 diff/test、处理权限、恢复长任务、支持可审计的工具执行。
+- **桌面应用：对齐 OpenClaw 和 Hermes。** 桌面目标是把同一套 runtime 事件、权限、artifact 和长任务状态投影成高密度 agent workbench；OpenClaw 是桌面产品形态主参考，Hermes 是成熟长任务/网关/工具/权限/多平台压力样本参考。
+- **持续研究和路线自修正。** `任务.md` 和本 roadmap 是 living documents。后续可以边准备参考仓库、边跑 repomix/Graphify/Context Pack、边用 `arch-insight` 形成判断，再持续修正路线。
 
 最重要的产品约束：
 
@@ -198,7 +231,7 @@ examples/
 - **默认可替换。** Provider、session store、context policy、toolset、UI 都可以替换。
 - **默认渐进披露。** Skills、工具详情、长输出、历史内容按需进入上下文，而不是常驻 system prompt。
 
-## M0：Core Kernel Spike
+## M0：Core Kernel Spike（已完成）
 
 **目标：** 证明一个无产品外壳的 core 可以完成 “user -> model -> tool -> model -> final” 的最小闭环。
 
@@ -225,7 +258,7 @@ examples/
 - 不做 plugin loader。
 - 不做持久化。
 
-## M1：Plugin Host And Hook Kernel
+## M1：Plugin Host And Hook Kernel（已完成）
 
 **目标：** 让 core 能通过插件获得能力，并通过 typed hooks 让插件安全参与 agent 生命周期。
 
@@ -264,7 +297,7 @@ first-party 示例插件：
 - 不做插件沙箱。
 - 不开放任意 state mutation hook。
 
-## M2：Provider Plugins
+## M2：Provider Plugins（已完成）
 
 **目标：** 把模型接入从 core 中完全剥离，建立 provider transport 插件模型。
 
@@ -297,7 +330,7 @@ first-party 插件：
 - 不做完整 credential pool。
 - 不做 OAuth 复杂流。
 
-## M3：Tool Plugins And Permission Runtime
+## M3：Tool Plugins And Permission Runtime（已完成）
 
 **目标：** 让 agent 安全执行真实动作，同时保持工具生态可插拔。
 
@@ -344,44 +377,159 @@ first-party 插件：
 - 不做远端执行 sandbox。
 - 不做复杂企业策略。
 
-## M4：Context Policy Plugins
+## M4：Context Policy Plugins（已完成）
 
-**目标：** 把“模型看见什么”做成可替换策略，而不是固定 prompt 拼接。
+**目标：** 把“模型看见什么”做成可替换、可审计、可恢复的 context policy plugin，而不是固定 prompt 拼接或单体 `ContextManager`。
+
+核心判断来自 `docs/research/agent-context-management.md` 和九个参考项目的交叉结论：context 不是历史消息本身，而是从事件账本、会话状态、工具 artifact、资源文件、skills、当前 pending turn 和压缩摘要投影出来的一次模型输入。M4 只负责让这个投影过程可插拔、可预算、可压缩、可追踪；长期记忆、向量检索、跨 session semantic memory 留到 M5/M8 之后。
+
+参考项目取舍：
+
+- `blade-code`：采用 `system/history/pending` 分层和 tool call/result 配对保护，避免压缩污染 system 或打断当前轮。
+- `blade-agent-sdk`：采用 loop recovery hook 的边界，context overflow 是可恢复分支，不是 `ContextManager` 私自吞掉的异常。
+- `claude-code`：采用 append-only session log、auto-compact、PTL fallback、post-compact 文件/plan/skill 重注入的产品经验；不照搬它的完整 CLI 状态机。
+- `opencode`：采用 compaction message/part 和 session projection 思路，让 compact boundary 成为协议事实；不把摘要当唯一事实源。
+- `hermes-agent`：采用 ContextEngine 可插拔、50% 阈值、防抖、Smart Collapse、三层大工具结果防护和结构化 action-log summary；复杂的 FTS/session split 延后。
+- `deepagentsjs`：采用 middleware 组合、大结果文件化、summary middleware 不重写完整 state 的经验；不绑定 LangGraph。
+- `deer-flow`：采用 middleware 兜底思路，特别是 dangling tool call 修复和 todo/context 自愈；不采用纯 LangChain middleware 作为 Guga 的 core 形态。
+- `cc-haha`：采用 compact boundary 进入客户端协议和 UI projection 的经验，让用户和调试器都能看见上下文发生过变化。
+- `pi`：采用 extension-first 的 `resources_discover`、`context`、`session_before_compact` 思路，让插件能贡献资源、触发/取消压缩，并在 session replacement 后重建 cwd-bound services。
+
+M4 的设计原则：
+
+- **Context 是 projection，不是账本。** 原始 session event、tool result、artifact、summary 都保留；模型输入只是某次调用的投影。
+- **Policy 只能返回贡献或 patch。** context hook 不能直接 mutate event log、conversation state 或 provider request。
+- **先治理工具输出，再做摘要。** 大日志、搜索结果、文件读取、测试输出是爆窗主因，必须先预算、截断、落盘和引用化。
+- **压缩是显式事件。** compact start/boundary/summary/failure 都进入 event/audit stream，并能投影到 UI。
+- **压缩不能破坏消息合法性。** system 不被压缩，pending 不被压缩，tool call/result 不产生孤儿。
+- **恢复优先于聪明。** context overflow、provider prompt-too-long、manual compact 都必须能回到同一用户意图继续执行。
+- **后续能力有插槽但不提前实现。** memory、retrieval、enterprise policy、eval-driven prompt tuning 需要接口预留，不进入 M4 主交付。
 
 建设范围：
 
-- 定义 `ContextPolicy`：assemble、budget、truncate、compact、reinject。
-- 定义 `ModelInputProjection`：每次模型调用的 messages、sources、token estimate。
-- 支持 `resources.discover`、`context.assemble`、`context.compact.before`、`context.compact.after` hooks。
-- 实现 tool result store，大结果只给 preview 和引用。
-- 实现 compaction plugin，保留 system、pending、recent tail、summary boundary。
-- 实现 post-compact reinjection：当前文件、plan、active skills、active tools。
-- context hooks 只能贡献 source 或返回 patch，不能覆盖原始 event log。
+- 定义 `ContextPolicy` 能力：resource discovery、source contribution、budget planning、tool result shaping、compaction decision、compaction execution、post-compact reinjection。
+- 定义 `ModelInputProjection`：每次模型调用的 messages、tool definitions、source metadata、policy decisions、token estimate、reserved output budget、projection hash。
+- 定义 context source 类型：system/developer prompt、session history、pending turn、tool result preview、artifact reference、resource file、skill body、plan/todo、compaction summary、host-injected context。
+- 支持 `resources.discover`、`context.assemble`、`context.budget`、`context.truncate`、`context.compact.before`、`context.compact.after`、`context.reinject` hooks。
+- 实现 `ContextBudgeter`：根据模型 context window、reserved output、tool definitions、pending turn、recent tail 和 provider usage 判断是否需要截断或压缩。
+- 实现 `ToolResultStore`：大工具结果不完整进入模型，只给 head/tail preview、摘要、artifact id/path、重读提示和 source metadata。
+- 实现 lightweight truncation：按工具类型做 head/tail、snip、Smart Collapse，不调用 LLM 也能降低上下文压力。
+- 实现 reactive compaction：provider 返回 context overflow / prompt too long 时，触发 compact + retry 当前轮，且保留原始失败事件。
+- 实现 proactive compaction：根据上一轮 usage 或投影 token estimate 接近阈值时，在下一次模型调用前 compact。
+- 实现 compaction plugin：保留 system、pending、未闭合工具轮次、recent tail、上一份 summary，并生成新的 summary boundary。
+- 实现 post-compact reinjection：当前文件/资源引用、plan/todo、active skills、active tools、permission mode、host context 在 compact 后重新进入 projection。
+- 实现 context audit：每次 projection 记录来源、策略、触发原因、token 估算、截断说明、summary parent/cutoff/boundary。
+- context hooks 只能贡献 source、返回 typed patch、返回 gate decision 或 annotation，不能覆盖原始 event log。
+- replay 时默认使用已记录的 context decisions，不重跑有副作用或非确定性 context hook。
 
-first-party 插件：
+M4 分阶段实现：
 
-- `plugin-context-basic`：无压缩，仅预算检查。
-- `plugin-context-compaction`：summary + recent tail。
-- `plugin-context-tool-results`：大工具结果落盘和重读引用。
+**M4a：Model Input Projection Skeleton**
+
+- 建立 `ContextPolicy` / `ContextSource` / `ModelInputProjection` 的最小 contract。
+- 把 model request 前的 prompt 拼接改为 projection 流程：collect sources -> order -> budget -> emit projection。
+- 每次 projection 产生 source metadata 和 token estimate，即使暂时不压缩。
+- `plugin-context-basic` 只做预算检查和最近窗口保护，用来验证 M0-M3 的 loop/provider/tool contract。
 
 退出标准：
 
+- Agent loop 不再手写拼接最终 messages。
+- 每次 provider request 都能解释 system、history、pending、tool results、resources 分别来自哪里。
+- token estimate 超预算时能返回结构化 context-pressure event，即使还不自动压缩。
+
+**M4b：Tool Result Budget And Artifact References**
+
+- 将工具执行结果拆成 raw result、LLM preview、UI projection、audit metadata 四种视图。
+- 单个大结果和单轮聚合大结果都能落到 artifact store 或 workspace-safe 文件引用。
+- 搜索、文件读取、shell/test 输出按工具类型保留关键信息，避免一刀切截断。
+- `tool.result.before` 与 `context.truncate` 共同保证模型只看到可预算 preview。
+
+退出标准：
+
+- 5MB 日志、超长 grep 结果或完整文件读取不会直接进入模型输入。
+- 模型能看到“已省略什么、如何重读”的引用，而不是沉默丢内容。
+- UI/audit 仍能访问原始或完整 tool result。
+
+**M4c：Reactive Compact And Pairing Safety**
+
+- provider context overflow 进入 recovery 分支：compact、重建 projection、重试当前用户意图。
+- 压缩前先修复或拒绝非法 tool call/result 对，pending turn 默认不可压缩。
+- 压缩结果包含 summary、recent tail、boundary、pre/post token、trigger、retained sources。
+- compact 失败必须产生可见 error event，并允许降级到更激进的本地 truncation。
+
+退出标准：
+
+- context overflow 不直接终止 run。
+- compact 后不存在 orphan tool call/tool result。
+- compact boundary 能被 UI/replay/audit 看到。
+
+**M4d：Policy Plugin Hooks**
+
+- 插件可通过 `resources.discover` 贡献 skill、prompt template、context file、project rules。
+- 插件可通过 `context.assemble` 贡献 source 或调整优先级，但必须声明 source provenance。
+- 插件可通过 `context.compact.before` 取消、延迟或定制一次 compaction。
+- 插件可通过 `context.compact.after` 标注 summary、触发 reinjection 或记录质量信号。
+- context policy hook 必须有 phase、effect、priority、timeout、permission scope 和 audit event。
+
+退出标准：
+
+- 不改 core 就能新增一种 context policy。
+- 插件对模型输入的任何增删改都有 source metadata 和 audit trail。
+- session reload/replacement 后旧 hook context 失效，不能继续写入新 session。
+
+**M4e：Post-Compact Reinjection And Projection Replay**
+
+- compact 后自动重注入当前工作状态：活动文件、plan/todo、active skills、active tools、permission mode、host context。
+- `ModelInputProjection` 可从 event log 和 context decisions 重建，支撑 M5 replay。
+- projection hash 与 source list 写入 event stream，方便后续 eval 比较不同 policy。
+- 为 manual compact、auto compact、reactive compact 保持同一套事件和审计语义。
+
+退出标准：
+
+- 压缩后 agent 仍知道当前目标、关键约束、最近文件、计划和下一步。
+- 能重建“某一轮模型实际看见了什么”。
+- 更换 context policy 后，可以通过 replay/eval 比较行为差异。
+
+first-party 插件：
+
+- M4 首版使用 `@guga-agent/plugin-context-default` 作为单一默认 context policy，证明不改 core 即可替换 context 行为；host/plugin 作者文档见 [`docs/research/context-policy-plugins.md`](research/context-policy-plugins.md)。
+- 后续可拆为 `plugin-context-basic`、`plugin-context-tool-results`、`plugin-context-truncation`、`plugin-context-compaction`、`plugin-context-reinjection`，但多包拆分不属于 M4 首版交付。
+
+退出标准：
+
+- Agent loop 中没有散落的 prompt 拼接逻辑，模型输入统一来自 `ModelInputProjection`。
 - 大工具输出不会完整塞进模型输入。
 - context overflow 是可恢复分支。
 - compact 不破坏 tool call/result 配对。
 - 插件能通过 `resources.discover` 贡献 skill/prompt/context path。
 - 插件能通过 `context.compact.before` 取消或调整一次 compaction，并留下 audit event。
 - 每次模型输入都能追踪 source metadata。
+- compact boundary、summary、source cutoff、pre/post token 和触发原因都能进入 event stream。
+- post-compact 后当前文件、plan、active skills、active tools 不会被摘要“遗忘”。
+- replay 可以重建一次模型输入 projection，至少达到 M5 的 session replay 前置要求。
 
 不做：
 
 - 不做长期记忆。
 - 不做向量搜索。
 - 不做跨 session semantic memory。
+- 不做 FTS/session search。
+- 不做企业级 context policy 管理后台。
+- 不做自动从历史会话提炼用户偏好。
+- 不做多 agent 全局共享 memory。
+- 不做摘要质量自动评分；M4 只记录质量信号接口，M8 再接 eval。
 
-## M5：Session Store And Replay Plugins
+后续落点：
+
+- M5 接手 append-only event store、artifact store、session resume、fork、projection replay 的持久化能力。
+- M6 接手 skills/MCP/resource discovery 的完整生态化，让 M4 的 `resources.discover` 有更多来源。
+- M8 接手 context policy versioning、trust model、enterprise allowlist、summary quality eval、sensitive data filtering 和 audit export。
+
+## M5：Session Store And Replay Plugins（已完成）
 
 **目标：** 让 agent 从内存循环变成可恢复、可回放、可分叉的工作台。
+
+**实现备注（2026-05-27）：** M5 采用 local-first durable substrate：core 暴露 store/replay contracts 与 durable side-effect gates，first-party JSONL、filesystem artifact、replay/audit 插件通过同一 public plugin surface 接入。
 
 建设范围：
 
@@ -410,17 +558,18 @@ first-party 插件：
 - 不做全文搜索。
 - 不做多人协作。
 
-## M6：Skills, MCP, And Capability Marketplace Foundation
+## M6：Skills, MCP, And Capability Discovery（已完成）
 
 **目标：** 让 Guga 能通过标准化资源扩展知识和工具，而不是手工改代码。
 
 建设范围：
 
-- 实现 `plugin-skills`：扫描 user/project/plugin skill paths。
+- 实现 `plugin-skills`：扫描 host 显式配置的 project/plugin skill paths。
 - Skills 采用渐进式加载：metadata 常驻、body 按需、assets 执行时读取。
-- 实现 `plugin-mcp`：MCP server 注册、连接、工具转换、namespace。
-- 实现 capability discovery：当前启用插件、工具、skills、commands、providers 可解释。
-- 实现基础 plugin installer，但不做公开 marketplace。
+- 实现 `plugin-mcp`：MCP stdio server 注册、连接、工具转换、namespace。
+- 实现 capability discovery：当前启用插件、工具、skills、hooks、stores、providers 可解释。
+- 实现 capability diff：插件启停或 reload 前后的新增、移除、变化和冲突可解释。
+- 建立 namespace / source / owner metadata；不做 marketplace。
 
 退出标准：
 
@@ -432,10 +581,11 @@ first-party 插件：
 不做：
 
 - 不做复杂 MCP 远程认证。
+- 不做 SSE/WebSocket/HTTP MCP transport。
 - 不做插件评分/搜索市场。
 - 不做自动安装未知插件。
 
-## M7：Host Adapters
+## M7：Host Adapters（已完成）
 
 **目标：** 让同一个 core 可以驱动 CLI、server、web、IDE，而不是每个入口复制 loop。
 
@@ -460,7 +610,7 @@ first-party 插件：
 - 不做复杂多人协作 UI。
 - 不做 IDE 深度定制。
 
-## M8：Production And Operations
+## M8：Production And Operations（已完成）
 
 **目标：** 把插件化 runtime 变成商业级平台底座。
 
@@ -490,7 +640,390 @@ first-party 插件：
 - 不做没有 trust model 的 marketplace。
 - 不做和 runtime 无关的 BI。
 
+## M9：Code Agent（已完成）
+
+**目标：** 在通用 runtime 之上建设专业 coding agent，而不是把 coding 行为写死进 core。Code Agent 应作为 first-party agent profile / plugin bundle 存在，复用 core 的 tools、permissions、context、session、replay、subagent 和 host protocol。
+
+主要参考：
+
+- Claude Code：coding loop、tool pipeline、permission UI、subagent、CLI/TUI 任务控制面。
+- OpenCode：coding agent profile、本地 server、SSE、ACP、LSP、permission config 和多客户端复用。
+- pi agent：extension-first session runtime、code-focused workbench 和模式切换，作为 core/plugin 工作台形态补充参考。
+- Hermes Agent：长任务执行、terminal/worktree/browser/tool guards、fallback 和运行稳定性，作为极端长任务压力样本。
+
+建设范围：
+
+- 定义 `code-agent` profile：默认工具集、permission profile、context policy、skills、system prompt/resource discovery。
+- 实现代码库理解能力：repo map、symbol/search、文件引用、测试发现、计划/任务上下文重注入。
+- 实现编辑执行能力：read/write/edit/shell/git/test/browser 等工具以插件方式组合，而不是直接进入 core。
+- 实现长任务策略：plan-unit execution、worktree isolation、incremental commits、review gate、resume after interruption。
+- 实现 coding-specific context：active files、diff、tests、plan、errors、terminal output、review findings 的投影和压缩。
+- 实现 code-agent eval：小型 fixtures、bug-fix tasks、tool-call trace、replay-based regression。
+- 产出调研报告：`docs/research/code-agent-architecture.md`。
+- 产出博客：`blog/build-agent-from-zero-m9-code-agent.md`。
+
+退出标准：
+
+- 不改 core 即可创建一个 code-agent session。
+- code-agent 能从计划执行一个小型改动：读代码、改文件、跑测试、生成 diff、写 review summary。
+- 所有副作用动作仍经过 permission runtime。
+- code-agent 的上下文、工具、prompt、skills 能被 replay/audit 解释。
+- CLI 必须能完整使用 code-agent；桌面/Web 至少能看到同一套 code-agent event stream。
+
+不做：
+
+- 不做 Claude Code 全量 TUI 复制。
+- 不做复杂 swarm/team mailbox。
+- 不做 IDE 深度集成；ACP/LSP 只做必要协议调研和最小 bridge。
+- 不把 coding prompt、工具列表、测试策略写进 core。
+
+## M10：Deep Research Agent（已完成）
+
+**目标：** 建设面向长期研究任务的专业 agent，先服务 Guga 自己的参考项目调研、技术报告、方案比较和证据链管理，再扩展为通用 deep research agent。
+
+主要参考：
+
+- DeerFlow：lead agent、LangGraph-style workflow、research/decompose/synthesize/present_files、middleware guardrails。
+- DeepAgentsJS：middleware 组合、subagents、filesystem/artifact、summarization、skills。
+- Hermes Agent：长上下文压缩、session search、tool result artifact、research trace 和 report 生成。
+- Claude Code / OpenCode：可回放事件、工具状态、权限和终端展示。
+
+建设范围：
+
+- 定义 `deep-research-agent` profile：research planner、source collector、evidence verifier、synthesizer、report writer。
+- 实现 evidence ledger：每条结论绑定来源、强度（Fact / Inference / Pending Verification）、引用路径、时间和可复核片段。
+- 实现 research workflow：问题框架 -> 分解 -> 检索 -> 阅读 -> 对比 -> 证据合并 -> 报告 -> 待验证问题。
+- 实现 artifact-first 输出：报告、附录、证据表、图谱/索引、可复核材料。
+- 实现 source policy：本地 docs/context packs/source-analysis 优先，必要时再进 repomix/context/raw source。
+- 实现长任务 resume：研究任务可中断、继续、分叉和回放。
+- 产出调研报告：`docs/research/deep-research-agent-architecture.md`。
+- 产出博客：`blog/build-agent-from-zero-m10-deep-research-agent.md`。
+
+退出标准：
+
+- 能针对一个 Guga 子系统自动产出结构化研究报告，并清楚区分事实、推论和待验证。
+- 能按 7-layer funnel 使用参考项目材料，不直接把 raw source 当第一入口。
+- CLI 必须能展示研究进度、已读来源、证据强度和当前 synthesis；桌面/Web 后续消费同一事件流。
+- 研究报告可被后续 `ce-brainstorm` / `ce-plan` 直接消费。
+
+不做：
+
+- 不做互联网搜索型通用问答产品。
+- 不做无证据来源的长文生成。
+- 不做自动修改代码；deep research 只产出报告、建议和计划输入。
+
+## M11：CLI-First Host And Desktop/Web Workbench（已完成）
+
+**目标：** 先把 CLI 做成最基础、最可靠的产品形态，再实现对齐 OpenClaw 和 Hermes Agent 的桌面端工作台；Web、未来 IDE/API 都消费同一套 runtime protocol，而不是为每个终端复制 agent loop。M11 是 M7 Host Adapters 的产品化深化：先定 CLI 和 host protocol，再把桌面/Web 作为同一事件流的工作台投影。
+
+主要参考：
+
+- Claude Code：CLI/TUI 状态面、permission/task/agent 控制面、流式工具展示。
+- OpenCode：本地 HTTP server、REST + SSE、SDK、ACP、mDNS、CLI/Web/Desktop 复用。
+- OpenClaw：桌面应用主参考，后续调研需先 materialize checkout、确认项目版本、源码锚点和可借鉴边界。
+- cc-haha：远程/IM/桌面桥接和多客户端投影。
+- DeerFlow：FastAPI gateway、channels、message bus。
+- Hermes Agent：长任务工作台、gateway session、platform adapter、streaming edit、per-user/per-thread 隔离、权限/审批和工具状态压力样本。
+
+建设范围：
+
+- 定义 Guga Host Protocol：session CRUD、prompt/run、event stream、permission request/response、tool progress、artifact read、resume/fork/cancel。
+- 定义事件 schema 与 UI projection：message、reasoning、tool call、tool result、permission、context pressure、compact boundary、agent delegation、artifact。
+- 定义 CLI 基础产品目标：interactive run、headless run、debug event stream、permission prompt、resume/fork/cancel、artifact/diff/test output。
+- 定义桌面工作台目标：session list、run timeline、event stream、permission queue、tool state、artifact viewer、diff/test output renderer、长任务状态面。
+- 定义 Web 工作台目标：先作为轻量 event/artifact/permission viewer，后续再向桌面能力靠齐。
+- 实现 server SDK：typed client，避免 CLI/Web 手写协议。
+- 调研并决定 AG-UI / ACP / 自定义 SSE 的边界：哪些采用标准，哪些保持 Guga 私有协议。
+- 产出调研报告：`docs/research/cli-desktop-web-host-architecture.md`。
+- 产出博客：`blog/build-agent-from-zero-m7-m11-cli-host-workbench.md`。
+
+退出标准：
+
+- CLI 能独立完成基础 agent 工作流，不依赖桌面/Web 才可用。
+- 桌面/Web 使用同一个 server/runtime，不复制 agent loop。
+- 同一个 session 能在 CLI 发起，桌面/Web 观察或接管权限请求。
+- Permission、tool progress、artifact、context compact、resume/fork 都有协议事件。
+- UI 不解析 assistant 文本猜状态，只消费 typed event/projection。
+
+不做：
+
+- 不做重型管理后台。
+- 不做 IM 全平台网关。
+- 不在第一版桌面里复制 Hermes 的完整网关复杂度。
+- 不做 IDE 深度体验；ACP/IDE 先保留 adapter 插槽。
+
+## M12：Learning, Writing, And Evaluation Flywheel（已完成）
+
+**目标：** 把“做一个 agent”变成可复用学习系统：每个模块有调研、有设计、有实现、有 review、有 solution、有博客、有 eval。Guga 不只产出代码，也产出如何从 0 建立 agent 的连续知识库。
+
+建设范围：
+
+- 为每个大模块维护 `docs/research/<module>.md` 调研报告。
+- 为每个大模块维护 `docs/brainstorms/` 和 `docs/plans/` 里的需求/计划链路。
+- 用 `docs/solutions/` 沉淀实现中遇到的模式、坑、修复和决策。
+- 在 `blog/` 下维护 `build-agent-from-zero-*` 系列文章。
+- 建立 replay/eval 数据集：核心 trace、失败恢复、工具权限、context overflow、code-agent task、deep-research task。
+- 建立模块完成 checklist：research -> requirements -> plan -> implementation -> tests -> review -> compound -> blog -> finish。
+
+退出标准：
+
+- 每个大模块完成时，至少有一份调研报告、一份计划、一组测试、一次 code review、一份 solution 记录和一篇博客。
+- 新 agent session 可以通过 `docs/roadmap.md`、`任务.md`、`docs/research/`、`docs/solutions/` 迅速接上项目上下文。
+- 用户可以把博客系列作为学习路径，从 M0 到 code-agent / deep-research / CLI-first desktop/web host 逐步理解 agent 如何构建。
+
+## M13：Review Eval Agent（已完成）
+
+**目标：** 在 coding agent 和 deep research agent 之外，补一个 findings-first 的 review/eval profile，让代码审查和评估分析不被写进 core。
+
+交付：
+
+- `@guga-agent/profile-review-agent`，包含 profile metadata、system prompt、finding ledger 和 Markdown report writer。
+- CLI profile selection 支持 review profile。
+- 文档闭环：`docs/research/review-eval-agent-architecture.md`、`docs/solutions/architecture-patterns/review-eval-agent-profile.md`、`blog/build-agent-from-zero-m13-review-eval-agent.md`。
+
+## M14：Multi-Agent Delegation Runtime（已完成）
+
+**目标：** 提供第一版多 agent primitive，但保持 delegate-as-tool，不提前引入 swarm、team mailbox 或复杂工作流图。
+
+交付：
+
+- `@guga-agent/plugin-tools-delegation`，提供 `delegate_task` 工具和 delegation plugin。
+- 父 agent 可以把一个自包含任务交给隔离 child run，并接收 compact result。
+- 文档闭环：`docs/research/multi-agent-delegation-runtime.md`、`docs/solutions/architecture-patterns/multi-agent-delegation-runtime.md`、`blog/build-agent-from-zero-m14-multi-agent-delegation.md`。
+
+## M15：Memory Candidate Ledger（已完成）
+
+**目标：** 建立 memory 的第一层安全边界：只产生可审计候选，不自动写入长期记忆。
+
+交付：
+
+- `@guga-agent/plugin-memory-candidates`，提供 `createMemoryCandidate()` 和 candidate ledger。
+- memory candidate 保留 source、scope、confidence、importance、safety 和 provenance。
+- 文档闭环：`docs/research/memory-candidate-ledger.md`、`docs/solutions/architecture-patterns/memory-candidate-ledger.md`、`blog/build-agent-from-zero-m15-memory-candidate-ledger.md`。
+
+## M16：Memory Governance Store（已完成）
+
+**目标：** 把 memory candidate 变成可人工治理的 active memory item，而不是让候选直接生效。
+
+交付：
+
+- governance ledger 支持 accept、reject、supersede 等 decision。
+- active memory projection 能解释谁接受了什么、替换了什么、为什么仍然有效。
+- 文档闭环：`docs/research/memory-governance-store.md`、`docs/solutions/architecture-patterns/memory-governance-store.md`、`blog/build-agent-from-zero-m16-memory-governance-store.md`。
+
+## M17：Memory JSONL Store（已完成）
+
+**目标：** 为 memory candidates 和 governance decisions 提供 local-first durable adapter。
+
+交付：
+
+- `@guga-agent/plugin-memory-jsonl`，提供 `JsonlMemoryStore`、candidate append、decision append 和 record read。
+- JSONL reader 暴露 diagnostics，遇到 corrupt/partial data 时 fail closed。
+- 文档闭环：`docs/research/memory-jsonl-store.md`、`docs/solutions/architecture-patterns/memory-jsonl-store.md`、`blog/build-agent-from-zero-m17-memory-jsonl-store.md`。
+
+## M18：Scoped Memory Retrieval（已完成）
+
+**目标：** 在 governed memory 上提供确定性检索，但不引入 embedding、向量库或自动 prompt injection。
+
+交付：
+
+- `searchGovernedMemoryItems()` 和 `renderMemoryRetrievalBlock()`。
+- 每次 retrieval 必须显式传入 scope，避免跨用户、跨项目或跨工作区泄漏。
+- 文档闭环：`docs/research/memory-scoped-retrieval.md`、`docs/solutions/architecture-patterns/scoped-memory-retrieval.md`、`blog/build-agent-from-zero-m18-scoped-memory-retrieval.md`。
+
+## M19：Memory Markdown Export（已完成）
+
+**目标：** 把 active governed memory 投影成可人工检查的 Markdown，而不是直接写 `MEMORY.md` 或 `USER.md`。
+
+交付：
+
+- `renderCuratedMemoryMarkdown()`。
+- Markdown projection 按 scope/kind 分组，保留 confidence、importance、tags、source event ids 和安全边界。
+- 文档闭环：`docs/research/memory-markdown-export.md`、`docs/solutions/architecture-patterns/memory-markdown-export.md`、`blog/build-agent-from-zero-m19-memory-markdown-export.md`。
+
+## M20：Memory Review Report（已完成）
+
+**目标：** 为 governed memory 提供 typed audit report，让 operator 能看到 active、rejected、superseded、unsafe 和 undecided 状态。
+
+交付：
+
+- `createMemoryReviewReport()` 和 `renderMemoryReviewReport()`。
+- report 输出 counts、queues、diagnostics 和 deterministic item lists。
+- 文档闭环：`docs/research/memory-review-report.md`、`docs/solutions/architecture-patterns/memory-review-report.md`、`blog/build-agent-from-zero-m20-memory-review-report.md`。
+
+## M21：Memory Review Capability（已完成）
+
+**目标：** 把 memory review 变成可发现的 read-only capability，而不是需要 host 私下知道 helper 函数。
+
+交付：
+
+- `createMemoryReviewPlugin()` 注册 `memory.review` operation。
+- capability descriptor 标明 plugin owner、source、trust 和 read-only memory surface。
+- 文档闭环：`docs/research/memory-review-capability.md`、`docs/solutions/architecture-patterns/memory-review-capability.md`、`blog/build-agent-from-zero-m21-memory-review-capability.md`。
+
+## M22：Memory JSONL Review Report（已完成）
+
+**目标：** 让 durable JSONL memory 直接产出 typed review report。
+
+交付：
+
+- `JsonlMemoryStore.readReviewReport()`。
+- 读取 JSONL records 后重建 governance ledger，再生成 review report 和 diagnostics。
+- 文档闭环：`docs/research/memory-jsonl-review-report.md`、`docs/solutions/architecture-patterns/memory-jsonl-review-report.md`、`blog/build-agent-from-zero-m22-memory-jsonl-review-report.md`。
+
+## M23：Memory JSONL Review Markdown（已完成）
+
+**目标：** 让 durable JSONL memory 直接产出 display-ready Markdown audit view。
+
+交付：
+
+- `JsonlMemoryStore.readReviewMarkdown()`。
+- 返回 typed report、Markdown string 和 JSONL diagnostics。
+- 文档闭环：`docs/research/memory-jsonl-review-markdown.md`、`docs/solutions/architecture-patterns/memory-jsonl-review-markdown.md`、`blog/build-agent-from-zero-m23-memory-jsonl-review-markdown.md`。
+
+## M24：Memory Review Health（已完成）
+
+**目标：** 在 detailed review report 之上补一个 compact health signal，便于 CLI/host/status surface 判断 blocked、review-needed 或 healthy。
+
+交付：
+
+- `createMemoryReviewHealth()` 和 `renderMemoryReviewHealthBlock()`。
+- unsafe candidates、governance diagnostics、undecided queues 等进入 health summary。
+- 文档闭环：`docs/research/memory-review-health.md`、`docs/solutions/architecture-patterns/memory-review-health.md`、`blog/build-agent-from-zero-m24-memory-review-health.md`。
+
+## M25：Memory JSONL Review Health（已完成）
+
+**目标：** 把 durable JSONL memory 接到 typed review health。
+
+交付：
+
+- `JsonlMemoryStore.readReviewHealth()`。
+- 基于 `readReviewReport()` 计算 health，并一起返回 report、health 和 diagnostics。
+- 文档闭环：`docs/research/memory-jsonl-review-health.md`、`docs/solutions/architecture-patterns/memory-jsonl-review-health.md`、`blog/build-agent-from-zero-m25-memory-jsonl-review-health.md`。
+
+## M26：Memory JSONL Retrieval（已完成）
+
+**目标：** 把 durable JSONL memory 接到 scope-required retrieval。
+
+交付：
+
+- `JsonlMemoryStore.readRetrieval()`。
+- 读取 governance ledger 后执行 deterministic retrieval，保持 explicit scope 和 diagnostics。
+- 文档闭环：`docs/research/memory-jsonl-retrieval.md`、`docs/solutions/architecture-patterns/memory-jsonl-retrieval.md`、`blog/build-agent-from-zero-m26-memory-jsonl-retrieval.md`。
+
+## M27：Memory JSONL Curated Markdown（已完成）
+
+**目标：** 让 durable JSONL memory 直接产出 curated memory Markdown。
+
+交付：
+
+- `JsonlMemoryStore.readCuratedMarkdown()`。
+- 返回 governed ledger、Markdown string 和 diagnostics。
+- 文档闭环：`docs/research/memory-jsonl-curated-markdown.md`、`docs/solutions/architecture-patterns/memory-jsonl-curated-markdown.md`、`blog/build-agent-from-zero-m27-memory-jsonl-curated-markdown.md`。
+
+## M28：Memory JSONL Capability Surface（已完成）
+
+**目标：** 让 JSONL memory 的 read-only projections 在 capability discovery 中可解释。
+
+交付：
+
+- `createMemoryJsonlPlugin()` 除 broad `memory.jsonl` 外，还注册 review、retrieval、curated Markdown projection descriptors。
+- capability surface 区分 storage descriptor 和 read-only projection descriptors。
+- 文档闭环：`docs/research/memory-jsonl-capability-surface.md`、`docs/solutions/architecture-patterns/memory-jsonl-capability-surface.md`、`blog/build-agent-from-zero-m28-memory-jsonl-capability-surface.md`。
+
+## M29：Memory JSONL Audit Snapshot（已完成）
+
+**目标：** 把 ledger、report、health 和 audit Markdown 聚合成一次 durable memory inspection。
+
+交付：
+
+- `JsonlMemoryStore.readAuditSnapshot()`。
+- 单次读取 JSONL 后构建 governance ledger、review report、health 和 review Markdown。
+- 文档闭环：`docs/research/memory-jsonl-audit-snapshot.md`、`docs/solutions/architecture-patterns/memory-jsonl-audit-snapshot.md`、`blog/build-agent-from-zero-m29-memory-jsonl-audit-snapshot.md`。
+
+## M30：Memory JSONL Health Markdown（已完成）
+
+**目标：** 为 durable memory health 提供 compact Markdown block。
+
+交付：
+
+- `JsonlMemoryStore.readReviewHealthMarkdown()`。
+- 返回 report、health、Markdown block 和 diagnostics。
+- 文档闭环：`docs/research/memory-jsonl-health-markdown.md`、`docs/solutions/architecture-patterns/memory-jsonl-health-markdown.md`、`blog/build-agent-from-zero-m30-memory-jsonl-health-markdown.md`。
+
+## M31：Memory JSONL Health Capability（已完成）
+
+**目标：** 让 durable memory health projection 可被 host 通过 capability discovery 发现。
+
+交付：
+
+- `createMemoryJsonlPlugin()` 注册 `memory.jsonl.health` operation descriptor。
+- descriptor 标明 first-party read-only memory trust。
+- 文档闭环：`docs/research/memory-jsonl-health-capability.md`、`docs/solutions/architecture-patterns/memory-jsonl-health-capability.md`、`blog/build-agent-from-zero-m31-memory-jsonl-health-capability.md`。
+
+## M32：Memory JSONL Audit Snapshot Capability（已完成）
+
+**目标：** 让 durable memory audit bundle 可被 host 发现。
+
+交付：
+
+- `createMemoryJsonlPlugin()` 注册 `memory.jsonl.audit_snapshot` operation descriptor。
+- descriptor 复用 JSONL memory ownership、source、namespace 和 read-only trust。
+- 文档闭环：`docs/research/memory-jsonl-audit-snapshot-capability.md`、`docs/solutions/architecture-patterns/memory-jsonl-audit-snapshot-capability.md`、`blog/build-agent-from-zero-m32-memory-jsonl-audit-snapshot-capability.md`。
+
+## M33：Memory JSONL Review Markdown Capability（已完成）
+
+**目标：** 让 durable review Markdown projection 可被 host 精确发现。
+
+交付：
+
+- `createMemoryJsonlPlugin()` 注册 `memory.jsonl.review_markdown` operation descriptor。
+- broad review descriptor 和 Markdown-specific descriptor 分开，避免 host 猜 projection shape。
+- 文档闭环：`docs/research/memory-jsonl-review-markdown-capability.md`、`docs/solutions/architecture-patterns/memory-jsonl-review-markdown-capability.md`、`blog/build-agent-from-zero-m33-memory-jsonl-review-markdown-capability.md`。
+
+## M34：Memory JSONL Review Report Capability（已完成）
+
+**目标：** 让 durable typed review report projection 可被 host 精确发现。
+
+交付：
+
+- `createMemoryJsonlPlugin()` 注册 `memory.jsonl.review_report` operation descriptor。
+- typed report、Markdown report 和 broad review surface 分别可发现。
+- 文档闭环：`docs/research/memory-jsonl-review-report-capability.md`、`docs/solutions/architecture-patterns/memory-jsonl-review-report-capability.md`、`blog/build-agent-from-zero-m34-memory-jsonl-review-report-capability.md`。
+
+## M35：Memory JSONL Capability Name Constants（已完成）
+
+**目标：** 把 memory JSONL operation names 固定成可导入常量，避免 registration、tests 和 host callers 出现字符串漂移。
+
+交付：
+
+- `MEMORY_JSONL_OPERATION_NAME`、`MEMORY_JSONL_READ_OPERATION_NAMES`、`MEMORY_JSONL_OPERATION_NAMES`。
+- plugin registration 和 consumer-facing exports 使用同一组 operation vocabulary。
+- 文档闭环：`docs/research/memory-jsonl-capability-name-constants.md`、`docs/solutions/architecture-patterns/memory-jsonl-capability-name-constants.md`、`blog/build-agent-from-zero-m35-memory-jsonl-capability-name-constants.md`。
+
+## M36：Memory JSONL Capability Namespace（已完成）
+
+**目标：** 给 memory JSONL operation descriptor 补 stable namespace，便于 host 按 capability family 过滤。
+
+交付：
+
+- `MEMORY_JSONL_OPERATION_NAMESPACE = "memory-jsonl"`。
+- 所有 memory JSONL operation descriptors 带 namespace，同时保留 ownerPluginId 作为 plugin instance identity。
+- 文档闭环：`docs/research/memory-jsonl-capability-namespace.md`、`docs/solutions/architecture-patterns/memory-jsonl-capability-namespace.md`、`blog/build-agent-from-zero-m36-memory-jsonl-capability-namespace.md`。
+
+## M37：Memory JSONL Public Capability Exports（已完成）
+
+**目标：** 证明 M35/M36 的 constants 真正从 package entrypoint 对 host callers 可见。
+
+交付：
+
+- `public-exports.test.ts` 从 `@guga-agent/plugin-memory-jsonl` entrypoint 导入 capability constants。
+- 测试固定 operation name、namespace、read operation names 和 full operation names 的 public export surface。
+- 文档闭环：`docs/research/memory-jsonl-public-capability-exports.md`、`docs/solutions/architecture-patterns/memory-jsonl-public-capability-exports.md`、`blog/build-agent-from-zero-m37-memory-jsonl-public-capability-exports.md`。
+
 ## 跨阶段依赖
+
+截至 2026-05-28，下列依赖链已经按顺序落地并通过质量门禁。这里保留依赖图，是为了让后续维护者理解为什么模块按这个顺序形成，而不是把它当作待办列表。
 
 ```text
 M0 Core Kernel
@@ -502,37 +1035,66 @@ M0 Core Kernel
           -> M6 Skills + MCP + Capability Discovery
             -> M7 Host Adapters
               -> M8 Production Operations
+                -> M9 Code Agent
+                  -> M10 Deep Research Agent
+                    -> M11 CLI-First Host And Desktop/Web Workbench
+                      -> M12 Learning/Writing/Eval Flywheel
+```
+
+M13-M37 是在主线完成后追加的扩展链路，不改变 M0-M12 的 core/plugin 边界：
+
+```text
+M13 Review Eval Agent
+M14 Multi-Agent Delegation Runtime
+M15 Memory Candidate Ledger
+  -> M16 Memory Governance Store
+    -> M17 Memory JSONL Store
+      -> M18 Scoped Memory Retrieval
+      -> M19 Memory Markdown Export
+      -> M20 Memory Review Report
+        -> M21 Memory Review Capability
+        -> M22 Memory JSONL Review Report
+          -> M23 Memory JSONL Review Markdown
+          -> M24 Memory Review Health
+            -> M25 Memory JSONL Review Health
+          -> M26 Memory JSONL Retrieval
+          -> M27 Memory JSONL Curated Markdown
+          -> M28 Memory JSONL Capability Surface
+            -> M29 Memory JSONL Audit Snapshot
+            -> M30 Memory JSONL Health Markdown
+            -> M31 Memory JSONL Health Capability
+            -> M32 Memory JSONL Audit Snapshot Capability
+            -> M33 Memory JSONL Review Markdown Capability
+            -> M34 Memory JSONL Review Report Capability
+              -> M35 Memory JSONL Capability Name Constants
+                -> M36 Memory JSONL Capability Namespace
+                  -> M37 Memory JSONL Public Capability Exports
 ```
 
 M2 和 M3 可以部分并行，但都必须建立在 M1 的 plugin host、capability registry 和 hook kernel 上。M3 必须先定义清楚 tool hook 的 fail-closed 语义，否则权限和审计会漂移。M4 必须等 M3 的 tool result contract 稳定，否则 compaction 无法安全处理工具输出。M7 必须等 M5 至少能恢复 session，否则多 host 只会复制临时状态。
 
-## 第一批工程任务
+M9 依赖 M6 的 skills/MCP/capability discovery、M7 的 host event protocol 和 M5 的 resume/replay。M10 可以与 M9 部分并行，但必须复用同一套 artifact、evidence、session 和 report pipeline。M11 不应在 M9/M10 之前做重 UI；先用它们的真实工作流压协议。M12 贯穿所有阶段，不是最后才做：每个阶段完成时都要补 research、solution、blog 和 eval。
 
-如果现在开始实现，第一批 issue 应围绕 core/plugin 最小闭环，而不是直接做完整应用：
+## 已完成工程闭环
 
-1. 定义 core contracts：message、tool call、tool result、provider event、agent event。
-2. 实现 `AgentLoop` 最小状态机和 mock provider。
-3. 实现 `EventBus` 与内存事件记录。
-4. 实现 `CapabilityRegistry`，支持 provider/tool 注册。
-5. 实现 plugin manifest schema。
-6. 实现本地 plugin loader。
-7. 实现 `HookKernel`：phase、effect、priority、timeout、audit event。
-8. 实现 plugin runtime API：registerTool、registerProvider、registerHook、onEvent。
-9. 实现 namespace 和冲突检测。
-10. 实现 stale context guard。
-11. 写 `plugin-tool-echo` 示例。
-12. 写 `plugin-provider-mock` 示例。
-13. 写 `plugin-hook-policy-demo`：阻断危险 tool call、贡献 resource path、追加 model input patch。
-14. 添加 e2e：不改 core，仅通过插件完成一次 tool-calling run。
-15. 添加 e2e：hook 能阻断工具调用，并在 audit event 中记录 decision。
+原“下一批工程任务”已经完成并归档。完成情况如下：
+
+1. M6 skills/MCP/capability discovery：已完成 research、requirements、`plugin-skills`、`plugin-mcp`、capability diff、namespace、solution 和 `blog/build-agent-from-zero-m6-skills-mcp.md`。
+2. M7/M11 CLI host workbench：已完成 `docs/research/cli-desktop-web-host-architecture.md`、host protocol、server/runtime/SDK、CLI、permission/artifact/resume/fork/event stream 基础面、solution 和 `blog/build-agent-from-zero-m7-m11-cli-host-workbench.md`。
+3. M8 production operations：已完成 operations health、audit export、eval runner、可观测/审计 surface、solution 和 `blog/build-agent-from-zero-m8-production-ops.md`。
+4. M9 code agent：已完成 `profile-code-agent`、coding profile contract、tool/context/session 复用、research、solution 和 `blog/build-agent-from-zero-m9-code-agent.md`。
+5. M10 deep research agent：已完成 `profile-deep-research-agent`、evidence/report profile、research、solution 和 `blog/build-agent-from-zero-m10-deep-research-agent.md`。
+6. M12 learning/eval flywheel：已完成 eval fixtures、模块文档闭环、solution 和 `blog/build-agent-from-zero-m12-learning-eval-flywheel.md`。
+7. M13-M37 follow-up modules：已完成 review/eval agent、多 agent delegation runtime、memory candidate/governance/JSONL/retrieval/Markdown/review/health/audit/capability descriptor/name/namespace/public export 等扩展模块。
+8. Trellis 状态：当前 `.trellis/tasks` 下所有 task 均已归档为 `completed`；本 roadmap 后续只记录新一轮演进，不再把 M0-M37 当作未完成队列。
 
 ## 暂缓事项
 
-- 多 agent 编排：等单 agent 的 tool/context/session/replay 稳定后再做。
-- 长期记忆：等 session store、compaction、skills 三者边界稳定后再做。
-- 插件市场：等 trust model、签名、capability permission 成熟后再做。
-- 企业后台：等 event log、audit projection、provider metrics 可靠后再做。
-- 远端 sandbox：等本地 permission runtime 和 tool execution pipeline 成熟后再做。
+- 复杂 swarm/team mailbox：M14 已完成 delegate-as-tool 形态；更重的自治团队编排仍需等权限、责任转移、trace isolation 和评估协议继续成熟。
+- 自动长期语义记忆：M15-M37 已完成 governed memory 和 JSONL projection 基线；跨 session 自动偏好提炼、向量检索、冲突解决和隐私策略仍需独立设计。
+- 插件市场：等 trust model、签名、capability permission、评分和分发边界成熟后再做。
+- 企业后台：已有 ops/audit/runtime surface；复杂多租户管理后台、BI 和组织级策略 UX 继续后置。
+- 远端 sandbox：等本地 permission runtime、tool execution pipeline、audit/replay 和 host protocol 在更多真实任务中稳定后再做。
 
 ## 判断是否偏离路线
 

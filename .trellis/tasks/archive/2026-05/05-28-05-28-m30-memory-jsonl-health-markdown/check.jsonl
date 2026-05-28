@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Quality checklist for behavior tests and gates."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Verify corrupt and partial JSONL behavior remains explicit."}
+{"file":"docs/research/memory-review-health.md","reason":"Check health block output against M24 semantics."}
+{"file":"docs/research/memory-jsonl-health-markdown.md","reason":"Check M30 acceptance criteria and non-goals."}

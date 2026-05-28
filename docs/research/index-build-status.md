@@ -13,6 +13,9 @@
 | hermes-agent | done | done (focused) | done | **done** (303n/1025e/12L/15T) | done (1905n/3747e/116c) |
 | opencode | done | done (full) | done | **done** (742n/1101e/12L/14T) | done (8023n, no-viz) |
 | pi | done | done (focused, 460 files / 1,230,823 tokens) | done (21,565n/55,110e/812c/300f) | not run | not run |
+| graphiti | done | done (focused, 324 files / 655,448 tokens) | not run | not run | done (3463n/12351e/80c) |
+| mem0 | done | done (focused, 1,362 files / 2,197,348 tokens) | not run | not run | done (7322n/16398e/470c, no-viz) |
+| zep | done | done (focused, 402 files / 502,927 tokens) | not run | not run | done (2101n/4182e/125c) |
 
 ## Understand-Anything POC 结果
 
@@ -67,3 +70,4 @@
 | provider-abstraction | done | blade-agent-sdk, claude-code, opencode; `pi` pending refresh |
 | ui-protocol | done | cc-haha, deepagentsjs, deer-flow |
 | multi-agent | done | hermes-agent, deepagentsjs, deer-flow |
+| memory-systems | done | graphiti, mem0, zep |

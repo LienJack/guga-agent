@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify tests and no generated/runtime artifacts."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify exporter stays in plugin package."}
+{"file": "docs/research/memory-markdown-export.md", "reason": "Verify no parser/importer or file mutation slipped in."}
+{"file": "docs/research/memory-governance-store.md", "reason": "Verify only active safe governed memory is exported."}

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend runtime package structure and required quality gates"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Core/plugin package layout and public API boundaries"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Structured runtime failure and observable error conventions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "TypeScript quality rules, tests, and forbidden runtime patterns"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer persistence/replay contract review"}
+{"file": ".trellis/tasks/05-27-m5-session-store-replay-plugins/research/current-codebase-constraints.md", "reason": "Check implementation against existing M4 constraints"}
+{"file": ".trellis/tasks/05-27-m5-session-store-replay-plugins/research/event-sourcing-replay-best-practices.md", "reason": "Check append-only/idempotency/corruption behavior"}

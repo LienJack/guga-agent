@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend quality checklist for review and verification."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Cross-layer review guidance for memory/plugin boundary."}
+{"file": "docs/research/context-packs/memory-systems.md", "reason": "Review source for memory non-goals and candidate boundary."}
+{"file": "docs/plans/2026-05-28-012-feat-memory-candidate-ledger-plan.md", "reason": "Acceptance and test checklist."}

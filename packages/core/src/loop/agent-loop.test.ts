@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AgentLoop } from "./agent-loop";
+import { ContextSourceKind, ContextSourcePriority, type ContextSourceDescriptor } from "../contracts/context";
 import { AgentEventType } from "../contracts/events";
 import { HookEffect, HookPhase } from "../contracts/hooks";
+import type { DurableEventEnvelope, EventStore } from "../contracts/persistence";
+import { ProviderErrorCategory } from "../contracts/provider";
 import { EventBus } from "../events/event-bus";
 import { HookKernel } from "../hooks/hook-kernel";
 import { CapabilityRegistry } from "../registry/capability-registry";
+import { ProviderRouter } from "../router/provider-router";
 import { createMockProvider } from "../testing/mock-provider";
 import { createTestTool } from "../testing/test-tool";
 
@@ -29,7 +33,9 @@ describe("AgentLoop", () => {
     expect(result).toMatchObject({ ok: true, finalAnswer: "The tool said hello" });
     expect(eventBus.events.map((event) => event.type)).toEqual([
       AgentEventType.RunStarted,
+      AgentEventType.ContextProjectionCreated,
       AgentEventType.ModelRequested,
+      AgentEventType.ProviderInputCommitted,
       AgentEventType.ModelEvent,
       AgentEventType.ModelEvent,
       AgentEventType.ModelResponded,
@@ -38,12 +44,52 @@ describe("AgentLoop", () => {
       AgentEventType.ToolStarted,
       AgentEventType.ToolResult,
       AgentEventType.ToolCompleted,
+      AgentEventType.ContextProjectionCreated,
       AgentEventType.ModelRequested,
+      AgentEventType.ProviderInputCommitted,
       AgentEventType.ModelEvent,
       AgentEventType.ModelEvent,
       AgentEventType.ModelResponded,
       AgentEventType.RunFinished
     ]);
+  });
+
+  it("creates a projection before each provider request", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    registry.registerProvider(
+      createMockProvider([
+        { type: "tool_calls", toolCalls: [{ id: "call-1", name: "echo", input: { value: "hello" } }] },
+        { type: "final", content: "done" }
+      ])
+    );
+    registry.registerTool(createTestTool({ name: "echo", content: "hello" }));
+
+    const result = await new AgentLoop({ registry, eventBus }).run({
+      input: "Use echo",
+      providerId: "mock",
+      runId: "run-projection"
+    });
+
+    expect(result.ok).toBe(true);
+    const projections = result.events.filter((event) => event.type === AgentEventType.ContextProjectionCreated);
+    expect(projections).toHaveLength(2);
+    expect(projections[0]).toMatchObject({
+      projection: {
+        messages: [{ role: "user", content: "Use echo" }],
+        sourceDescriptors: expect.arrayContaining([
+          expect.objectContaining({ kind: "pending_turn" }),
+          expect.objectContaining({ kind: "active_tool", metadata: { toolName: "echo" } })
+        ])
+      }
+    });
+    expect(projections[1]).toMatchObject({
+      projection: {
+        sourceDescriptors: expect.arrayContaining([
+          expect.objectContaining({ kind: "tool_result_preview", provenance: expect.objectContaining({ toolCallId: "call-1" }) })
+        ])
+      }
+    });
   });
 
   it("returns tool failures to the provider as observations", async () => {
@@ -319,6 +365,381 @@ describe("AgentLoop", () => {
     expect(result.events.map((event) => event.type)).toContain(AgentEventType.Error);
   });
 
+  it("durably records provider request and provider-input facts before calling a direct provider", async () => {
+    const registry = new CapabilityRegistry();
+    const order: string[] = [];
+    registry.registerProvider({
+      id: "side-effect-provider",
+      generate() {
+        order.push("provider");
+        return { type: "final", content: "ok" };
+      }
+    });
+    const eventBus = durableEventBus({ order });
+
+    const result = await new AgentLoop({ registry, eventBus }).run({
+      input: "hello",
+      providerId: "side-effect-provider",
+      runId: "run-provider-durable"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "ok" });
+    expect(order.slice(0, 5)).toEqual([
+      `append:${AgentEventType.RunStarted}`,
+      `append:${AgentEventType.ContextProjectionCreated}`,
+      `append:${AgentEventType.ModelRequested}`,
+      `append:${AgentEventType.ProviderInputCommitted}`,
+      "provider"
+    ]);
+  });
+
+  it("does not call a direct provider when durable provider-input append fails", async () => {
+    const registry = new CapabilityRegistry();
+    const generate = vi.fn(() => ({ type: "final" as const, content: "should not run" }));
+    registry.registerProvider({ id: "blocked-provider", generate });
+    const eventBus = durableEventBus({ failTypes: new Set([AgentEventType.ProviderInputCommitted]) });
+
+    const result = await new AgentLoop({ registry, eventBus }).run({
+      input: "hello",
+      providerId: "blocked-provider",
+      runId: "run-provider-blocked"
+    });
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "PROVIDER_FAILED", message: "Provider input was not durably recorded" }
+    });
+  });
+
+  it("compacts and retries the current intent once after provider context overflow", async () => {
+    const registry = new CapabilityRegistry();
+    const seenMessages: unknown[] = [];
+    registry.registerProvider(
+      createMockProvider([
+        {
+          type: "failure",
+          error: {
+            category: ProviderErrorCategory.ContextOverflow,
+            code: "CONTEXT_OVERFLOW",
+            message: "prompt too long"
+          }
+        },
+        (request) => {
+          seenMessages.push(request.messages);
+          return request.messages.some((message) => message.role === "user" && message.content.includes("Compaction summary"))
+            ? { type: "final", content: "recovered" }
+            : {
+                type: "failure",
+                error: {
+                  category: ProviderErrorCategory.ContextOverflow,
+                  code: "CONTEXT_OVERFLOW",
+                  message: "still too long"
+                }
+              };
+        }
+      ])
+    );
+
+    const result = await new AgentLoop({ registry }).run({
+      input: "hello",
+      providerId: "mock",
+      runId: "run-overflow"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "recovered" });
+    expect(seenMessages).toHaveLength(1);
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ContextCompactStarted,
+      trigger: "provider-overflow"
+    }));
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ContextCompactCompleted,
+      result: expect.objectContaining({
+        summary: expect.objectContaining({
+          objective: "hello",
+          completedWork: [],
+          currentBlockers: [],
+          nextSteps: []
+        })
+      })
+    }));
+  });
+
+  it("recovers routed context overflow using preserved provider error details", async () => {
+    const registry = new CapabilityRegistry();
+    registry.registerProvider(createMockProvider([
+      {
+        type: "failure",
+        error: {
+          category: ProviderErrorCategory.ContextOverflow,
+          code: "CONTEXT_OVERFLOW",
+          message: "prompt too long"
+        }
+      },
+      (request) => request.messages.some((message) => message.role === "user" && message.content.includes("Compaction summary"))
+        ? { type: "final", content: "router recovered" }
+        : {
+            type: "failure",
+            error: {
+              category: ProviderErrorCategory.ContextOverflow,
+              code: "CONTEXT_OVERFLOW",
+              message: "still too long"
+            }
+          }
+    ]));
+    registry.registerModel({ providerId: "mock", modelId: "primary", contextWindow: 100 });
+    const result = await new AgentLoop({
+      registry,
+      router: new ProviderRouter({ registry, policy: { primary: { providerId: "mock", modelId: "primary" } } })
+    }).run({ input: "hello", runId: "run-router-overflow" });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "router recovered" });
+    expect(result.events).toContainEqual(expect.objectContaining({ type: AgentEventType.ContextCompactCompleted }));
+  });
+
+  it("durably records compaction start, pre-commit, and terminal markers before retrying", async () => {
+    const registry = new CapabilityRegistry();
+    const durableRecords: DurableEventEnvelope[] = [];
+    registry.registerProvider(createMockProvider([
+      {
+        type: "failure",
+        error: {
+          category: ProviderErrorCategory.ContextOverflow,
+          code: "CONTEXT_OVERFLOW",
+          message: "prompt too long"
+        }
+      },
+      { type: "final", content: "recovered" }
+    ]));
+    const eventBus = durableEventBus({ durableRecords });
+
+    const result = await new AgentLoop({ registry, eventBus }).run({
+      input: "hello",
+      providerId: "mock",
+      runId: "run-durable-compact"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "recovered" });
+    expect(durableRecords.map((event) => event.eventType)).toEqual(expect.arrayContaining([
+      AgentEventType.ContextCompactStarted,
+      "context.compact.pre_commit",
+      AgentEventType.ContextCompactCompleted
+    ]));
+    expect(
+      durableRecords.findIndex((event) => event.eventType === "context.compact.pre_commit")
+    ).toBeLessThan(
+      durableRecords.findIndex((event) => event.eventType === AgentEventType.ContextCompactCompleted)
+    );
+  });
+
+  it("runs context hooks during projection and honors compact gate denials", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    const assemble = vi.fn(() => ({
+      id: "assemble-observed",
+      kind: "annotation" as const,
+      phase: HookPhase.ContextAssemble,
+      sourceIds: [],
+      reason: "observed"
+    }));
+    hookKernel.registerHook("context-plugin", 0, {
+      id: "assemble",
+      phase: HookPhase.ContextAssemble,
+      effect: HookEffect.Annotate,
+      handler: assemble
+    });
+    hookKernel.registerHook("context-plugin", 0, {
+      id: "deny-compact",
+      phase: HookPhase.ContextCompactBefore,
+      effect: HookEffect.Gate,
+      handler() {
+        return {
+          id: "deny-compact",
+          kind: "gate",
+          phase: HookPhase.ContextCompactBefore,
+          allowed: false,
+          reason: "no compact"
+        };
+      }
+    });
+    registry.registerProvider(createMockProvider([
+      {
+        type: "failure",
+        error: {
+          category: ProviderErrorCategory.ContextOverflow,
+          code: "CONTEXT_OVERFLOW",
+          message: "prompt too long"
+        }
+      }
+    ]));
+
+    const result = await new AgentLoop({ registry, eventBus, hookKernel }).run({
+      input: "hello",
+      providerId: "mock",
+      runId: "run-context-hooks"
+    });
+
+    expect(result).toMatchObject({ ok: false, error: { code: "HOOK_FAILED", message: "no compact" } });
+    expect(assemble).toHaveBeenCalled();
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ContextHookDecision,
+      hookId: "assemble"
+    }));
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ContextHookDecision,
+      hookId: "deny-compact"
+    }));
+  });
+
+  it("runs resource discovery, truncation, proactive compaction, and reinjection before the provider call", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    const seenProviderMessages: unknown[] = [];
+    const phases: string[] = [];
+    registry.registerProvider(createMockProvider([
+      (request) => {
+        seenProviderMessages.push(request.messages);
+        return { type: "final", content: request.messages.map((message) => message.content).join("\n") };
+      }
+    ]));
+    registry.registerModel({ providerId: "mock", modelId: "mock", contextWindow: 80, maxOutputTokens: 10 });
+    registry.registerTool(createTestTool({ name: "echo", content: "ok" }));
+    hookKernel.registerHook("context-plugin", 0, {
+      id: "discover-resource",
+      phase: HookPhase.ResourcesDiscover,
+      effect: HookEffect.Patch,
+      handler() {
+        phases.push(HookPhase.ResourcesDiscover);
+        return {
+          id: "resource-source",
+          kind: "source-contribution",
+          phase: HookPhase.ResourcesDiscover,
+          sourceIds: ["resource:file"],
+          metadata: {
+            sources: [
+              sourceDescriptor("old-history", ContextSourceKind.History, 60),
+              sourceDescriptor("resource:file", ContextSourceKind.ResourceFile, 90)
+            ]
+          }
+        };
+      }
+    });
+    hookKernel.registerHook("context-plugin", 0, {
+      id: "truncate-observer",
+      phase: HookPhase.ContextTruncate,
+      effect: HookEffect.Annotate,
+      handler() {
+        phases.push(HookPhase.ContextTruncate);
+        return {
+          id: "truncate-observed",
+          kind: "annotation",
+          phase: HookPhase.ContextTruncate,
+          sourceIds: []
+        };
+      }
+    });
+    hookKernel.registerHook("context-plugin", 0, {
+      id: "reinject-host",
+      phase: HookPhase.ContextReinject,
+      effect: HookEffect.Patch,
+      handler() {
+        phases.push(HookPhase.ContextReinject);
+        return {
+          id: "host-reinject",
+          kind: "reinjection",
+          phase: HookPhase.ContextReinject,
+          sourceIds: ["host-context"],
+          reason: "restore host context",
+          metadata: {
+            reinjectionSources: [{
+              id: "host-context",
+              kind: ContextSourceKind.HostContext,
+              priority: ContextSourcePriority.Medium,
+              content: "Host context survived compaction",
+              runtimeContextId: "run-proactive"
+            }]
+          }
+        };
+      }
+    });
+
+    const result = await new AgentLoop({ registry, eventBus, hookKernel }).run({
+      input: "hello",
+      providerId: "mock",
+      modelId: "mock",
+      runId: "run-proactive",
+      maxTurns: 3
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(phases).toEqual(expect.arrayContaining([
+      HookPhase.ResourcesDiscover,
+      HookPhase.ContextTruncate,
+      HookPhase.ContextReinject
+    ]));
+    expect(result.events.findIndex((event) => event.type === AgentEventType.ContextCompactStarted))
+      .toBeLessThan(result.events.findIndex((event) => event.type === AgentEventType.ModelRequested));
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ContextCompactStarted,
+      trigger: "proactive-threshold"
+    }));
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ContextReinjected,
+      sources: expect.arrayContaining([
+        expect.objectContaining({ id: "host-context" }),
+        expect.objectContaining({ id: "reinjected-tool-echo" }),
+        expect.objectContaining({ id: "reinjected-permission-mode" })
+      ])
+    }));
+    expect(seenProviderMessages).toHaveLength(1);
+    expect(String(result.finalAnswer)).toContain("Compaction summary");
+    expect(String(result.finalAnswer)).toContain("Host context survived compaction");
+  });
+
+  it("honors context.compact.after gate denials after compaction is recorded", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    registry.registerProvider(createMockProvider([
+      {
+        type: "failure",
+        error: {
+          category: ProviderErrorCategory.ContextOverflow,
+          code: "CONTEXT_OVERFLOW",
+          message: "prompt too long"
+        }
+      }
+    ]));
+    hookKernel.registerHook("context-plugin", 0, {
+      id: "deny-after",
+      phase: HookPhase.ContextCompactAfter,
+      effect: HookEffect.Gate,
+      handler() {
+        return {
+          id: "deny-after",
+          kind: "gate",
+          phase: HookPhase.ContextCompactAfter,
+          allowed: false,
+          reason: "post compact rejected"
+        };
+      }
+    });
+
+    const result = await new AgentLoop({ registry, eventBus, hookKernel }).run({
+      input: "hello",
+      providerId: "mock",
+      runId: "run-deny-after"
+    });
+
+    expect(result).toMatchObject({ ok: false, error: { code: "HOOK_FAILED", message: "post compact rejected" } });
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ContextCompactCompleted
+    }));
+  });
+
 
   it("stops when the provider never produces a final answer", async () => {
     const registry = new CapabilityRegistry();
@@ -562,3 +983,42 @@ describe("AgentLoop", () => {
     expect(result.events.map((event) => event.type)).toContain(AgentEventType.HookDecision);
   });
 });
+
+function sourceDescriptor(id: string, kind: ContextSourceKind, tokens: number): ContextSourceDescriptor {
+  return {
+    id,
+    kind,
+    priority: ContextSourcePriority.Low,
+    provenance: { origin: "host" },
+    tokenEstimate: { status: "estimated", tokens },
+    contentHash: id,
+    modelVisible: true
+  };
+}
+
+function durableEventBus(options: {
+  failTypes?: Set<string>;
+  order?: string[];
+  durableRecords?: DurableEventEnvelope[];
+} = {}): EventBus {
+  const events = options.durableRecords ?? [];
+  const store: EventStore = {
+    append(event) {
+      options.order?.push(`append:${event.eventType}`);
+      if (options.failTypes?.has(event.eventType)) {
+        return { ok: false, status: "unavailable", reason: `failed ${event.eventType}` };
+      }
+      events.push(event);
+      return { ok: true, status: "appended", event, streamRevision: event.streamRevision };
+    },
+    readStream() {
+      return { ok: true, events, nextRevision: events.length };
+    }
+  };
+  return new EventBus({
+    durableContext: () => ({
+      eventStore: store,
+      session: { sessionId: "session-1", branchId: "main" }
+    })
+  });
+}

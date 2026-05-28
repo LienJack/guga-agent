@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { AgentEventType } from "../contracts/events";
+import type { ArtifactStore, PutArtifactOptions, ReadArtifactResult } from "../contracts/persistence";
 import type { ToolCallCorrelation } from "../contracts/tool-runtime";
 import type { ToolResult } from "../contracts/tools";
+import { ArtifactToolResultStore, InMemoryToolResultStore } from "../context/tool-result-store";
 import { EventBus } from "../events/event-bus";
 import { ResultPolicy } from "./result-policy";
 
@@ -34,8 +36,13 @@ describe("ResultPolicy", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      content: "01234\n\n[Tool output truncated: 10 characters exceeded 5 character budget]",
-      budget: { applied: true, originalContentChars: 10 }
+      content: expect.stringContaining("Tool output preview omitted"),
+      budget: {
+        applied: true,
+        originalContentChars: 10,
+        reference: expect.objectContaining({ id: expect.stringContaining("tool-result-run-result") }),
+        view: { llmPreview: expect.stringContaining("01234") }
+      }
     });
     expect(eventBus.events).toContainEqual(expect.objectContaining({ type: AgentEventType.ToolResultBudgeted }));
   });
@@ -55,16 +62,18 @@ describe("ResultPolicy", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("TOOL_FAILED");
-      expect(result.error.details).toEqual({
+      expect(result.error.details).toMatchObject({
         truncated: true,
         originalContentChars: 20,
-        content: "012345678901"
+        content: expect.stringContaining("012345678901"),
+        reference: expect.objectContaining({ type: "buffer" })
       });
     }
   });
 
-  it("creates budget metadata with references when reference strategy is selected", () => {
-    const policy = new ResultPolicy({ defaultBudget: { maxContentChars: 4, strategy: "reference" } });
+  it("stores raw output and creates budget metadata with references when reference strategy is selected", () => {
+    const store = new InMemoryToolResultStore();
+    const policy = new ResultPolicy({ store, defaultBudget: { maxContentChars: 4, strategy: "reference" } });
 
     const result = policy.apply({
       call,
@@ -74,12 +83,64 @@ describe("ResultPolicy", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      content: "[Tool output stored as reference: tool-result-call-result]",
+      content: expect.stringContaining("Tool output stored as reference"),
       budget: {
         applied: true,
-        reference: { type: "buffer", id: "tool-result-call-result" }
+        reference: { type: "buffer", id: "tool-result-run-result-turn-0-attempt-1-batch-result-call-result" },
+        rereadInstruction: expect.stringContaining("tool-result-run-result")
       }
     });
+    expect(store.get("tool-result-run-result-turn-0-attempt-1-batch-result-call-result")?.content).toBe("abcdef");
+  });
+
+  it("uses artifact-backed references without changing model-visible preview behavior", () => {
+    const eventBus = new EventBus();
+    const store = new ArtifactToolResultStore({ artifactStore: new FakeArtifactStore() });
+    const policy = new ResultPolicy({ eventBus, store, defaultBudget: { maxContentChars: 4, strategy: "truncate" } });
+
+    const result = policy.apply({
+      call,
+      correlation,
+      result: { ok: true, content: "abcdef" }
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      content: expect.stringContaining("abcd"),
+      budget: {
+        applied: true,
+        reference: {
+          type: "artifact",
+          id: "tool-result-run-result-turn-0-attempt-1-batch-result-call-result",
+          artifact: {
+            artifactId: "tool-result-run-result-turn-0-attempt-1-batch-result-call-result",
+            sizeBytes: 6,
+            mimeType: "text/plain; charset=utf-8"
+          }
+        },
+        view: {
+          llmPreview: expect.stringContaining("abcd"),
+          auditMetadata: {
+            strategy: "truncate",
+            referenceType: "artifact",
+            providerRawPersistence: "descriptor-only",
+            artifact: {
+              artifactId: "tool-result-run-result-turn-0-attempt-1-batch-result-call-result",
+              sizeBytes: 6
+            }
+          }
+        }
+      }
+    });
+    expect(result.content).not.toContain("abcdef");
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ToolResultBudgeted,
+      result: expect.objectContaining({
+        budget: expect.objectContaining({
+          reference: expect.objectContaining({ type: "artifact" })
+        })
+      })
+    }));
   });
 
   it("builds synthetic cancelled, skipped, denied, and timed-out results", () => {
@@ -103,3 +164,35 @@ describe("ResultPolicy", () => {
     });
   });
 });
+
+class FakeArtifactStore implements ArtifactStore {
+  putArtifact(options: PutArtifactOptions) {
+    const data = typeof options.data === "string" ? options.data : JSON.stringify(options.data);
+    const reference = {
+      artifactId: options.artifactId ?? "generated",
+      contentHash: { algorithm: "sha256" as const, value: "b".repeat(64) },
+      sizeBytes: data.length,
+      mimeType: options.mimeType,
+      createdAt: "2026-05-27T00:00:00.000Z",
+      redaction: { state: "none" as const },
+      ...(options.metadata ? { metadata: options.metadata } : {})
+    };
+    return { ok: true as const, reference };
+  }
+
+  readArtifact(): ReadArtifactResult {
+    return {
+      ok: false,
+      status: "not_found",
+      diagnostic: { kind: "artifact_missing", message: "missing", recoverable: true }
+    };
+  }
+
+  tombstoneArtifact() {
+    return {
+      ok: false as const,
+      status: "not_found" as const,
+      diagnostic: { kind: "artifact_missing" as const, message: "missing", recoverable: true }
+    };
+  }
+}

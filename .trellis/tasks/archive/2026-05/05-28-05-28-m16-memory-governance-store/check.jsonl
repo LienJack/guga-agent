@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify tests, capability descriptor metadata, and no core/provider/tool boundary violations."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Verify new memory governance code stays in the plugin package."}
+{"file": "docs/research/memory-candidate-ledger.md", "reason": "Verify governance preserves M15 safety and provenance boundaries."}
+{"file": "docs/research/agent-memo.md", "reason": "Verify no premature retrieval, injection, or automatic write scope creep."}

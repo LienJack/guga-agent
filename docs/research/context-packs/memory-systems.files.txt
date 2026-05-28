@@ -1,0 +1,46 @@
+# Memory Systems Evidence Files
+
+docs/research/context-packs/memory-systems.md
+docs/research/reference-project-workflow.md
+
+# Repomix token trees
+docs/research/repomix/graphiti-token-tree.txt
+docs/research/repomix/mem0-token-tree.txt
+docs/research/repomix/zep-token-tree.txt
+
+# Repomix packed contexts
+docs/research/repomix/graphiti-context.1.xml::<file path="graphiti_core/graphiti.py">
+docs/research/repomix/graphiti-context.1.xml::<file path="graphiti_core/nodes.py">
+docs/research/repomix/graphiti-context.1.xml::<file path="graphiti_core/edges.py">
+docs/research/repomix/graphiti-context.1.xml::<file path="graphiti_core/search/search_config.py">
+docs/research/repomix/graphiti-context.1.xml::<file path="graphiti_core/search/search_filters.py">
+docs/research/repomix/graphiti-context.1.xml::<file path="graphiti_core/driver/driver.py">
+
+docs/research/repomix/mem0-context.1.xml::<file path="mem0/memory/main.py">
+docs/research/repomix/mem0-context.1.xml::<file path="mem0/configs/base.py">
+docs/research/repomix/mem0-context.1.xml::<file path="mem0/utils/factory.py">
+docs/research/repomix/mem0-context.1.xml::<file path="mem0/vector_stores/base.py">
+docs/research/repomix/mem0-context.1.xml::<file path="mem0/memory/storage.py">
+docs/research/repomix/mem0-context.1.xml::<file path="mem0-ts/src/oss/src/memory/index.ts">
+
+docs/research/repomix/zep-context.1.xml::<file path="integrations/python/zep_adk/src/zep_adk/context_tool.py">
+docs/research/repomix/zep-context.1.xml::<file path="integrations/python/zep_adk/src/zep_adk/graph_search_tool.py">
+docs/research/repomix/zep-context.1.xml::<file path="integrations/python/zep_crewai/src/zep_crewai/graph_storage.py">
+docs/research/repomix/zep-context.1.xml::<file path="integrations/python/zep_crewai/src/zep_crewai/user_storage.py">
+docs/research/repomix/zep-context.1.xml::<file path="examples/typescript/memory/memory_example.ts">
+docs/research/repomix/zep-context.1.xml::<file path="examples/typescript/graph/user_graph_example.ts">
+
+# Graphify outputs
+docs/research/graphs/graphiti/graph.json
+docs/research/graphs/graphiti/GRAPH_REPORT.md
+docs/research/graphs/graphiti/graph.html
+docs/research/graphs/mem0/graph.json
+docs/research/graphs/mem0/GRAPH_REPORT.md
+docs/research/graphs/zep/graph.json
+docs/research/graphs/zep/GRAPH_REPORT.md
+docs/research/graphs/zep/graph.html
+
+# Raw repos, only when packed context is insufficient
+/Users/lienli/Documents/GitHub/memo-ref/graphiti
+/Users/lienli/Documents/GitHub/memo-ref/mem0
+/Users/lienli/Documents/GitHub/memo-ref/zep

@@ -77,7 +77,7 @@ M0 已经证明 core 可以用内建 mock provider/test tool 跑完最小 tool-c
 - `packages/core/src/events/event-bus.ts` 是当前 runtime 可观察性事实通道；hook decision/failure、plugin lifecycle、capability registration 应通过事件或等价 core-observable output 暴露。
 - `packages/core/src/testing/mock-provider.ts` 与 `packages/core/src/testing/test-tool.ts` 已支持无外部服务的 core tests；综合示例插件应复用这些测试支撑，避免引入真实 provider SDK。
 - `docs/roadmap.md` 把 M1 定义为 Plugin Host + Hook Kernel，但当前 origin 文档有意收窄了 roadmap 中 reload、namespace、resources/model patches 等更完整生态能力。
-- `docs/agent-hook.md` 明确 EventBus 发布已经发生的事实，HookKernel 参与会改变行为的决策；pre-tool gate 不能实现成普通事件订阅。
+- `docs/research/agent-hook.md` 明确 EventBus 发布已经发生的事实，HookKernel 参与会改变行为的决策；pre-tool gate 不能实现成普通事件订阅。
 - `.trellis/spec/backend/directory-structure.md` 要求 `packages/core` 保持小内核，不放真实 provider SDK、真实工具、CLI/Web/UI projection。
 - `.trellis/spec/backend/error-handling.md` 要求 runtime failures 结构化且可观察，tool failures 作为模型可见 observation 回流。
 - `.trellis/spec/backend/quality-guidelines.md` 要求 runtime 行为单元 test-first，并保持 public exports 与 host-facing API 边界清晰。
@@ -102,7 +102,7 @@ M0 已经证明 core 可以用内建 mock provider/test tool 跑完最小 tool-c
 - M1 插件采用可信本地对象契约，不做 manifest 文件、目录扫描或动态 import：origin 明确把 marketplace、remote install、sandbox、trust policy 后置，当前测试和示例需要的是 authoring contract。
 - 插件初始化拿到受限 `PluginContext`，只暴露 `registerProvider`、`registerTool`、`registerHook` 和必要的 observable helper：插件不能直接拿到 `ConversationState`、`AgentLoop` 或 mutable registry internals。
 - Provider/tool 注册复用 `CapabilityRegistry`：M1 证明插件能力进入现有 runtime 能力集合，不另建平行插件 registry。
-- 新增 `HookKernel` 处理控制流决策，`EventBus` 只记录 hook/lifecycle facts：这延续 `docs/agent-hook.md` 的分工，避免把 gate 语义塞进事件订阅。
+- 新增 `HookKernel` 处理控制流决策，`EventBus` 只记录 hook/lifecycle facts：这延续 `docs/research/agent-hook.md` 的分工，避免把 gate 语义塞进事件订阅。
 - M1 hook ordering 使用插件加载顺序 + hook 注册顺序的确定性顺序，暂不引入 priority、load tiers 或 namespace：满足 R11 的可测顺序，同时不提前承诺完整生态治理。
 - 插件配置在 `createAgentRuntime({ plugins })` 传入，但插件初始化在首次 `run()` 前懒执行：这让宿主有机会先注册 event listener，也让 init failure 能按 run failure/result 语义结构化暴露。
 - Pre-tool gate 拒绝时不执行工具，并产生模型可见 tool observation 与 hook decision event：这让 provider 可以继续解释/收敛，同时让 AE2 可测试。
@@ -228,7 +228,7 @@ flowchart TB
 - `packages/core/src/contracts/provider.ts` 的小型 discriminated union 风格。
 - `packages/core/src/contracts/events.ts` 的 `AgentEventType` 常量 + union event 风格。
 - `.trellis/spec/backend/quality-guidelines.md` 的 public exports 边界要求。
-- `docs/agent-hook.md` 的 effect/decision 与 state mutation 隔离原则。
+- `docs/research/agent-hook.md` 的 effect/decision 与 state mutation 隔离原则。
 
 **Test scenarios:**
 - Happy path: contract fixture 能表达一个插件 init 注册 provider/tool/hook，并产生 capability registered 与 lifecycle events。
@@ -267,7 +267,7 @@ flowchart TB
 
 **Patterns to follow:**
 - `packages/core/src/events/event-bus.ts` 的 in-memory deterministic recording。
-- `docs/agent-hook.md` 的 reducer 语义：observeAll 与 firstDenyWins。
+- `docs/research/agent-hook.md` 的 reducer 语义：observeAll 与 firstDenyWins。
 - `docs/research/source-analysis/hermes-wiki/concepts/hook-system-architecture.md` 中 pre-tool block 的可观察阻断模式。
 
 **Test scenarios:**
@@ -399,7 +399,7 @@ flowchart TB
 
 **Patterns to follow:**
 - `packages/core/src/loop/agent-loop.ts` 现有 tool failure normalization：tool failure 作为模型可见 observation 回流。
-- `docs/agent-hook.md` 的“工具 hook 要在 execution pipeline 控制路径上”原则。
+- `docs/research/agent-hook.md` 的“工具 hook 要在 execution pipeline 控制路径上”原则。
 - `docs/research/context-packs/tool-registry.md` 的错误返回模型而非直接丢失上下文模式。
 
 **Test scenarios:**
@@ -498,7 +498,7 @@ flowchart TB
 - **Related M0 plan:** [docs/plans/2026-05-26-001-feat-core-kernel-runtime-plan.md](docs/plans/2026-05-26-001-feat-core-kernel-runtime-plan.md)
 - **Strategy:** [STRATEGY.md](STRATEGY.md)
 - **Roadmap:** [docs/roadmap.md](docs/roadmap.md)
-- **Hook design:** [docs/agent-hook.md](docs/agent-hook.md)
+- **Hook design:** [docs/research/agent-hook.md](docs/research/agent-hook.md)
 - **Core runtime:** [packages/core/src/runtime/agent-runtime.ts](packages/core/src/runtime/agent-runtime.ts)
 - **Runtime factory:** [packages/core/src/runtime/create-agent-runtime.ts](packages/core/src/runtime/create-agent-runtime.ts)
 - **Agent loop:** [packages/core/src/loop/agent-loop.ts](packages/core/src/loop/agent-loop.ts)

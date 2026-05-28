@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend quality entry point for package changes."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"JSONL read helpers must preserve typed failure results instead of throwing on recoverable domain failures."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"M26 should compose existing memory retrieval and JSONL ledger helpers rather than duplicating retrieval logic."}
+{"file":"docs/research/memory-scoped-retrieval.md","reason":"M18 established scope-required lexical retrieval and rendering semantics."}
+{"file":"docs/research/memory-jsonl-retrieval.md","reason":"M26 module research and guardrails for durable retrieval."}

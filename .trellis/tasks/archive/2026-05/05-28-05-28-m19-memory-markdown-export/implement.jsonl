@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Keep Markdown export in the memory plugin package and avoid file writes."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "TypeScript strictness and behavior-test expectations."}
+{"file": "docs/research/memory-markdown-export.md", "reason": "M19 export boundary and non-goals."}
+{"file": "docs/research/memory-governance-store.md", "reason": "Markdown export must consume active governed memory items only."}
+{"file": "docs/research/agent-memo.md", "reason": "Curated memory files should remain governed and auditable."}

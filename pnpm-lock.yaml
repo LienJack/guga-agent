@@ -18,7 +18,171 @@ importers:
         specifier: ^4.1.7
         version: 4.1.7(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(vite@8.0.14(@types/node@25.9.1))
 
+  packages/cli:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@guga-agent/host-protocol':
+        specifier: workspace:*
+        version: link:../host-protocol
+      '@guga-agent/host-runtime':
+        specifier: workspace:*
+        version: link:../host-runtime
+      '@guga-agent/host-sdk':
+        specifier: workspace:*
+        version: link:../host-sdk
+      '@guga-agent/plugin-audit-export':
+        specifier: workspace:*
+        version: link:../plugin-audit-export
+      '@guga-agent/plugin-eval-runner':
+        specifier: workspace:*
+        version: link:../plugin-eval-runner
+      '@guga-agent/plugin-ops-health':
+        specifier: workspace:*
+        version: link:../plugin-ops-health
+      '@guga-agent/profile-code-agent':
+        specifier: workspace:*
+        version: link:../profile-code-agent
+      '@guga-agent/profile-deep-research-agent':
+        specifier: workspace:*
+        version: link:../profile-deep-research-agent
+      '@guga-agent/profile-review-agent':
+        specifier: workspace:*
+        version: link:../profile-review-agent
+      '@guga-agent/provider-ai-sdk':
+        specifier: workspace:*
+        version: link:../provider-ai-sdk
+
   packages/core: {}
+
+  packages/eval-fixtures:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@guga-agent/plugin-eval-runner':
+        specifier: workspace:*
+        version: link:../plugin-eval-runner
+    devDependencies:
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.7(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(vite@8.0.14(@types/node@25.9.1))
+
+  packages/host-local-server:
+    dependencies:
+      '@guga-agent/host-protocol':
+        specifier: workspace:*
+        version: link:../host-protocol
+      '@guga-agent/host-runtime':
+        specifier: workspace:*
+        version: link:../host-runtime
+    devDependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/host-protocol: {}
+
+  packages/host-runtime:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@guga-agent/host-protocol':
+        specifier: workspace:*
+        version: link:../host-protocol
+
+  packages/host-sdk:
+    dependencies:
+      '@guga-agent/host-local-server':
+        specifier: workspace:*
+        version: link:../host-local-server
+      '@guga-agent/host-protocol':
+        specifier: workspace:*
+        version: link:../host-protocol
+    devDependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@guga-agent/host-runtime':
+        specifier: workspace:*
+        version: link:../host-runtime
+
+  packages/plugin-artifact-filesystem:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-audit-export:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-context-default:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-eval-runner:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-mcp:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-memory-candidates:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-memory-jsonl:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@guga-agent/plugin-memory-candidates':
+        specifier: workspace:*
+        version: link:../plugin-memory-candidates
+
+  packages/plugin-ops-health:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-replay-audit:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-session-jsonl:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-skills:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/plugin-tools-delegation:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/plugin-tools-filesystem:
     dependencies:
@@ -43,6 +207,44 @@ importers:
       '@guga-agent/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/profile-code-agent:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@guga-agent/plugin-audit-export':
+        specifier: workspace:*
+        version: link:../plugin-audit-export
+      '@guga-agent/plugin-eval-runner':
+        specifier: workspace:*
+        version: link:../plugin-eval-runner
+      '@guga-agent/plugin-mcp':
+        specifier: workspace:*
+        version: link:../plugin-mcp
+      '@guga-agent/plugin-ops-health':
+        specifier: workspace:*
+        version: link:../plugin-ops-health
+      '@guga-agent/plugin-skills':
+        specifier: workspace:*
+        version: link:../plugin-skills
+      '@guga-agent/plugin-tools-filesystem':
+        specifier: workspace:*
+        version: link:../plugin-tools-filesystem
+      '@guga-agent/plugin-tools-git':
+        specifier: workspace:*
+        version: link:../plugin-tools-git
+      '@guga-agent/plugin-tools-shell':
+        specifier: workspace:*
+        version: link:../plugin-tools-shell
+
+  packages/profile-deep-research-agent: {}
+
+  packages/profile-review-agent:
+    devDependencies:
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.7(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(vite@8.0.14(@types/node@25.9.1))
 
   packages/provider-ai-sdk:
     dependencies:

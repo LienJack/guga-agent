@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared guidance for checking documentation consistency."}
+{"file": "docs/solutions/architecture-patterns/long-running-agent-roadmap.md", "reason": "Check that roadmap entries keep completion-loop semantics."}

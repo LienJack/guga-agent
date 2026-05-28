@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Quality checklist for behavior tests, focused gates, and full workspace gates."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Verify corrupt and partial JSONL behavior remains explicit."}
+{"file":"docs/research/memory-jsonl-review-health.md","reason":"Check health/report behavior against M25 durable projection semantics."}
+{"file":"docs/research/memory-jsonl-audit-snapshot.md","reason":"Check M29 acceptance criteria and non-goals."}

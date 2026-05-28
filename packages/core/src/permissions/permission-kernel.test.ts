@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { AgentEventType } from "../contracts/events";
+import type { DurableEventEnvelope, EventStore } from "../contracts/persistence";
 import type { PermissionRequest } from "../contracts/permissions";
 import type { ToolDefinition } from "../contracts/tools";
 import { EventBus } from "../events/event-bus";
@@ -39,6 +40,50 @@ describe("PermissionKernel", () => {
 
     expect(resolver).toHaveBeenCalledOnce();
     expect(result).toMatchObject({ ok: true, decision: { action: "allow", source: "host" } });
+  });
+
+  it("durably records permission requests before asking the host resolver", async () => {
+    const order: string[] = [];
+    const resolver = vi.fn().mockImplementation(() => {
+      order.push("resolver");
+      return {
+        action: "allow",
+        remember: "once",
+        source: "host"
+      };
+    });
+    const eventBus = durableEventBus({ order });
+    const kernel = new PermissionKernel({ eventBus, resolver });
+
+    const result = await kernel.resolve({
+      request: requestFor(executeTool()),
+      tool: executeTool()
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(order).toEqual([
+      `append:${AgentEventType.PermissionRequested}`,
+      "resolver",
+      `append:${AgentEventType.PermissionResolved}`
+    ]);
+  });
+
+  it("does not ask the host resolver when the durable permission request marker fails", async () => {
+    const resolver = vi.fn();
+    const eventBus = durableEventBus({ failTypes: new Set([AgentEventType.PermissionRequested]) });
+    const kernel = new PermissionKernel({ eventBus, resolver });
+
+    const result = await kernel.resolve({
+      request: requestFor(executeTool()),
+      tool: executeTool()
+    });
+
+    expect(resolver).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      ok: false,
+      result: { error: { code: "TOOL_PERMISSION_UNAVAILABLE" } }
+    });
+    expect(eventBus.events.map((event) => event.type)).not.toContain(AgentEventType.PermissionRequested);
   });
 
   it("remembers session allow decisions for matching permission scope", async () => {
@@ -267,6 +312,29 @@ function readTool(): ToolDefinition {
       return { ok: true, content: "ok" };
     }
   };
+}
+
+function durableEventBus(options: { failTypes?: Set<string>; order?: string[] } = {}): EventBus {
+  const events: DurableEventEnvelope[] = [];
+  const store: EventStore = {
+    append(event) {
+      options.order?.push(`append:${event.eventType}`);
+      if (options.failTypes?.has(event.eventType)) {
+        return { ok: false, status: "unavailable", reason: `failed ${event.eventType}` };
+      }
+      events.push(event);
+      return { ok: true, status: "appended", event, streamRevision: event.streamRevision };
+    },
+    readStream() {
+      return { ok: true, events, nextRevision: events.length };
+    }
+  };
+  return new EventBus({
+    durableContext: () => ({
+      eventStore: store,
+      session: { sessionId: "session-1", branchId: "main" }
+    })
+  });
 }
 
 function executeTool(): ToolDefinition {

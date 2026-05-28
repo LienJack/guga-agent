@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared guidance for documentation and roadmap edits."}
+{"file": "docs/solutions/architecture-patterns/long-running-agent-roadmap.md", "reason": "Existing solution note explaining the roadmap control surface and completion loop."}

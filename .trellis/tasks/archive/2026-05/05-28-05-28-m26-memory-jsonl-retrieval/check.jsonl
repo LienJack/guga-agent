@@ -1,0 +1,4 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Quality checklist for focused tests, typecheck, and build."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Verify corrupt and partial JSONL behavior remains explicit."}
+{"file":"docs/research/memory-scoped-retrieval.md","reason":"Check retrieval behavior against M18 scope and active-safe constraints."}
+{"file":"docs/research/memory-jsonl-retrieval.md","reason":"Check M26 acceptance criteria and non-goals."}
