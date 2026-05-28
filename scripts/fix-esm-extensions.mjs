@@ -20,10 +20,15 @@ async function rewriteDirectory(directory) {
 
 async function rewriteFile(path) {
   const source = await readFile(path, "utf8");
-  const rewritten = source.replace(
-    /(from\s+["'])(\.\.?\/[^"']+)(["'])/g,
-    (_match, prefix, specifier, suffix) => `${prefix}${withJsExtension(specifier)}${suffix}`
-  );
+  const rewritten = source
+    .replace(
+      /(from\s+["'])(\.\.?\/[^"']+)(["'])/g,
+      (_match, prefix, specifier, suffix) => `${prefix}${withJsExtension(specifier)}${suffix}`
+    )
+    .replace(
+      /(import\(\s*["'])(\.\.?\/[^"']+)(["']\s*\))/g,
+      (_match, prefix, specifier, suffix) => `${prefix}${withJsExtension(specifier)}${suffix}`
+    );
 
   if (rewritten !== source) {
     await writeFile(path, rewritten, "utf8");

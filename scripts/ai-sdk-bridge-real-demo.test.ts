@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { test, expect } from "vitest";
 import { AgentEventType, createAgentRuntime } from "../packages/core/src";
-import { createAiSdkProviderPlugin } from "../packages/provider-ai-sdk/src";
+import { createAiSdkProviderPlugin } from "../packages/core/src/builtins";
 
 const env = loadDotEnv(".env");
 const apiKey = env.API_KEY;
@@ -61,7 +61,7 @@ test.runIf(apiKey && baseURL && modelId)("runs the AI SDK bridge against the rea
   expect(modelEvents).toContain("model.requested");
   expect(modelEvents).toContain("model.selected");
   expect(modelEvents).toContain("model.finished");
-});
+}, 30_000);
 
 function loadDotEnv(path: string): Record<string, string> {
   const values: Record<string, string> = {};
