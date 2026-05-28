@@ -285,7 +285,55 @@ describe("CapabilityRegistry", () => {
       }],
       skippedConflicts: [
         { type: "tool", name: "read", source: "mcp", status: "skipped-conflict", reason: "name already registered" }
-      ]
+      ],
+      rejectedConflicts: []
+    });
+  });
+
+  it("records skipped and rejected conflict descriptors without replacing the registered capability", () => {
+    const registry = new CapabilityRegistry();
+    registry.registerTool(tool);
+
+    registry.recordCapabilityConflict("tool", "echo", {
+      source: "mcp",
+      layer: "extension",
+      ownerPluginId: "mcp",
+      status: "skipped-conflict",
+      reason: "name already registered"
+    });
+    registry.recordCapabilityConflict("tool", "echo", {
+      source: "plugin",
+      layer: "extension",
+      ownerPluginId: "override-plugin",
+      status: "rejected-conflict",
+      reason: "built-in override denied"
+    });
+
+    expect(registry.requireTool("echo")).toBe(tool);
+    expect(registry.listCapabilityDescriptors()).toEqual(expect.arrayContaining([
+      { type: "tool", name: "echo", source: "host", status: "registered" },
+      {
+        type: "tool",
+        name: "echo",
+        source: "mcp",
+        status: "skipped-conflict",
+        layer: "extension",
+        ownerPluginId: "mcp",
+        reason: "name already registered"
+      },
+      {
+        type: "tool",
+        name: "echo",
+        source: "plugin",
+        status: "rejected-conflict",
+        layer: "extension",
+        ownerPluginId: "override-plugin",
+        reason: "built-in override denied"
+      }
+    ]));
+    expect(diffCapabilityDescriptors([], registry.listCapabilityDescriptors())).toMatchObject({
+      skippedConflicts: [expect.objectContaining({ status: "skipped-conflict" })],
+      rejectedConflicts: [expect.objectContaining({ status: "rejected-conflict" })]
     });
   });
 
@@ -310,6 +358,32 @@ describe("CapabilityRegistry", () => {
         reason: "test"
       }
     });
+  });
+
+  it("denies extension overrides of built-in tools and chained extension overrides", () => {
+    const registry = new CapabilityRegistry();
+    registry.registerTool(tool, { source: "built-in" });
+
+    expect(() => registry.registerTool(
+      { ...tool, description: "Extension replacement" },
+      {
+        source: "plugin",
+        layer: "extension",
+        ownerPluginId: "extension",
+        override: { replaces: "echo", reason: "replace built-in" }
+      }
+    )).toThrow("Extension cannot override built-in tool without host policy: echo");
+
+    const hostRegistry = new CapabilityRegistry();
+    hostRegistry.registerTool(tool);
+    hostRegistry.registerTool(
+      { ...tool, description: "First replacement" },
+      { source: "plugin", ownerPluginId: "first", override: { replaces: "echo", reason: "first override" } }
+    );
+    expect(() => hostRegistry.registerTool(
+      { ...tool, description: "Second replacement" },
+      { source: "plugin", ownerPluginId: "second", override: { replaces: "echo", reason: "second override" } }
+    )).toThrow("Chained tool override is not supported: echo");
   });
 
   it("removes model metadata by provider and model id", () => {

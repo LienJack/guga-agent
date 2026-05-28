@@ -11,6 +11,7 @@ import type {
   CapabilityRegistrationOptions,
   CapabilitySource,
   CapabilityStatus,
+  PluginCapabilityKind,
   SkillMetadata
 } from "../contracts/plugins";
 import type { ToolDefinition } from "../contracts/tools";
@@ -65,6 +66,7 @@ export class CapabilityRegistry {
   registerTool(tool: ToolDefinition, options: ToolRegistryOptions = {}): void {
     if (this.tools.has(tool.name)) {
       if (options.override && options.override.replaces === tool.name) {
+        this.assertToolOverrideAllowed(tool.name, options);
         this.tools.set(tool.name, tool);
         this.recordDescriptor("tool", tool.name, toolDescriptorInput(options));
         return;
@@ -276,6 +278,18 @@ export class CapabilityRegistry {
     this.recordDescriptor("operation", id, options);
   }
 
+  recordCapabilityConflict(
+    type: PluginCapabilityKind,
+    name: string,
+    input: CapabilityRegistrationOptions & {
+      status: "skipped-conflict" | "rejected-conflict";
+      reason: string;
+    }
+  ): CapabilityDescriptor {
+    this.recordDescriptor(type, name, input);
+    return this.descriptors.get(descriptorKey(type, name, input)) as CapabilityDescriptor;
+  }
+
   removeOperationCapability(id: string, options: CapabilityRegistrationOptions = {}): void {
     this.removeDescriptor("operation", id, options);
   }
@@ -383,6 +397,31 @@ export class CapabilityRegistry {
   private removeDescriptor(type: CapabilityKindForRegistry, name: string, input: CapabilityRegistrationOptions = {}): void {
     this.descriptors.delete(descriptorKey(type, name, input));
   }
+
+  private assertToolOverrideAllowed(name: string, options: ToolRegistryOptions): void {
+    const existing = this.descriptors.get(descriptorKey("tool", name));
+    if (!existing) {
+      return;
+    }
+
+    const replacementSource = options.source ?? DEFAULT_CAPABILITY_SOURCE;
+    const replacementIsExtension = replacementSource === "plugin" || replacementSource === "mcp";
+    if (replacementIsExtension && existing.source === "built-in") {
+      throw new CoreError("CAPABILITY_OVERRIDE_DENIED", `Extension cannot override built-in tool without host policy: ${name}`, {
+        toolName: name,
+        source: replacementSource,
+        target: existing
+      });
+    }
+
+    if (replacementIsExtension && existing.override?.status === "active") {
+      throw new CoreError("CAPABILITY_OVERRIDE_DENIED", `Chained tool override is not supported: ${name}`, {
+        toolName: name,
+        source: replacementSource,
+        target: existing
+      });
+    }
+  }
 }
 
 function modelKey(providerId: string, modelId: string): string {
@@ -405,6 +444,10 @@ function normalizedToolOverrideInput(override: CapabilityOverrideDeclaration): P
 }
 
 function descriptorKey(type: CapabilityKindForRegistry, name: string, input: CapabilityRegistrationOptions = {}): string {
+  const status = (input as { status?: CapabilityStatus }).status;
+  if (status === "skipped-conflict" || status === "rejected-conflict") {
+    return `${type}:${status}:${input.source ?? ""}:${input.ownerPluginId ?? ""}:${input.namespace ?? ""}:${name}`;
+  }
   if (type === "hook") {
     return `${type}:${input.ownerPluginId ?? ""}:${name}`;
   }
@@ -444,7 +487,8 @@ export function diffCapabilityDescriptors(
     changed: changed.sort((left, right) =>
       descriptorIdentity(left.before).localeCompare(descriptorIdentity(right.before))
     ),
-    skippedConflicts: sortDescriptors(after.filter((descriptor) => descriptor.status === "skipped-conflict"))
+    skippedConflicts: sortDescriptors(after.filter((descriptor) => descriptor.status === "skipped-conflict")),
+    rejectedConflicts: sortDescriptors(after.filter((descriptor) => descriptor.status === "rejected-conflict"))
   };
 }
 

@@ -155,6 +155,7 @@ export type CapabilityDiff = {
     after: CapabilityDescriptor;
   }>;
   skippedConflicts: CapabilityDescriptor[];
+  rejectedConflicts: CapabilityDescriptor[];
 };
 
 export type PluginContext = {
