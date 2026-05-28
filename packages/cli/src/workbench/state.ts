@@ -1,0 +1,154 @@
+import type { HostErrorPayload, InteractionRequest, QueuedRunInputSummaryResource } from "@guga-agent/host-protocol";
+
+export type WorkbenchStartupMetadata = {
+  projectPath: string;
+  sessionId?: string;
+  branchId?: string;
+  profileId: string;
+  providerId?: string;
+  modelId?: string;
+  configSource?: string;
+  slashCommands: string[];
+};
+
+export type WorkbenchRunStatus =
+  | "idle"
+  | "running"
+  | "waiting-for-permission"
+  | "waiting-for-interaction"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type WorkbenchUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsd?: number;
+};
+
+export type QueueSummary = {
+  pending: QueuedRunInputSummaryResource[];
+  followUpCount: number;
+  steerCount: number;
+};
+
+type TranscriptBlockBase<Kind extends string> = {
+  id: string;
+  kind: Kind;
+  sessionId: string;
+  runId: string;
+  firstSeq: number;
+  lastSeq: number;
+  occurredAt: string;
+};
+
+export type AssistantTranscriptBlock = TranscriptBlockBase<"assistant"> & {
+  messageId: string;
+  text: string;
+  status: "streaming" | "completed";
+};
+
+export type ToolTranscriptBlock = TranscriptBlockBase<"tool"> & {
+  callId: string;
+  name: string;
+  status: "running" | "completed" | "failed";
+  input?: unknown;
+  output?: unknown;
+  artifactIds: string[];
+  error?: HostErrorPayload;
+};
+
+export type PermissionTranscriptBlock = TranscriptBlockBase<"permission"> & {
+  requestId: string;
+  callId: string;
+  toolName: string;
+  status: "pending" | "allowed" | "denied" | "cancelled";
+  input?: unknown;
+  reason?: string;
+  remember?: "once" | "session" | "always";
+  resolutionReason?: string;
+};
+
+export type InteractionTranscriptBlock = TranscriptBlockBase<"interaction"> & {
+  requestId: string;
+  request: InteractionRequest;
+  status: "pending" | "resolved" | "cancelled";
+  response?: unknown;
+};
+
+export type QueueTranscriptBlock = TranscriptBlockBase<"queue"> & QueueSummary;
+
+export type AbortTranscriptBlock = TranscriptBlockBase<"abort"> & {
+  error: HostErrorPayload;
+};
+
+export type ErrorTranscriptBlock = TranscriptBlockBase<"error"> & {
+  error: HostErrorPayload;
+};
+
+export type ArtifactTranscriptBlock = TranscriptBlockBase<"artifact"> & {
+  artifactId: string;
+  name: string;
+  mimeType?: string;
+  sizeBytes?: number;
+};
+
+export type ContextTranscriptBlock = TranscriptBlockBase<"context"> & {
+  boundaryId: string;
+  trigger: string;
+  summary?: string;
+};
+
+export type TranscriptBlock =
+  | AssistantTranscriptBlock
+  | ToolTranscriptBlock
+  | PermissionTranscriptBlock
+  | InteractionTranscriptBlock
+  | QueueTranscriptBlock
+  | AbortTranscriptBlock
+  | ErrorTranscriptBlock
+  | ArtifactTranscriptBlock
+  | ContextTranscriptBlock;
+
+export type WorkbenchState = {
+  startup: WorkbenchStartupMetadata;
+  transcriptBlocks: TranscriptBlock[];
+  activeSessionId?: string;
+  activeRunId?: string;
+  runStatus: WorkbenchRunStatus;
+  statusText: string;
+  queue: QueueSummary;
+  usage: WorkbenchUsage;
+  lastSeq: number;
+  clearedThroughSeq: number;
+};
+
+export type WorkbenchAction = {
+  type: "ui.clear";
+};
+
+export function createInitialWorkbenchState(startup: WorkbenchStartupMetadata): WorkbenchState {
+  const state: WorkbenchState = {
+    startup,
+    transcriptBlocks: [],
+    runStatus: "idle",
+    statusText: "Idle",
+    queue: {
+      pending: [],
+      followUpCount: 0,
+      steerCount: 0
+    },
+    usage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0
+    },
+    lastSeq: 0,
+    clearedThroughSeq: 0
+  };
+  if (startup.sessionId) {
+    state.activeSessionId = startup.sessionId;
+  }
+  return state;
+}

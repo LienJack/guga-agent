@@ -2,19 +2,30 @@ import {
   createAgentRuntime,
   type AgentRuntime,
   type AgentRuntimeOptions,
-  type CapabilityDescriptor
+  type CapabilityDescriptor,
+  type PermissionAllowDecision,
+  type PermissionDenyDecision,
+  type PermissionRequest,
+  type Provider,
+  type ToolDefinition
 } from "@guga-agent/core";
 import {
+  HOST_PROTOCOL_FEATURES,
+  HOST_PROTOCOL_VERSION,
   createHostEventSequencer,
   type AuditSummaryResource,
   type CapabilityResource,
+  type HostErrorPayload,
   type HostEventSequencer,
   type HostEvent,
+  type HostProtocolInfoResource,
   type InteractionRequest,
   type InteractionResource,
   type MetricsSnapshotResource,
   type OperationalDiagnosticResource,
   type OperationalStatusResource,
+  type PermissionRequestResource,
+  type PermissionResolution,
   type ProviderHealthResource,
   type QueuedRunInputResource,
   type QueuedRunInputSummaryResource,
@@ -60,6 +71,17 @@ export type RequestInteractionOptions = {
   request: InteractionRequest;
 };
 
+export type PermissionResponseResult =
+  | {
+      ok: true;
+      permission: PermissionRequestResource;
+    }
+  | {
+      ok: false;
+      status: 400 | 404 | 409;
+      error: HostErrorPayload;
+    };
+
 export class HostRuntime {
   private readonly runtime: AgentRuntime;
   private readonly ownsRuntime: boolean;
@@ -69,12 +91,65 @@ export class HostRuntime {
   private readonly activeRunControllers = new Map<string, AbortController>();
   private readonly activeRunCompletions = new Map<string, Promise<RunResource>>();
   private readonly activeRunSequencers = new Map<string, HostEventSequencer>();
+  private readonly pendingPermissionResolvers = new Map<
+    string,
+    (decision: PermissionAllowDecision | PermissionDenyDecision) => void
+  >();
+  private readonly resolvedPermissionDecisions = new Map<string, PermissionAllowDecision | PermissionDenyDecision>();
 
   constructor(options: HostRuntimeOptions = {}) {
-    this.runtime = options.runtime ?? createAgentRuntime(options.runtimeOptions ?? {});
+    this.runtime = options.runtime ?? createAgentRuntime(this.runtimeOptionsWithPermissionBridge(options.runtimeOptions));
     this.ownsRuntime = !options.runtime;
     this.now = options.now ?? (() => new Date());
     this.idFactory = options.idFactory ?? (() => crypto.randomUUID());
+  }
+
+  getProtocolInfo(): HostProtocolInfoResource {
+    return {
+      version: HOST_PROTOCOL_VERSION,
+      features: HOST_PROTOCOL_FEATURES
+    };
+  }
+
+  registerProvider(provider: Provider): void {
+    this.runtime.registerProvider(provider);
+  }
+
+  registerTool(tool: ToolDefinition): void {
+    this.runtime.registerTool(tool);
+  }
+
+  private runtimeOptionsWithPermissionBridge(runtimeOptions: AgentRuntimeOptions | undefined): AgentRuntimeOptions {
+    const configuredResolver = runtimeOptions?.permissions?.resolver;
+    return {
+      ...(runtimeOptions ?? {}),
+      permissions: {
+        ...(runtimeOptions?.permissions ?? {}),
+        resolver: configuredResolver
+          ? async (request) => {
+              const decision = await configuredResolver(request);
+              if (decision.action === "deny" && decision.metadata?.hostResolverRequired === true) {
+                return this.resolveHostPermission(request);
+              }
+              return decision;
+            }
+          : (request) => this.resolveHostPermission(request)
+      }
+    };
+  }
+
+  private async resolveHostPermission(
+    request: PermissionRequest
+  ): Promise<PermissionAllowDecision | PermissionDenyDecision> {
+    const permissionId = permissionRequestId(request);
+    const existingDecision = this.resolvedPermissionDecisions.get(permissionId);
+    if (existingDecision) {
+      this.resolvedPermissionDecisions.delete(permissionId);
+      return existingDecision;
+    }
+    return await new Promise<PermissionAllowDecision | PermissionDenyDecision>((resolve) => {
+      this.pendingPermissionResolvers.set(permissionId, resolve);
+    });
   }
 
   createSession(options: { title?: string } = {}): SessionResource {
@@ -191,6 +266,9 @@ export class HostRuntime {
     this.activeRunControllers.set(runId, controller);
     this.activeRunSequencers.set(runId, sequencer);
     const unsubscribe = this.runtime.onEvent((event) => {
+      if (isTerminalRunStatus(this.store.getRun(runId)?.status ?? "running")) {
+        return;
+      }
       const hostEvents = projectAgentEvent(event, { sessionId: session.id, runId, sequencer });
       this.store.appendEvents(runId, hostEvents);
       this.applyEventEffects(runId, hostEvents);
@@ -249,12 +327,24 @@ export class HostRuntime {
       code: "RUN_CANCELLED",
       message: "Run was cancelled"
     };
+    const followUp = wasCancelled ? undefined : this.consumeNextFollowUpInput(state.runId, state.sequencer);
+    if (wasCancelled && this.store.listEvents(state.runId).some((event) => event.type === "run.cancelled")) {
+      return this.store.getRun(state.runId) ?? {
+        id: state.runId,
+        sessionId: state.sessionId,
+        status: "cancelled",
+        input: options.input,
+        createdAt: this.now().toISOString(),
+        updatedAt: this.now().toISOString(),
+        lastSeq: 0
+      };
+    }
     const terminalEvent = wasCancelled
       ? state.sequencer.next({
-          type: "run.failed",
+          type: "run.cancelled",
           sessionId: state.sessionId,
           runId: state.runId,
-          error: cancelError
+          reason: cancelError.message
         })
       : result.ok
       ? state.sequencer.next({
@@ -278,6 +368,15 @@ export class HostRuntime {
         updatedAt: terminalEvent.occurredAt
       });
     }
+    if (followUp) {
+      this.startRunDetached({
+        sessionId: state.sessionId,
+        input: followUp.text,
+        ...(options.providerId ? { providerId: options.providerId } : {}),
+        ...(options.modelId ? { modelId: options.modelId } : {}),
+        ...(options.maxTurns !== undefined ? { maxTurns: options.maxTurns } : {})
+      });
+    }
 
     return this.store.getRun(state.runId) ?? {
       id: state.runId,
@@ -298,11 +397,9 @@ export class HostRuntime {
     if (run.status === "completed" || run.status === "failed" || run.status === "cancelled") {
       return run;
     }
+    this.cancelPendingRunState(run, "Run was cancelled");
+    this.emitRunCancelled(runId, run.sessionId, "Run was cancelled");
     this.activeRunControllers.get(runId)?.abort("Run cancelled");
-    this.store.updateRun(runId, {
-      status: "cancelled",
-      updatedAt: this.now().toISOString()
-    });
     return this.store.getRun(runId);
   }
 
@@ -311,10 +408,14 @@ export class HostRuntime {
     if (!run) {
       return undefined;
     }
+    if (isTerminalRunStatus(run.status)) {
+      return undefined;
+    }
     const timestamp = this.now().toISOString();
     const queuedInput: QueuedRunInputResource = {
       id: `input-${this.idFactory()}`,
       mode: options.mode,
+      status: options.mode === "steer" ? "deferred" : "pending",
       text: options.text,
       textPreview: previewText(options.text),
       createdAt: timestamp
@@ -361,15 +462,15 @@ export class HostRuntime {
       const run = this.store.getRun(options.runId);
       const sequencer = this.activeRunSequencers.get(options.runId)
         ?? createHostEventSequencer({ startSeq: run?.lastSeq ?? 0, now: this.now });
-      this.store.appendEvents(options.runId, [
-        sequencer.next({
-          type: "interaction.requested",
-          sessionId: options.sessionId,
-          runId: options.runId,
-          requestId: interaction.id,
-          request: options.request
-        })
-      ]);
+      const event = sequencer.next({
+        type: "interaction.requested",
+        sessionId: options.sessionId,
+        runId: options.runId,
+        requestId: interaction.id,
+        request: options.request
+      });
+      this.store.appendEvents(options.runId, [event]);
+      this.applyEventEffects(options.runId, [event]);
     }
     return interaction;
   }
@@ -393,17 +494,75 @@ export class HostRuntime {
       const run = this.store.getRun(interaction.runId);
       const sequencer = this.activeRunSequencers.get(interaction.runId)
         ?? createHostEventSequencer({ startSeq: run?.lastSeq ?? 0, now: this.now });
-      this.store.appendEvents(interaction.runId, [
-        sequencer.next({
-          type: "interaction.resolved",
-          sessionId: interaction.sessionId,
-          runId: interaction.runId,
-          requestId: interaction.id,
-          response
-        })
-      ]);
+      const event = sequencer.next({
+        type: "interaction.resolved",
+        sessionId: interaction.sessionId,
+        runId: interaction.runId,
+        requestId: interaction.id,
+        response
+      });
+      this.store.appendEvents(interaction.runId, [event]);
+      this.applyEventEffects(interaction.runId, [event]);
     }
     return this.store.getInteraction(interactionId);
+  }
+
+  getPermission(permissionId: string): PermissionRequestResource | undefined {
+    return this.store.getPermission(permissionId);
+  }
+
+  respondPermission(permissionId: string, resolution: PermissionResolution): PermissionResponseResult {
+    const validation = validatePermissionResolution(resolution);
+    if (!validation.ok) {
+      return validation;
+    }
+
+    const permission = this.store.getPermission(permissionId);
+    if (!permission) {
+      return {
+        ok: false,
+        status: 404,
+        error: {
+          code: "NOT_FOUND",
+          message: "Permission request not found"
+        }
+      };
+    }
+    if (permission.status !== "pending") {
+      return {
+        ok: false,
+        status: 409,
+        error: {
+          code: "PERMISSION_NOT_PENDING",
+          message: "Permission request is not pending"
+        }
+      };
+    }
+
+    const timestamp = this.now().toISOString();
+    const status = resolution.decision === "allow" ? "allowed" : "denied";
+    this.store.updatePermission(permissionId, {
+      status,
+      ...(resolution.reason !== undefined ? { reason: resolution.reason } : {}),
+      resolvedAt: timestamp
+    });
+    const resolver = this.pendingPermissionResolvers.get(permissionId);
+    this.pendingPermissionResolvers.delete(permissionId);
+    const decision = permissionDecisionFromResolution(resolution);
+    if (resolver) {
+      resolver(decision);
+    } else {
+      this.resolvedPermissionDecisions.set(permissionId, decision);
+    }
+    return {
+      ok: true,
+      permission: this.store.getPermission(permissionId) ?? {
+        ...permission,
+        status,
+        ...(resolution.reason !== undefined ? { reason: resolution.reason } : {}),
+        resolvedAt: timestamp
+      }
+    };
   }
 
   getRun(runId: string): RunResource | undefined {
@@ -482,18 +641,186 @@ export class HostRuntime {
           error: event.error,
           updatedAt: event.occurredAt
         });
+      } else if (event.type === "run.cancelled") {
+        this.store.updateRun(runId, {
+          status: "cancelled",
+          error: {
+            code: "RUN_CANCELLED",
+            message: event.reason ?? "Run was cancelled"
+          },
+          updatedAt: event.occurredAt
+        });
       } else if (event.type === "permission.requested") {
+        this.store.putPermission({
+          id: event.requestId,
+          runId,
+          sessionId: event.sessionId,
+          callId: event.callId,
+          toolName: event.toolName,
+          status: "pending",
+          ...(event.input !== undefined ? { input: event.input } : {}),
+          ...(event.reason ? { reason: event.reason } : {}),
+          createdAt: event.occurredAt
+        });
         this.store.updateRun(runId, {
           status: "waiting-for-permission",
           updatedAt: event.occurredAt
         });
       } else if (event.type === "permission.resolved") {
+        const permission = this.store.getPermission(event.requestId);
+        if (permission?.status === "pending") {
+          this.store.updatePermission(event.requestId, {
+            status: event.decision === "allow" ? "allowed" : "denied",
+            ...(event.reason !== undefined ? { reason: event.reason } : {}),
+            resolvedAt: event.occurredAt
+          });
+        }
+        if (!isTerminalRunStatus(this.store.getRun(runId)?.status ?? "running")) {
+          this.store.updateRun(runId, {
+            status: "running",
+            updatedAt: event.occurredAt
+          });
+        }
+      } else if (event.type === "permission.cancelled") {
+        this.store.updatePermission(event.requestId, {
+          status: "cancelled",
+          ...(event.reason !== undefined ? { reason: event.reason } : {}),
+          resolvedAt: event.occurredAt
+        });
+      } else if (event.type === "interaction.requested") {
         this.store.updateRun(runId, {
-          status: "running",
+          status: "waiting-for-interaction",
           updatedAt: event.occurredAt
+        });
+      } else if (event.type === "interaction.resolved") {
+        if (!isTerminalRunStatus(this.store.getRun(runId)?.status ?? "running")) {
+          this.store.updateRun(runId, {
+            status: "running",
+            updatedAt: event.occurredAt
+          });
+        }
+      } else if (event.type === "interaction.cancelled") {
+        this.store.updateInteraction(event.requestId, {
+          status: "cancelled",
+          resolvedAt: event.occurredAt
         });
       }
     }
+  }
+
+  private consumeNextFollowUpInput(runId: string, sequencer: HostEventSequencer): QueuedRunInputResource | undefined {
+    const run = this.store.getRun(runId);
+    const queuedInputs = run?.queuedInputs ?? [];
+    const followUp = queuedInputs.find((input) => input.mode === "follow_up" && input.status === "pending");
+    if (!run || !followUp) {
+      return undefined;
+    }
+    const timestamp = this.now().toISOString();
+    const remaining = queuedInputs
+      .filter((input) => input.id !== followUp.id)
+      .map((input) => input.mode === "steer" && input.status === "pending"
+        ? { ...input, status: "deferred" as const }
+        : input);
+    this.store.updateRun(runId, {
+      queuedInputs: remaining,
+      updatedAt: timestamp
+    });
+    const event = sequencer.next({
+      type: "queue.updated",
+      sessionId: run.sessionId,
+      runId,
+      pending: remaining.map(queuedRunInputSummary)
+    });
+    this.store.appendEvents(runId, [event]);
+    return {
+      ...followUp,
+      status: "consumed",
+      resolvedAt: timestamp
+    };
+  }
+
+  private cancelPendingRunState(run: RunResource, reason: string): void {
+    const sequencer = this.activeRunSequencers.get(run.id)
+      ?? createHostEventSequencer({ startSeq: run.lastSeq, now: this.now });
+    const timestamp = this.now().toISOString();
+    const events: HostEvent[] = [];
+
+    if ((run.queuedInputs ?? []).length > 0) {
+      this.store.updateRun(run.id, {
+        queuedInputs: [],
+        updatedAt: timestamp
+      });
+      events.push(sequencer.next({
+        type: "queue.updated",
+        sessionId: run.sessionId,
+        runId: run.id,
+        pending: []
+      }));
+    }
+
+    for (const permission of this.store.listPermissionsByRun(run.id).filter((item) => item.status === "pending")) {
+      this.store.updatePermission(permission.id, {
+        status: "cancelled",
+        reason,
+        resolvedAt: timestamp
+      });
+      const resolver = this.pendingPermissionResolvers.get(permission.id);
+      this.pendingPermissionResolvers.delete(permission.id);
+      const decision: PermissionDenyDecision = {
+        action: "deny",
+        remember: "once",
+        source: "host",
+        reason,
+        metadata: { cancelled: true }
+      };
+      if (resolver) {
+        resolver(decision);
+      } else {
+        this.resolvedPermissionDecisions.set(permission.id, decision);
+      }
+      events.push(sequencer.next({
+        type: "permission.cancelled",
+        sessionId: run.sessionId,
+        runId: run.id,
+        requestId: permission.id,
+        callId: permission.callId,
+        toolName: permission.toolName,
+        reason
+      }));
+    }
+
+    for (const interaction of this.store.listInteractionsByRun(run.id).filter((item) => item.status === "pending")) {
+      this.store.updateInteraction(interaction.id, {
+        status: "cancelled",
+        resolvedAt: timestamp
+      });
+      events.push(sequencer.next({
+        type: "interaction.cancelled",
+        sessionId: run.sessionId,
+        runId: run.id,
+        requestId: interaction.id,
+        reason
+      }));
+    }
+
+    this.store.appendEvents(run.id, events);
+  }
+
+  private emitRunCancelled(runId: string, sessionId: string, reason: string): void {
+    const run = this.store.getRun(runId);
+    if (!run || isTerminalRunStatus(run.status) || this.store.listEvents(runId).some((event) => event.type === "run.cancelled")) {
+      return;
+    }
+    const sequencer = this.activeRunSequencers.get(runId)
+      ?? createHostEventSequencer({ startSeq: run.lastSeq, now: this.now });
+    const event = sequencer.next({
+      type: "run.cancelled",
+      sessionId,
+      runId,
+      reason
+    });
+    this.store.appendEvents(runId, [event]);
+    this.applyEventEffects(runId, [event]);
   }
 }
 
@@ -501,9 +828,75 @@ function queuedRunInputSummary(input: QueuedRunInputResource): QueuedRunInputSum
   return {
     id: input.id,
     mode: input.mode,
+    status: input.status,
     textPreview: input.textPreview,
-    createdAt: input.createdAt
+    createdAt: input.createdAt,
+    ...(input.resolvedAt ? { resolvedAt: input.resolvedAt } : {})
   };
+}
+
+function permissionRequestId(request: PermissionRequest): string {
+  return `${request.runId}:${request.toolCallId}:${request.attempt}`;
+}
+
+function validatePermissionResolution(
+  resolution: PermissionResolution
+): PermissionResponseResult & { ok: false } | { ok: true } {
+  if (
+    !resolution
+    || typeof resolution !== "object"
+    || (resolution.decision !== "allow" && resolution.decision !== "deny")
+  ) {
+    return {
+      ok: false,
+      status: 400,
+      error: {
+        code: "BAD_REQUEST",
+        message: "Permission resolution requires decision allow|deny"
+      }
+    };
+  }
+  if (
+    resolution.remember !== undefined
+    && resolution.remember !== "once"
+    && resolution.remember !== "session"
+    && resolution.remember !== "always"
+  ) {
+    return {
+      ok: false,
+      status: 400,
+      error: {
+        code: "BAD_REQUEST",
+        message: "Permission resolution remember must be once|session|always"
+      }
+    };
+  }
+  return { ok: true };
+}
+
+function permissionDecisionFromResolution(
+  resolution: PermissionResolution
+): PermissionAllowDecision | PermissionDenyDecision {
+  const remember = resolution.remember === "always" ? "session" : resolution.remember ?? "once";
+  if (resolution.decision === "allow") {
+    return {
+      action: "allow",
+      remember,
+      source: "host",
+      ...(resolution.reason ? { reason: resolution.reason } : {})
+    };
+  }
+  return {
+    action: "deny",
+    remember,
+    source: "host",
+    reason: resolution.reason ?? "Permission denied by host",
+    ...(resolution.updatedInput !== undefined ? { metadata: { updatedInput: resolution.updatedInput } } : {})
+  };
+}
+
+function isTerminalRunStatus(status: RunResource["status"]): boolean {
+  return status === "completed" || status === "failed" || status === "cancelled";
 }
 
 function previewText(text: string): string {
@@ -565,6 +958,14 @@ function auditSummaryFromRun(run: RunResource, events: HostEvent[]): AuditSummar
           message: event.error.message
         });
         break;
+      case "run.cancelled":
+        completedAt = event.occurredAt;
+        failures.push({
+          severity: "warning",
+          code: "RUN_CANCELLED",
+          message: event.reason ?? "Run was cancelled"
+        });
+        break;
       case "tool.started":
         toolCalls.started += 1;
         break;
@@ -620,6 +1021,7 @@ function metricsSnapshotFromEvents(events: HostEvent[], updatedAt: string): Metr
     "runs.started": 0,
     "runs.completed": 0,
     "runs.failed": 0,
+    "runs.cancelled": 0,
     "tools.started": 0,
     "tools.completed": 0,
     "tools.failed": 0,
@@ -641,6 +1043,9 @@ function metricsSnapshotFromEvents(events: HostEvent[], updatedAt: string): Metr
         break;
       case "run.failed":
         increment(counters, "runs.failed");
+        break;
+      case "run.cancelled":
+        increment(counters, "runs.cancelled");
         break;
       case "tool.started":
         increment(counters, "tools.started");

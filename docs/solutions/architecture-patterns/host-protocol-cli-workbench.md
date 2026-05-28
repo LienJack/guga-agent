@@ -2,6 +2,8 @@
 
 M7/M11 establishes Guga's first host-facing product surface without moving runtime behavior out of `packages/core`.
 
+For the productized CLI workbench and future desktop GUI, the stabilized protocol target is documented in `docs/solutions/architecture-patterns/host-ui-protocol-v1.md`.
+
 ## Problem
 
 CLI, local HTTP, Web, desktop, and future external protocol adapters all need the same facts:

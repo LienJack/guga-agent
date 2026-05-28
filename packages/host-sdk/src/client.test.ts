@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createAgentRuntime, createMockProvider, createTestTool } from "@guga-agent/core";
+import { createAgentRuntime, createMockProvider, createTestTool, type ToolDefinition } from "@guga-agent/core";
 import { HostRuntime } from "@guga-agent/host-runtime";
 import { HostClientError, connectHost } from "./client";
+import { expectProtocolDiscoveryContract, expectQueueAndAbortContract } from "./contract/host-client-contract";
 import { createLocalGugaHost, type LocalGugaHost } from "./server-launcher";
 import { parseSsePayload } from "./sse-client";
 
@@ -12,9 +13,29 @@ afterEach(async () => {
 });
 
 describe("host SDK", () => {
+  it("reads and verifies host protocol discovery", async () => {
+    const host = await startSdkHost();
+
+    await expect(host.client.getProtocolInfo()).resolves.toMatchObject({
+      version: "1",
+      features: expect.arrayContaining(["permissions", "run-abort"])
+    });
+    await expect(host.client.assertCompatibleProtocol()).resolves.toMatchObject({ version: "1" });
+    await expect(connectHost({
+      baseUrl: "http://incompatible",
+      fetch: async () => new Response(JSON.stringify({ version: "2", features: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    }).assertCompatibleProtocol()).rejects.toMatchObject({
+      code: "UNSUPPORTED_PROTOCOL_VERSION",
+      status: 426
+    });
+  });
+
   it("creates sessions, starts runs, parses event streams, and reads final state", async () => {
     const host = await startSdkHost();
-    const client = connectHost({ baseUrl: host.baseUrl });
+    const client = connectHost({ baseUrl: host.baseUrl, bridgeToken: host.server.bridgeToken });
 
     const session = await client.createSession({ title: "SDK" });
     const run = await client.startRun(session.id, { input: "hello", providerId: "mock" });
@@ -91,6 +112,23 @@ describe("host SDK", () => {
     await expect(host.client.abortRun(run.id)).resolves.toMatchObject({ status: "cancelled" });
   });
 
+  it("runs the initial shared host client protocol contract", async () => {
+    const host = await startControlledSdkHost(["session-1", "run-1", "input-1"]);
+
+    await expectProtocolDiscoveryContract({
+      client: host.client,
+      createRunningRun: async () => ({ runId: "unused" })
+    });
+    await expectQueueAndAbortContract({
+      client: host.client,
+      createRunningRun: async () => {
+        const session = await host.client.createSession();
+        const run = await host.client.startRun(session.id, { input: "wait", providerId: "controlled" });
+        return { runId: run.id };
+      }
+    });
+  });
+
   it("manages sessions, branches, and interactions through the typed client", async () => {
     const host = await startControlledSdkHost(["session-1", "branch-1", "run-1", "interaction-1"]);
     const session = await host.client.createSession({ title: "SDK tree" });
@@ -128,9 +166,47 @@ describe("host SDK", () => {
     await host.client.abortRun(run.id);
   });
 
+  it("responds to permission resources through the typed client", async () => {
+    const host = await startPermissionSdkHost();
+    const session = await host.client.createSession();
+    const run = await host.client.startRun(session.id, { input: "write", providerId: "mock" });
+    const permissionId = `${run.id}:write:1`;
+    await waitFor(async () => {
+      const permission = await host.client.getPermission(permissionId).catch(() => undefined);
+      return permission?.status === "pending";
+    });
+
+    await expect(host.client.respondPermission(permissionId, {
+      decision: "maybe" as "allow"
+    })).rejects.toMatchObject({
+      status: 400,
+      code: "BAD_REQUEST"
+    });
+    await expect(host.client.respondPermission(permissionId, {
+      decision: "allow",
+      remember: "once"
+    })).resolves.toMatchObject({
+      id: permissionId,
+      status: "allowed"
+    });
+    await expect(host.client.respondPermission(permissionId, {
+      decision: "deny"
+    })).rejects.toMatchObject({
+      status: 409,
+      code: "PERMISSION_NOT_PENDING"
+    });
+    await expect(host.client.respondPermission("missing", {
+      decision: "allow"
+    })).rejects.toMatchObject({
+      status: 404,
+      code: "NOT_FOUND"
+    });
+  });
+
+
   it("parses buffered SSE payloads", () => {
     expect(parseSsePayload([
-      "id: run-1:1",
+      "id: 1",
       "event: guga.host-event",
       "data: {\"type\":\"run.started\",\"seq\":1,\"occurredAt\":\"now\",\"sessionId\":\"s\",\"runId\":\"run-1\",\"input\":\"hi\"}",
       "",
@@ -180,6 +256,20 @@ async function startControlledSdkHost(ids: string[] = ["session-1", "run-1", "in
   return host;
 }
 
+async function startPermissionSdkHost(): Promise<LocalGugaHost> {
+  const host = await createLocalGugaHost({
+    runtimeOptions: { permissions: { profile: "ask-on-write" } },
+    pollIntervalMs: 1
+  });
+  host.server.hostRuntime.registerProvider(createMockProvider([
+    { type: "tool_calls", toolCalls: [{ id: "write", name: "write_tool", input: { value: "x" } }] },
+    { type: "final", content: "done" }
+  ]));
+  host.server.hostRuntime.registerTool(writeTool());
+  hosts.push(host);
+  return host;
+}
+
 async function drainRunEvents(host: LocalGugaHost, runId: string): Promise<void> {
   let eventCount = 0;
   for await (const event of host.client.streamRunEvents(runId)) {
@@ -197,5 +287,27 @@ function deterministicIds(values: string[]): () => string {
       throw new Error("No deterministic id left");
     }
     return value;
+  };
+}
+
+async function waitFor(predicate: () => Promise<boolean>): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (await predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  throw new Error("Timed out waiting for condition");
+}
+
+function writeTool(): ToolDefinition {
+  return {
+    name: "write_tool",
+    description: "Write test tool",
+    inputSchema: { type: "object" },
+    effect: "write",
+    execute() {
+      return { ok: true, content: "write ok" };
+    }
   };
 }

@@ -6,12 +6,15 @@ export type {
   HostEventSequencer,
   HostEventType,
   InteractionRequestedHostEvent,
+  InteractionCancelledHostEvent,
   InteractionResolvedHostEvent,
   MessageCompletedHostEvent,
   MessageDeltaHostEvent,
   PermissionRequestedHostEvent,
+  PermissionCancelledHostEvent,
   PermissionResolvedHostEvent,
   QueueUpdatedHostEvent,
+  RunCancelledHostEvent,
   RunCompletedHostEvent,
   RunFailedHostEvent,
   RunStartedHostEvent,
@@ -31,6 +34,8 @@ export type {
   AuditSummaryResource,
   CapabilityResource,
   CapabilityScopeResource,
+  HostProtocolFeature,
+  HostProtocolInfoResource,
   HostErrorPayload,
   InteractionRequest,
   InteractionResource,
@@ -44,6 +49,7 @@ export type {
   ProviderHealthResource,
   QueuedRunInputResource,
   QueuedRunInputSummaryResource,
+  QueuedRunInputStatus,
   RunInputMode,
   RunResource,
   RunStatus,
@@ -53,6 +59,10 @@ export type {
   TrustDescriptorResource,
   UsageCostResource,
   UsageResource
+} from "./resources";
+export {
+  HOST_PROTOCOL_FEATURES,
+  HOST_PROTOCOL_VERSION
 } from "./resources";
 export type {
   SseEnvelope

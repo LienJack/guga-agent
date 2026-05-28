@@ -1,5 +1,37 @@
 import type { HostEvent } from "./events";
 
+export type HostProtocolInfoResource = {
+  version: "1";
+  features: HostProtocolFeature[];
+};
+
+export type HostProtocolFeature =
+  | "runs"
+  | "run-input-queue"
+  | "run-abort"
+  | "follow-up-consumption"
+  | "steer-deferred"
+  | "permissions"
+  | "interactions"
+  | "sessions"
+  | "operations"
+  | "sse-replay";
+
+export const HOST_PROTOCOL_VERSION = "1";
+
+export const HOST_PROTOCOL_FEATURES: HostProtocolFeature[] = [
+  "runs",
+  "run-input-queue",
+  "run-abort",
+  "follow-up-consumption",
+  "steer-deferred",
+  "permissions",
+  "interactions",
+  "sessions",
+  "operations",
+  "sse-replay"
+];
+
 export type SessionResource = {
   id: string;
   title?: string;
@@ -25,7 +57,14 @@ export type SessionTreeResource = {
   branches: SessionBranchResource[];
 };
 
-export type RunStatus = "queued" | "running" | "waiting-for-permission" | "completed" | "failed" | "cancelled";
+export type RunStatus =
+  | "queued"
+  | "running"
+  | "waiting-for-permission"
+  | "waiting-for-interaction"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 export type RunResource = {
   id: string;
@@ -43,12 +82,16 @@ export type RunResource = {
 
 export type RunInputMode = "steer" | "follow_up";
 
+export type QueuedRunInputStatus = "pending" | "deferred" | "consumed" | "cancelled";
+
 export type QueuedRunInputResource = {
   id: string;
   mode: RunInputMode;
+  status: QueuedRunInputStatus;
   text: string;
   textPreview: string;
   createdAt: string;
+  resolvedAt?: string;
 };
 
 export type QueuedRunInputSummaryResource = Omit<QueuedRunInputResource, "text">;

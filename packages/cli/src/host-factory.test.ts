@@ -1,0 +1,121 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { CODE_AGENT_PROFILE_ID } from "@guga-agent/profile-code-agent";
+import { DEEP_RESEARCH_PROFILE_ID } from "@guga-agent/profile-deep-research-agent";
+import { CliHostFactoryError, createCliHost } from "./host-factory";
+
+describe("CLI host factory", () => {
+  it("defaults to the code profile with mock provider", async () => {
+    const host = await createCliHost({ mock: true, env: {} });
+    try {
+      expect(host.profileId).toBe(CODE_AGENT_PROFILE_ID);
+      await runNoop(host);
+      await expect(host.local.client.listCapabilities()).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: "tool", name: "fs_read" }),
+          expect.objectContaining({ type: "operation", name: "provider.health" })
+        ])
+      );
+    } finally {
+      await host.local.close();
+    }
+  });
+
+  it("switches profiles from flags", async () => {
+    const host = await createCliHost({
+      mock: true,
+      profileId: DEEP_RESEARCH_PROFILE_ID,
+      env: {}
+    });
+    try {
+      expect(host.profileId).toBe(DEEP_RESEARCH_PROFILE_ID);
+      await runNoop(host);
+      await expect(host.local.client.listCapabilities()).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: "operation", name: "provider.health" })
+        ])
+      );
+    } finally {
+      await host.local.close();
+    }
+  });
+
+  it("uses file configured model aliases for real provider setup", async () => {
+    const configPath = await writeTempConfig({
+      providerId: "ai-sdk",
+      providerMode: "openai-compatible",
+      defaultModel: "fast",
+      models: [{
+        id: "fast",
+        modelId: "gpt-fast"
+      }]
+    });
+    const host = await createCliHost({
+      env: {
+        GUGA_CONFIG: configPath,
+        GUGA_API_KEY: "test-key"
+      }
+    });
+    try {
+      expect(host.selectedModel).toMatchObject({
+        id: "fast",
+        modelId: "gpt-fast"
+      });
+      expect(host.providerId).toBe("ai-sdk");
+    } finally {
+      await host.local.close();
+    }
+  });
+
+  it("does not require api key for mock provider", async () => {
+    const host = await createCliHost({
+      mock: true,
+      modelSelector: "missing-real-model",
+      env: {}
+    });
+    try {
+      const session = await host.local.client.createSession({});
+      const run = await host.local.client.startRun(session.id, {
+        input: "hello",
+        providerId: "mock"
+      });
+      await expect(drainRun(host, run.id)).resolves.toContain("run.completed");
+    } finally {
+      await host.local.close();
+    }
+  });
+
+  it("fails clearly when no model is configured", async () => {
+    await expect(createCliHost({ env: {} })).rejects.toMatchObject({
+      code: "MODEL_REQUIRED"
+    } satisfies Partial<CliHostFactoryError>);
+  });
+});
+
+async function drainRun(host: Awaited<ReturnType<typeof createCliHost>>, runId: string): Promise<string[]> {
+  const types: string[] = [];
+  for await (const event of host.local.client.streamRunEvents(runId)) {
+    types.push(event.type);
+  }
+  return types;
+}
+
+async function runNoop(host: Awaited<ReturnType<typeof createCliHost>>): Promise<void> {
+  const session = await host.local.client.createSession({});
+  const run = await host.local.client.startRun(session.id, {
+    input: "hello",
+    providerId: "mock"
+  });
+  await drainRun(host, run.id);
+}
+
+async function writeTempConfig(value: unknown): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "guga-host-factory-"));
+  const path = join(root, ".guga/config.json");
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(value));
+  return path;
+}

@@ -21,14 +21,23 @@ export function renderHostEvent(event: HostEvent, options: RenderEventOptions = 
   if (event.type === "tool.failed") {
     return [`tool ${event.name} failed: ${event.error.message}`];
   }
+  if (event.type === "run.cancelled") {
+    return [`run cancelled${event.reason ? `: ${event.reason}` : ""}`];
+  }
   if (event.type === "permission.requested") {
     return [`permission requested for ${event.toolName}`];
+  }
+  if (event.type === "permission.cancelled") {
+    return [`permission cancelled for ${event.toolName}${event.reason ? `: ${event.reason}` : ""}`];
   }
   if (event.type === "interaction.requested") {
     return [`interaction requested: ${event.request.kind}`];
   }
   if (event.type === "interaction.resolved") {
     return [`interaction resolved: ${event.requestId}`];
+  }
+  if (event.type === "interaction.cancelled") {
+    return [`interaction cancelled: ${event.requestId}${event.reason ? `: ${event.reason}` : ""}`];
   }
   if (event.type === "queue.updated") {
     return [`queued inputs: ${event.pending.length}`];

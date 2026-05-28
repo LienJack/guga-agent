@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { HostRuntime, type HostRuntimeOptions } from "@guga-agent/host-runtime";
 import { createHostRequestHandler } from "./routes";
@@ -8,6 +9,7 @@ export type HostLocalServerOptions = {
   runtimeOptions?: HostRuntimeOptions;
   pollIntervalMs?: number;
   disposeRuntimeOnClose?: boolean;
+  bridgeToken?: string;
 };
 
 export type HostLocalServerListenOptions = {
@@ -17,15 +19,18 @@ export type HostLocalServerListenOptions = {
 
 export class HostLocalServer {
   readonly hostRuntime: HostRuntime;
+  readonly bridgeToken: string;
   private readonly disposeRuntimeOnClose: boolean;
   private readonly server: Server;
   private urlValue: string | undefined;
 
   constructor(options: HostLocalServerOptions = {}) {
     this.hostRuntime = options.hostRuntime ?? new HostRuntime(options.runtimeOptions);
+    this.bridgeToken = options.bridgeToken ?? randomBytes(32).toString("base64url");
     this.disposeRuntimeOnClose = options.disposeRuntimeOnClose ?? true;
     this.server = createServer(createHostRequestHandler(this.hostRuntime, {
-      ...(options.pollIntervalMs !== undefined ? { pollIntervalMs: options.pollIntervalMs } : {})
+      ...(options.pollIntervalMs !== undefined ? { pollIntervalMs: options.pollIntervalMs } : {}),
+      bridgeToken: this.bridgeToken
     }));
   }
 

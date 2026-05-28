@@ -2,6 +2,7 @@ import type {
   HostErrorPayload,
   HostEvent,
   InteractionResource,
+  PermissionRequestResource,
   QueuedRunInputResource,
   RunResource,
   RunStatus,
@@ -15,6 +16,7 @@ export class InMemoryRunStore {
   private readonly runs = new Map<string, RunResource>();
   private readonly events = new Map<string, HostEvent[]>();
   private readonly interactions = new Map<string, InteractionResource>();
+  private readonly permissions = new Map<string, PermissionRequestResource>();
 
   putSession(session: SessionResource): void {
     this.sessions.set(session.id, session);
@@ -119,7 +121,7 @@ export class InMemoryRunStore {
       ...(patch.status ? { status: patch.status } : {}),
       ...(patch.finalAnswer !== undefined ? { finalAnswer: patch.finalAnswer } : {}),
       ...(patch.error ? { error: patch.error } : {}),
-      ...(patch.queuedInputs ? { queuedInputs: patch.queuedInputs } : {}),
+      ...(patch.queuedInputs !== undefined ? { queuedInputs: patch.queuedInputs } : {}),
       updatedAt: patch.updatedAt
     });
   }
@@ -157,6 +159,39 @@ export class InMemoryRunStore {
       ...interaction,
       ...(patch.status ? { status: patch.status } : {}),
       ...(patch.response !== undefined ? { response: patch.response } : {}),
+      ...(patch.resolvedAt ? { resolvedAt: patch.resolvedAt } : {})
+    });
+  }
+
+  listInteractionsByRun(runId: string): InteractionResource[] {
+    return [...this.interactions.values()].filter((interaction) => interaction.runId === runId);
+  }
+
+  putPermission(permission: PermissionRequestResource): void {
+    this.permissions.set(permission.id, permission);
+  }
+
+  getPermission(permissionId: string): PermissionRequestResource | undefined {
+    return this.permissions.get(permissionId);
+  }
+
+  listPermissionsByRun(runId: string): PermissionRequestResource[] {
+    return [...this.permissions.values()].filter((permission) => permission.runId === runId);
+  }
+
+  updatePermission(permissionId: string, patch: {
+    status?: PermissionRequestResource["status"];
+    reason?: string;
+    resolvedAt?: string;
+  }): void {
+    const permission = this.permissions.get(permissionId);
+    if (!permission) {
+      return;
+    }
+    this.permissions.set(permissionId, {
+      ...permission,
+      ...(patch.status ? { status: patch.status } : {}),
+      ...(patch.reason !== undefined ? { reason: patch.reason } : {}),
       ...(patch.resolvedAt ? { resolvedAt: patch.resolvedAt } : {})
     });
   }

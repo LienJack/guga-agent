@@ -74,6 +74,17 @@ describe("profile-code-agent", () => {
     });
   });
 
+  it("fails closed for ask-required actions when no host delegate is configured", async () => {
+    const resolver = createCodeAgentPermissionResolver();
+
+    await expect(resolver(writeRequest())).resolves.toMatchObject({
+      action: "deny",
+      source: "profile",
+      reason: expect.stringContaining("requires a host permission resolver"),
+      metadata: { hostResolverRequired: true }
+    });
+  });
+
   it("creates a plugin bundle from existing first-party capabilities", async () => {
     const runtime = createAgentRuntime({
       plugins: createCodeAgentPlugins({

@@ -3,6 +3,8 @@ import {
   createHostEventSequencer,
   createSseEnvelope,
   encodeSseEnvelope,
+  HOST_PROTOCOL_FEATURES,
+  HOST_PROTOCOL_VERSION,
   HOST_EVENT_SSE_NAME,
   isTerminalHostEvent
 } from "./index";
@@ -34,6 +36,12 @@ describe("host protocol events", () => {
 
   it("identifies terminal run events", () => {
     const sequencer = createHostEventSequencer();
+    const cancelled = sequencer.next({
+      type: "run.cancelled",
+      sessionId: "session-1",
+      runId: "run-1",
+      reason: "user abort"
+    });
     const failed = sequencer.next({
       type: "run.failed",
       sessionId: "session-1",
@@ -41,6 +49,7 @@ describe("host protocol events", () => {
       error: { code: "FAILED", message: "nope" }
     });
 
+    expect(isTerminalHostEvent(cancelled)).toBe(true);
     expect(isTerminalHostEvent(failed)).toBe(true);
   });
 
@@ -59,12 +68,12 @@ describe("host protocol events", () => {
     const envelope = createSseEnvelope(event);
 
     expect(envelope).toEqual({
-      id: "run-1:1",
+      id: "1",
       event: HOST_EVENT_SSE_NAME,
       data: event
     });
     expect(encodeSseEnvelope(envelope)).toBe([
-      "id: run-1:1",
+      "id: 1",
       `event: ${HOST_EVENT_SSE_NAME}`,
       `data: ${JSON.stringify(event)}`,
       "",
@@ -82,6 +91,7 @@ describe("host protocol events", () => {
       pending: [{
         id: "input-1",
         mode: "steer",
+        status: "deferred",
         textPreview: "revise plan",
         createdAt: "2026-05-27T00:00:00.000Z"
       }]
@@ -112,5 +122,14 @@ describe("host protocol events", () => {
 
     expect(requested).toMatchObject({ type: "interaction.requested", request: { kind: "confirm" } });
     expect(resolved).toMatchObject({ type: "interaction.resolved", response: true });
+  });
+
+  it("exposes protocol discovery constants", () => {
+    expect(HOST_PROTOCOL_VERSION).toBe("1");
+    expect(HOST_PROTOCOL_FEATURES).toEqual(expect.arrayContaining([
+      "run-input-queue",
+      "follow-up-consumption",
+      "permissions"
+    ]));
   });
 });

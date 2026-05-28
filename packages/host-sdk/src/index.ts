@@ -3,6 +3,8 @@ export type {
   CreateSessionRequest,
   HostClient,
   HostClientFetch,
+  RequestInteractionRequest,
+  SendRunInputRequest,
   StartRunRequest
 } from "./client";
 export {

@@ -6,6 +6,7 @@ export type HostEventType =
   | "run.started"
   | "run.completed"
   | "run.failed"
+  | "run.cancelled"
   | "message.delta"
   | "message.completed"
   | "tool.started"
@@ -13,8 +14,10 @@ export type HostEventType =
   | "tool.failed"
   | "permission.requested"
   | "permission.resolved"
+  | "permission.cancelled"
   | "interaction.requested"
   | "interaction.resolved"
+  | "interaction.cancelled"
   | "queue.updated"
   | "context.compacted"
   | "artifact.created"
@@ -45,6 +48,10 @@ export type RunFailedHostEvent = RunScopedEvent<"run.failed"> & {
     message: string;
     details?: unknown;
   };
+};
+
+export type RunCancelledHostEvent = RunScopedEvent<"run.cancelled"> & {
+  reason?: string;
 };
 
 export type MessageDeltaHostEvent = RunScopedEvent<"message.delta"> & {
@@ -97,6 +104,13 @@ export type PermissionResolvedHostEvent = RunScopedEvent<"permission.resolved"> 
   reason?: string;
 };
 
+export type PermissionCancelledHostEvent = RunScopedEvent<"permission.cancelled"> & {
+  requestId: string;
+  callId: string;
+  toolName: string;
+  reason?: string;
+};
+
 export type InteractionRequestedHostEvent = RunScopedEvent<"interaction.requested"> & {
   requestId: string;
   request: InteractionRequest;
@@ -105,6 +119,11 @@ export type InteractionRequestedHostEvent = RunScopedEvent<"interaction.requeste
 export type InteractionResolvedHostEvent = RunScopedEvent<"interaction.resolved"> & {
   requestId: string;
   response?: unknown;
+};
+
+export type InteractionCancelledHostEvent = RunScopedEvent<"interaction.cancelled"> & {
+  requestId: string;
+  reason?: string;
 };
 
 export type QueueUpdatedHostEvent = RunScopedEvent<"queue.updated"> & {
@@ -143,6 +162,7 @@ export type HostEvent =
   | RunStartedHostEvent
   | RunCompletedHostEvent
   | RunFailedHostEvent
+  | RunCancelledHostEvent
   | MessageDeltaHostEvent
   | MessageCompletedHostEvent
   | ToolStartedHostEvent
@@ -150,8 +170,10 @@ export type HostEvent =
   | ToolFailedHostEvent
   | PermissionRequestedHostEvent
   | PermissionResolvedHostEvent
+  | PermissionCancelledHostEvent
   | InteractionRequestedHostEvent
   | InteractionResolvedHostEvent
+  | InteractionCancelledHostEvent
   | QueueUpdatedHostEvent
   | ContextCompactedHostEvent
   | ArtifactCreatedHostEvent
@@ -188,8 +210,10 @@ export function createHostEventSequencer(options: {
   };
 }
 
-export function isTerminalHostEvent(event: HostEvent): event is RunCompletedHostEvent | RunFailedHostEvent {
-  return event.type === "run.completed" || event.type === "run.failed";
+export function isTerminalHostEvent(
+  event: HostEvent
+): event is RunCompletedHostEvent | RunFailedHostEvent | RunCancelledHostEvent {
+  return event.type === "run.completed" || event.type === "run.failed" || event.type === "run.cancelled";
 }
 
 export function hostEventSseName(_event: HostEvent): string {

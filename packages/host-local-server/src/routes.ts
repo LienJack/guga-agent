@@ -1,9 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { HostRuntime, StartRunOptions } from "@guga-agent/host-runtime";
+import type { PermissionResolution } from "@guga-agent/host-protocol";
 import { streamRunEvents } from "./sse";
 
 export type HostRequestHandlerOptions = {
   pollIntervalMs?: number;
+  bridgeToken?: string;
 };
 
 export function createHostRequestHandler(
@@ -23,13 +25,30 @@ async function handleRequest(
 ): Promise<void> {
   try {
     if (request.method === "OPTIONS") {
-      response.writeHead(204, corsHeaders());
+      if (!isTrustedOrigin(request.headers.origin)) {
+        sendError(response, 403, "FORBIDDEN_ORIGIN", "Origin is not allowed");
+        return;
+      }
+      response.writeHead(204, corsHeaders(request));
       response.end();
       return;
     }
 
     const url = new URL(request.url ?? "/", "http://localhost");
     const segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    if (!isTrustedOrigin(request.headers.origin)) {
+      sendError(response, 403, "FORBIDDEN_ORIGIN", "Origin is not allowed");
+      return;
+    }
+    if (request.method !== "GET" && !hasBridgeToken(request, options.bridgeToken)) {
+      sendError(response, 401, "UNAUTHORIZED", "Host bridge token is required");
+      return;
+    }
+
+    if (request.method === "GET" && segments.length === 1 && segments[0] === "protocol") {
+      sendJson(response, 200, hostRuntime.getProtocolInfo());
+      return;
+    }
 
     if (request.method === "POST" && segments.length === 1 && segments[0] === "sessions") {
       const body = await readJsonBody<{ title?: unknown }>(request);
@@ -179,7 +198,38 @@ async function handleRequest(
         sendError(response, 400, "BAD_REQUEST", "Run input requires mode steer|follow_up and non-empty text");
         return;
       }
-      sendJson(response, 202, hostRuntime.enqueueRunInput(runId, { mode, text: body.text }) ?? run);
+      const updatedRun = hostRuntime.enqueueRunInput(runId, { mode, text: body.text });
+      if (!updatedRun) {
+        sendError(response, 409, "RUN_NOT_ACTIVE", "Run input can only be queued while a run is active");
+        return;
+      }
+      sendJson(response, 202, updatedRun);
+      return;
+    }
+
+    if (request.method === "GET" && segments.length === 2 && segments[0] === "permissions") {
+      sendJsonOrNotFound(response, hostRuntime.getPermission(segments[1] ?? ""), "Permission request not found");
+      return;
+    }
+
+    if (request.method === "POST" && segments.length === 3 && segments[0] === "permissions" && segments[2] === "respond") {
+      const body = await readJsonBody<{
+        decision?: unknown;
+        remember?: unknown;
+        reason?: unknown;
+        updatedInput?: unknown;
+      }>(request);
+      const resolution = parsePermissionResolutionBody(body);
+      if (!resolution.ok) {
+        sendError(response, 400, "BAD_REQUEST", resolution.message);
+        return;
+      }
+      const result = hostRuntime.respondPermission(segments[1] ?? "", resolution.value);
+      if (!result.ok) {
+        sendError(response, result.status, result.error.code, result.error.message);
+        return;
+      }
+      sendJson(response, 200, result.permission);
       return;
     }
 
@@ -287,10 +337,74 @@ function sendError(response: ServerResponse, statusCode: number, code: string, m
   sendJson(response, statusCode, { error: { code, message } });
 }
 
-function corsHeaders(): Record<string, string> {
+function corsHeaders(request?: IncomingMessage): Record<string, string> {
+  const origin = trustedOriginHeader(request?.headers.origin);
   return {
-    "access-control-allow-origin": "*",
+    ...(origin ? { "access-control-allow-origin": origin } : {}),
     "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type,accept"
+    "access-control-allow-headers": "content-type,accept,authorization",
+    "vary": "Origin"
+  };
+}
+
+function hasBridgeToken(request: IncomingMessage, bridgeToken: string | undefined): boolean {
+  if (!bridgeToken) {
+    return false;
+  }
+  return request.headers.authorization === `Bearer ${bridgeToken}`;
+}
+
+function isTrustedOrigin(origin: string | undefined): boolean {
+  return origin === undefined || trustedOriginHeader(origin) !== undefined;
+}
+
+function trustedOriginHeader(origin: string | undefined): string | undefined {
+  if (!origin) {
+    return undefined;
+  }
+  try {
+    const parsed = new URL(origin);
+    if (
+      (parsed.protocol === "http:" || parsed.protocol === "https:")
+      && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "::1")
+    ) {
+      return origin;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+function parsePermissionResolutionBody(
+  body: {
+    decision?: unknown;
+    remember?: unknown;
+    reason?: unknown;
+    updatedInput?: unknown;
+  }
+): { ok: true; value: PermissionResolution } | { ok: false; message: string } {
+  if (body.decision !== "allow" && body.decision !== "deny") {
+    return { ok: false, message: "Permission resolution requires decision allow|deny" };
+  }
+  if (
+    body.remember !== undefined
+    && body.remember !== "once"
+    && body.remember !== "session"
+    && body.remember !== "always"
+  ) {
+    return { ok: false, message: "Permission resolution remember must be once|session|always" };
+  }
+  if (body.reason !== undefined && typeof body.reason !== "string") {
+    return { ok: false, message: "Permission resolution reason must be a string" };
+  }
+  return {
+    ok: true,
+    value: {
+      decision: body.decision,
+      ...(body.remember !== undefined ? { remember: body.remember } : {}),
+      ...(body.reason !== undefined ? { reason: body.reason } : {}),
+      ...(body.updatedInput !== undefined ? { updatedInput: body.updatedInput } : {})
+    }
   };
 }

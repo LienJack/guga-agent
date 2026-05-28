@@ -1,15 +1,42 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { createAgentRuntime, createMockProvider, createTestTool } from "@guga-agent/core";
+import { createAgentRuntime, createMockProvider, createTestTool, type ToolDefinition } from "@guga-agent/core";
 import { HostRuntime } from "@guga-agent/host-runtime";
 import { HostLocalServer } from "./server";
 
 const servers: HostLocalServer[] = [];
+const TEST_BRIDGE_TOKEN = "test-bridge-token";
 
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => server.close()));
 });
 
 describe("HostLocalServer", () => {
+  it("exposes protocol discovery", async () => {
+    const server = await startTestServer();
+
+    await expect(fetchJson(`${server.url}/protocol`)).resolves.toMatchObject({
+      version: "1",
+      features: expect.arrayContaining(["permissions", "follow-up-consumption"])
+    });
+  });
+
+  it("rejects cross-origin and unauthenticated state-changing bridge requests", async () => {
+    const server = await startTestServer();
+
+    await expect(postJsonWithStatus(`${server.url}/sessions`, {}, {
+      origin: "https://attacker.example"
+    })).resolves.toMatchObject({
+      status: 403,
+      body: { error: { code: "FORBIDDEN_ORIGIN" } }
+    });
+    await expect(postJsonWithStatus(`${server.url}/sessions`, {}, {
+      omitToken: true
+    })).resolves.toMatchObject({
+      status: 401,
+      body: { error: { code: "UNAUTHORIZED" } }
+    });
+  });
+
   it("creates sessions, starts runs, streams SSE events, and reads final run state", async () => {
     const server = await startTestServer();
 
@@ -137,6 +164,64 @@ describe("HostLocalServer", () => {
     });
   });
 
+  it("responds to permission resources with HTTP error semantics", async () => {
+    const server = new HostLocalServer({
+      runtimeOptions: { permissions: { profile: "ask-on-write" } },
+      pollIntervalMs: 1,
+      bridgeToken: TEST_BRIDGE_TOKEN
+    });
+    server.hostRuntime.registerProvider(createMockProvider([
+      { type: "tool_calls", toolCalls: [{ id: "write", name: "write_tool", input: { value: "x" } }] },
+      { type: "final", content: "done" }
+    ]));
+    server.hostRuntime.registerTool(writeTool());
+    await server.listen();
+    servers.push(server);
+    const session = await postJson<{ id: string }>(`${server.url}/sessions`, {});
+    const run = await postJson<{ id: string }>(`${server.url}/sessions/${session.id}/runs`, {
+      input: "write",
+      providerId: "mock"
+    });
+    const permissionId = `${run.id}:write:1`;
+    await waitFor(async () => {
+      const permission = await fetchJson<{ status?: string }>(`${server.url}/permissions/${encodeURIComponent(permissionId)}`);
+      return permission.status === "pending";
+    });
+
+    await expect(postJsonWithStatus(`${server.url}/permissions/${encodeURIComponent(permissionId)}/respond`, {
+      decision: "maybe"
+    })).resolves.toMatchObject({
+      status: 400,
+      body: { error: { code: "BAD_REQUEST" } }
+    });
+    await expect(postJsonWithStatus(`${server.url}/permissions/${encodeURIComponent(permissionId)}/respond`, {
+      decision: "allow",
+      remember: "forever"
+    })).resolves.toMatchObject({
+      status: 400,
+      body: { error: { code: "BAD_REQUEST" } }
+    });
+    await expect(postJsonWithStatus(`${server.url}/permissions/missing/respond`, {
+      decision: "allow"
+    })).resolves.toMatchObject({
+      status: 404,
+      body: { error: { code: "NOT_FOUND" } }
+    });
+    await expect(postJson(`${server.url}/permissions/${encodeURIComponent(permissionId)}/respond`, {
+      decision: "allow",
+      remember: "once"
+    })).resolves.toMatchObject({
+      id: permissionId,
+      status: "allowed"
+    });
+    await expect(postJsonWithStatus(`${server.url}/permissions/${encodeURIComponent(permissionId)}/respond`, {
+      decision: "deny"
+    })).resolves.toMatchObject({
+      status: 409,
+      body: { error: { code: "PERMISSION_NOT_PENDING" } }
+    });
+  });
+
   it("manages session tree and generic interactions over HTTP", async () => {
     const { server } = await startControlledServer([
       "session-1",
@@ -212,7 +297,8 @@ async function startTestServer(): Promise<HostLocalServer> {
       now: () => new Date("2026-05-27T00:00:00.000Z"),
       idFactory: deterministicIds(["session-1", "run-1", "session-2", "run-2", "session-3", "run-3"])
     }),
-    pollIntervalMs: 1
+    pollIntervalMs: 1,
+    bridgeToken: TEST_BRIDGE_TOKEN
   });
   await server.listen();
   servers.push(server);
@@ -238,7 +324,8 @@ async function startControlledServer(ids: string[] = ["session-1", "run-1", "inp
       now: () => new Date("2026-05-27T00:00:00.000Z"),
       idFactory: deterministicIds(ids)
     }),
-    pollIntervalMs: 1
+    pollIntervalMs: 1,
+    bridgeToken: TEST_BRIDGE_TOKEN
   });
   await server.listen();
   servers.push(server);
@@ -248,10 +335,33 @@ async function startControlledServer(ids: string[] = ["session-1", "run-1", "inp
 async function postJson<ResponseBody>(url: string, body: unknown): Promise<ResponseBody> {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${TEST_BRIDGE_TOKEN}`
+    },
     body: JSON.stringify(body)
   });
   return response.json() as Promise<ResponseBody>;
+}
+
+async function postJsonWithStatus(
+  url: string,
+  body: unknown,
+  options: { origin?: string; omitToken?: boolean } = {}
+): Promise<{ status: number; body: unknown }> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(options.omitToken ? {} : { authorization: `Bearer ${TEST_BRIDGE_TOKEN}` }),
+      ...(options.origin ? { origin: options.origin } : {})
+    },
+    body: JSON.stringify(body)
+  });
+  return {
+    status: response.status,
+    body: await response.json()
+  };
 }
 
 async function fetchJson<ResponseBody = unknown>(url: string): Promise<ResponseBody> {
@@ -276,5 +386,27 @@ function deterministicIds(values: string[]): () => string {
       throw new Error("No deterministic id left");
     }
     return value;
+  };
+}
+
+async function waitFor(predicate: () => Promise<boolean>): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (await predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  throw new Error("Timed out waiting for condition");
+}
+
+function writeTool(): ToolDefinition {
+  return {
+    name: "write_tool",
+    description: "Write test tool",
+    inputSchema: { type: "object" },
+    effect: "write",
+    execute() {
+      return { ok: true, content: "write ok" };
+    }
   };
 }

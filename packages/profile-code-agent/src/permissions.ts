@@ -42,7 +42,7 @@ export function createCodeAgentPermissionResolver(
     if (delegate) {
       return delegate(request);
     }
-    return deny("Code-agent profile requires a host permission resolver for write or execute actions");
+    return denyMissingHostResolver("Code-agent profile requires a host permission resolver for write or execute actions");
   };
 }
 
@@ -72,6 +72,13 @@ function deny(reason: string): PermissionDenyDecision {
     remember: "once",
     source: "profile",
     reason
+  };
+}
+
+function denyMissingHostResolver(reason: string): PermissionDenyDecision {
+  return {
+    ...deny(reason),
+    metadata: { hostResolverRequired: true }
   };
 }
 
