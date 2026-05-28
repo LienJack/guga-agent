@@ -21,6 +21,14 @@ import type { ProviderRouterPolicy } from "./provider-router";
 import type { ResumeReportResult } from "../persistence/resume-report";
 import type { ToolDefinition } from "./tools";
 
+export type AgentRuntimeBuiltInsOptions = false | {
+  capabilities?: {
+    providers?: Provider[];
+    models?: ModelMetadata[];
+    tools?: ToolDefinition[];
+  };
+};
+
 export type AgentSessionIdentity = {
   sessionId?: string;
   branchId?: string;
@@ -62,6 +70,7 @@ export type AgentRunResult = AgentRunSuccess | AgentRunFailure;
 export type AgentRuntimeOptions = {
   model?: LocalModelPlugin;
   plugins?: LocalPlugin[];
+  builtIns?: AgentRuntimeBuiltInsOptions;
   permissions?: PermissionPolicy;
   routerPolicy?: ProviderRouterPolicy;
   session?: AgentSessionIdentity;

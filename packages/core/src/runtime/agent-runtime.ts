@@ -38,6 +38,7 @@ import { resumeSessionFromStores } from "../persistence/session-replay";
 import { forkSessionBranch } from "../persistence/session-tree";
 import { ResultPolicy } from "../tools/result-policy";
 import type { ToolAvailabilityContext } from "../contracts/tool-runtime";
+import { createDefaultCoreCapabilities, registerBuiltInCoreCapabilities } from "../builtins/default-core-capabilities";
 
 export class AgentRuntime implements AgentRuntimeContract {
   private readonly registry = new CapabilityRegistry();
@@ -80,6 +81,12 @@ export class AgentRuntime implements AgentRuntimeContract {
     this.hookKernel = new HookKernel({ eventBus: this.eventBus });
     this.permissionKernel = new PermissionKernel({ ...options.permissions, eventBus: this.eventBus });
     this.resultPolicy = new ResultPolicy({ eventBus: this.eventBus });
+    if (options.builtIns !== false) {
+      registerBuiltInCoreCapabilities(
+        this.registry,
+        options.builtIns?.capabilities ?? createDefaultCoreCapabilities()
+      );
+    }
     this.pluginHost = new PluginHost({
       plugins,
       registry: this.registry,

@@ -142,6 +142,7 @@ export type {
 export type {
   AgentPersistenceCapabilities,
   AgentResumeSessionOptions,
+  AgentRuntimeBuiltInsOptions,
   AgentSessionIdentity,
   AgentRunOptions,
   AgentRunResult,
@@ -325,6 +326,16 @@ export { ToolScheduler } from "./tools/tool-scheduler";
 export { ResultPolicy } from "./tools/result-policy";
 export { AgentRuntime as DefaultAgentRuntime } from "./runtime/agent-runtime";
 export { createAgentRuntime } from "./runtime/create-agent-runtime";
+export {
+  BUILT_IN_CORE_OWNER,
+  BUILT_IN_CORE_REGISTRATION,
+  createDefaultCoreCapabilities,
+  registerBuiltInCoreCapabilities
+} from "./builtins";
+export type {
+  BuiltInCoreCapabilityRegistration,
+  BuiltInCoreCapabilitySet
+} from "./builtins";
 export { createMockProvider } from "./testing/mock-provider";
 export { createExamplePlugin } from "./testing/example-plugin";
 export { createTestTool } from "./testing/test-tool";

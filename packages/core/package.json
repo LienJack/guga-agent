@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./builtins": {
+      "types": "./dist/builtins/index.d.ts",
+      "default": "./dist/builtins/index.js"
     }
   },
   "scripts": {
