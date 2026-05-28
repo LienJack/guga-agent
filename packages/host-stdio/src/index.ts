@@ -45,6 +45,8 @@ export function hostEventToPiCompatibleEvents(event: HostEvent): PiCompatibleEve
       return [{ type: "agent_end", session_id: event.sessionId, run_id: event.runId, status: "failed", error: event.error }];
     case "message.delta":
       return [{ type: "message_update", session_id: event.sessionId, run_id: event.runId, message_id: event.messageId, text: event.text }];
+    case "message.reasoning_delta":
+      return [{ type: "reasoning_update", session_id: event.sessionId, run_id: event.runId, message_id: event.messageId, text: event.text }];
     case "message.completed":
       return [{ type: "message_end", session_id: event.sessionId, run_id: event.runId, message_id: event.messageId }];
     case "tool.started":

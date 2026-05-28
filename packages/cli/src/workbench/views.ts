@@ -184,6 +184,18 @@ function createPendingInteractionViewModel(interaction: PendingInteractionProjec
 
 function createTranscriptViewBlock(block: TranscriptBlock): TranscriptViewBlock {
   switch (block.kind) {
+    case "user":
+      return {
+        ...block,
+        title: "User",
+        detail: block.text
+      };
+    case "reasoning":
+      return {
+        ...block,
+        title: block.status === "streaming" ? "Reasoning is streaming" : "Reasoning",
+        detail: block.text
+      };
     case "assistant":
       return {
         ...block,
@@ -194,7 +206,7 @@ function createTranscriptViewBlock(block: TranscriptBlock): TranscriptViewBlock 
       return {
         ...block,
         title: `Tool ${block.status}: ${block.name}`,
-        detail: block.error?.message ?? block.progressMessage ?? previewUnknown(block.output ?? block.input)
+        detail: toolDetail(block)
       };
     case "permission":
       return {
@@ -282,6 +294,19 @@ function previewUnknown(value: unknown): string {
     return value;
   }
   return JSON.stringify(value);
+}
+
+function toolDetail(block: Extract<TranscriptBlock, { kind: "tool" }>): string {
+  if (block.error) {
+    return block.error.message;
+  }
+  const parts = [
+    block.progressMessage,
+    block.progress !== undefined ? `progress ${Math.round(block.progress * 100)}%` : undefined,
+    block.input !== undefined ? `input ${previewUnknown(block.input)}` : undefined,
+    block.output !== undefined ? `output ${previewUnknown(block.output)}` : undefined
+  ].filter((part): part is string => Boolean(part));
+  return parts.join("\n");
 }
 
 function assertNever(value: never): never {

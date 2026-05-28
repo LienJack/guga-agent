@@ -12,6 +12,7 @@ import {
   applyPromptIntent,
   createPromptState,
   getPromptText,
+  replacePromptText,
   setPromptInputTarget,
   type PromptEffect,
   type PromptState
@@ -97,6 +98,10 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
     }
 
     if (owner?.kind === "slash" && slash) {
+      if (intent.type === "complete") {
+        completeSlashFromPrompt();
+        return;
+      }
       if (isPromptEditingIntent(intent)) {
         await handlePromptIntent(intent, { kind: "prompt" });
         return;
@@ -130,6 +135,10 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
   async function handlePromptIntent(intent: KeyIntent, owner: FocusTarget | undefined): Promise<void> {
     if (intent.type === "abort" && (owner?.kind === "permission" || owner?.kind === "interaction")) {
       setNotice(owner.kind === "permission" ? "Permission response required." : "Interaction response required.");
+      return;
+    }
+    if (intent.type === "submit" && state.disconnected && getPromptText(prompt).trim() !== "/reload") {
+      setNotice(state.disconnected.lockHint);
       return;
     }
 
@@ -194,6 +203,15 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
     if (result.effect) {
       await handlePromptEffect(result.effect);
     }
+  }
+
+  function completeSlashFromPrompt(): void {
+    const highlighted = slash ? getHighlightedSlashCommand(slash) : undefined;
+    if (!highlighted) {
+      return;
+    }
+    setSlash(undefined);
+    setPrompt((current) => replacePromptText(current, `${highlighted.command} `));
   }
 
   async function submitText(text: string): Promise<void> {
@@ -274,7 +292,16 @@ function retargetPrompt(state: PromptState, target: PromptState["target"]): Prom
     return state;
   }
   if (target.kind === "permission-response" || target.kind === "interaction-response") {
-    return createPromptState({ target });
+    return {
+      ...createPromptState({ target, history: state.editor.history }),
+      preservedEditor: state.preservedEditor ?? state.editor
+    };
+  }
+  if ((state.target.kind === "permission-response" || state.target.kind === "interaction-response") && state.preservedEditor) {
+    return setPromptInputTarget({
+      ...state,
+      editor: state.preservedEditor
+    }, target);
   }
   return setPromptInputTarget(state, target);
 }
@@ -306,6 +333,7 @@ function inkInputToKeyIntent(input: string, key: {
   readonly rightArrow?: boolean;
   readonly upArrow?: boolean;
   readonly downArrow?: boolean;
+  readonly tab?: boolean;
 }): KeyIntent {
   const name = key.return ? "return"
     : key.escape ? "escape"
@@ -315,6 +343,8 @@ function inkInputToKeyIntent(input: string, key: {
             : key.rightArrow ? "right"
               : key.upArrow ? "up"
                 : key.downArrow ? "down"
+                  : key.tab ? "tab"
+                  : input === "\t" ? "tab"
                   : undefined;
   const mapped: TerminalKeypress = {
     ctrl: key.ctrl === true,

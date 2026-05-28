@@ -149,6 +149,25 @@ describe("host protocol events", () => {
     expect(retry).toMatchObject({ type: "retry.started", attempt: 2 });
   });
 
+  it("serializes reasoning deltas for workbench display", () => {
+    const event = createHostEventSequencer({
+      now: () => new Date("2026-05-27T00:00:00.000Z")
+    }).next({
+      type: "message.reasoning_delta",
+      sessionId: "session-1",
+      runId: "run-1",
+      messageId: "reasoning-1",
+      text: "checking available tools"
+    });
+
+    expect(JSON.parse(JSON.stringify(event))).toEqual(event);
+    expect(event).toMatchObject({
+      type: "message.reasoning_delta",
+      messageId: "reasoning-1",
+      text: "checking available tools"
+    });
+  });
+
   it("exposes protocol discovery constants", () => {
     expect(HOST_PROTOCOL_VERSION).toBe("1");
     expect(HOST_PROTOCOL_FEATURES).toEqual(expect.arrayContaining([

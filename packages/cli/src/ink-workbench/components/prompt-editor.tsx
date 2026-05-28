@@ -12,11 +12,26 @@ export function PromptEditor({
   readonly locked: boolean;
 }) {
   const target = prompt.target.kind === "run-input" ? `run:${inputMode}` : prompt.target.kind;
-  const text = prompt.editor.text.length === 0 ? " " : prompt.editor.text;
   return (
     <Box borderStyle="round" paddingX={1} flexDirection="column">
       <Text dimColor>{locked ? "locked" : target}</Text>
-      <Text>{text}</Text>
+      <Text>{renderCursorText(prompt.editor.text, prompt.editor.cursor)}</Text>
     </Box>
+  );
+}
+
+function renderCursorText(text: string, cursor: number): React.ReactNode {
+  const before = text.slice(0, cursor);
+  const after = text.slice(cursor);
+  const nextCharacter = Array.from(after)[0];
+  const cursorText = !nextCharacter || nextCharacter === "\n" ? " " : nextCharacter;
+  const rest = nextCharacter && nextCharacter !== "\n" ? after.slice(nextCharacter.length) : after;
+
+  return (
+    <>
+      {before}
+      <Text inverse>{cursorText}</Text>
+      {rest}
+    </>
   );
 }

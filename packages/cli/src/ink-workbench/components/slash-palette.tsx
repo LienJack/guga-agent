@@ -11,8 +11,8 @@ export function SlashPalette({ state }: { readonly state: SlashPaletteState }) {
     <Box borderStyle="single" paddingX={1} flexDirection="column">
       <Text bold>Slash commands /{state.query}</Text>
       {items.length === 0 ? <Text dimColor>No matching commands.</Text> : items.map((command, index) => (
-        <Text key={command.command} inverse={index === state.highlightedIndex}>
-          {command.command} - {command.help}
+        <Text key={command.command} inverse={index === state.highlightedIndex} dimColor={command.availability !== "available"}>
+          {command.command} - {command.help} [{command.source}{command.availability === "available" ? "" : `:${command.availability}`}]
         </Text>
       ))}
     </Box>

@@ -18,31 +18,35 @@ export interface WorkbenchSlashCommandMetadata {
   readonly label: string;
   readonly help: string;
   readonly usage: string;
+  readonly source: "built-in";
+  readonly availability: "available" | "reserved";
+  readonly disabledReason?: string;
   readonly aliases?: readonly string[];
   readonly selector?: WorkbenchSlashSelectorKind;
 }
 
 export const WORKBENCH_SLASH_COMMAND_METADATA = [
-  { command: "/new", label: "New session", usage: "/new [title]", help: "Create a workbench session." },
-  { command: "/resume", label: "Resume session", usage: "/resume <session> [branch]", help: "Resume a session branch.", selector: "resume" },
-  { command: "/fork", label: "Fork session", usage: "/fork [summary]", help: "Fork the active session." },
-  { command: "/tree", label: "Session tree", usage: "/tree", help: "Show session branches." },
-  { command: "/status", label: "Status", usage: "/status", help: "Show operational status." },
-  { command: "/clear", label: "Clear", usage: "/clear", help: "Clear the visible transcript." },
-  { command: "/models", label: "Models", usage: "/models", help: "List configured models." },
-  { command: "/model", label: "Switch model", usage: "/model <id>", help: "Switch model.", selector: "model" },
-  { command: "/login", label: "Login", usage: "/login <provider>", help: "Show provider login guidance." },
-  { command: "/profile", label: "Switch profile", usage: "/profile <id>", help: "Switch profile and start a new session.", selector: "profile" },
-  { command: "/permissions", label: "Permissions", usage: "/permissions", help: "List permission-relevant capabilities." },
-  { command: "/mcp", label: "MCP", usage: "/mcp", help: "List MCP capabilities." },
-  { command: "/tools", label: "Tools", usage: "/tools", help: "List tools." },
-  { command: "/skills", label: "Skills", usage: "/skills", help: "List skills." },
-  { command: "/compact", label: "Compact", usage: "/compact", help: "Reserved compaction command." },
-  { command: "/follow", label: "Follow-up", usage: "/follow <text>", help: "Queue a follow-up during an active run." },
-  { command: "/respond", label: "Respond", usage: "/respond <request-id> <value>", help: "Respond to an interaction request." },
-  { command: "/abort", label: "Abort", usage: "/abort", help: "Abort the active run.", aliases: ["/cancel"] },
-  { command: "/help", label: "Help", usage: "/help", help: "Show command help." },
-  { command: "/exit", label: "Exit", usage: "/exit", help: "Exit the workbench.", aliases: ["/quit"] }
+  slashCommand({ command: "/new", label: "New session", usage: "/new [title]", help: "Create a workbench session." }),
+  slashCommand({ command: "/resume", label: "Resume session", usage: "/resume <session> [branch]", help: "Resume a session branch.", selector: "resume" }),
+  slashCommand({ command: "/fork", label: "Fork session", usage: "/fork [summary]", help: "Fork the active session." }),
+  slashCommand({ command: "/tree", label: "Session tree", usage: "/tree", help: "Show session branches." }),
+  slashCommand({ command: "/status", label: "Status", usage: "/status", help: "Show operational status." }),
+  slashCommand({ command: "/clear", label: "Clear", usage: "/clear", help: "Clear the visible transcript." }),
+  slashCommand({ command: "/models", label: "Models", usage: "/models", help: "List configured models." }),
+  slashCommand({ command: "/model", label: "Switch model", usage: "/model <id>", help: "Switch model.", selector: "model" }),
+  slashCommand({ command: "/login", label: "Login", usage: "/login <provider>", help: "Show provider login guidance." }),
+  slashCommand({ command: "/profile", label: "Switch profile", usage: "/profile <id>", help: "Switch profile and start a new session.", selector: "profile" }),
+  slashCommand({ command: "/permissions", label: "Permissions", usage: "/permissions", help: "List permission-relevant capabilities." }),
+  slashCommand({ command: "/mcp", label: "MCP", usage: "/mcp", help: "List MCP capabilities." }),
+  slashCommand({ command: "/tools", label: "Tools", usage: "/tools", help: "List tools." }),
+  slashCommand({ command: "/skills", label: "Skills", usage: "/skills", help: "List skills." }),
+  slashCommand({ command: "/compact", label: "Compact", usage: "/compact", help: "Reserved compaction command.", availability: "reserved", disabledReason: "Host compaction is not implemented yet." }),
+  slashCommand({ command: "/reload", label: "Reload", usage: "/reload", help: "Replay host events after a stream disconnect." }),
+  slashCommand({ command: "/follow", label: "Follow-up", usage: "/follow <text>", help: "Queue a follow-up during an active run." }),
+  slashCommand({ command: "/respond", label: "Respond", usage: "/respond <request-id> <value>", help: "Respond to an interaction request." }),
+  slashCommand({ command: "/abort", label: "Abort", usage: "/abort", help: "Abort the active run.", aliases: ["/cancel"] }),
+  slashCommand({ command: "/help", label: "Help", usage: "/help", help: "Show command help." }),
+  slashCommand({ command: "/exit", label: "Exit", usage: "/exit", help: "Exit the workbench.", aliases: ["/quit"] })
 ] as const;
 
 export const WORKBENCH_SLASH_COMMANDS = WORKBENCH_SLASH_COMMAND_METADATA.map((metadata) => metadata.command);
@@ -78,6 +82,7 @@ export type WorkbenchCommandAction =
   | "tools"
   | "skills"
   | "compact"
+  | "reload"
   | "follow-up"
   | "respond-interaction"
   | "abort-run";
@@ -271,6 +276,8 @@ export async function executeWorkbenchCommand(
     }
     case "/compact":
       return commandOk("compact", "compact is not implemented by the host protocol yet");
+    case "/reload":
+      return commandOk("reload", "reload is handled by the interactive controller");
     default:
       return commandError(`Unknown command: ${intent.command}`, suggestCommands(intent.command));
   }
@@ -314,7 +321,18 @@ function formatCapabilities(capabilities: CapabilityResource[]): string {
   if (capabilities.length === 0) {
     return "No matching capabilities.";
   }
-  return capabilities.map((capability) => `${capability.type}:${capability.name} ${capability.status}`).join("\n");
+  return capabilities.map(formatCapability).join("\n");
+}
+
+function formatCapability(capability: CapabilityResource): string {
+  const sourceParts = [
+    `source=${capability.source}`,
+    capability.namespace ? `namespace=${capability.namespace}` : undefined,
+    capability.ownerPluginId ? `owner=${capability.ownerPluginId}` : undefined
+  ].filter((part): part is string => part !== undefined);
+  const reason = capability.reason ? ` reason=${capability.reason}` : "";
+  const trust = capability.trust ? ` trust=${capability.trust.level}` : "";
+  return `${capability.type}:${capability.name} ${capability.status} (${sourceParts.join(" ")})${reason}${trust}`;
 }
 
 function formatSessionTree(tree: { activeBranchId: string; branches: Array<{ id: string; parentBranchId?: string; summary?: string; lastRunId?: string; lastRunStatus?: string }> }): string {
@@ -327,7 +345,20 @@ function formatSessionTree(tree: { activeBranchId: string; branches: Array<{ id:
 }
 
 export function formatCommandHelp(): string {
-  return WORKBENCH_SLASH_COMMAND_METADATA.map((metadata) => `${metadata.usage} - ${metadata.help}`).join("\n");
+  return WORKBENCH_SLASH_COMMAND_METADATA.map((metadata) => {
+    const availability = metadata.availability === "available" ? "" : ` [${metadata.availability}: ${metadata.disabledReason ?? "not available"}]`;
+    return `${metadata.usage} - ${metadata.help} (${metadata.source})${availability}`;
+  }).join("\n");
+}
+
+function slashCommand(
+  metadata: Omit<WorkbenchSlashCommandMetadata, "source" | "availability"> & Partial<Pick<WorkbenchSlashCommandMetadata, "source" | "availability">>
+): WorkbenchSlashCommandMetadata {
+  return {
+    source: "built-in",
+    availability: "available",
+    ...metadata
+  };
 }
 
 function parseInteractionResponse(text: string): unknown {

@@ -33,8 +33,12 @@ describe("workbench event reducer", () => {
       })
     ]);
 
-    expect(state.transcriptBlocks).toHaveLength(1);
+    expect(state.transcriptBlocks).toHaveLength(2);
     expect(state.transcriptBlocks[0]).toMatchObject({
+      kind: "user",
+      text: "hello"
+    });
+    expect(state.transcriptBlocks[1]).toMatchObject({
       kind: "assistant",
       messageId: "message-1",
       text: "hello world",
@@ -60,12 +64,77 @@ describe("workbench event reducer", () => {
     expect(state.runStatus).toBe("completed");
     expect(state.transcriptBlocks).toEqual([
       expect.objectContaining({
+        kind: "user",
+        text: "summarize"
+      }),
+      expect.objectContaining({
         kind: "assistant",
         messageId: "final:run-1",
         text: "done",
         status: "completed"
       })
     ]);
+  });
+
+  it("projects model reasoning deltas as a separate transcript block", () => {
+    const state = reduceHostEvents(initialState(), [
+      event({
+        type: "run.started",
+        input: "think"
+      }),
+      event({
+        type: "message.reasoning_delta",
+        seq: 2,
+        messageId: "reasoning-1",
+        text: "checking "
+      }),
+      event({
+        type: "message.reasoning_delta",
+        seq: 3,
+        messageId: "reasoning-1",
+        text: "tools"
+      }),
+      event({
+        type: "message.completed",
+        seq: 4,
+        messageId: "reasoning-1",
+        role: "assistant"
+      })
+    ]);
+
+    expect(createWorkbenchViewModel(state).transcript).toEqual([
+      expect.objectContaining({ kind: "user", title: "User", detail: "think" }),
+      expect.objectContaining({ kind: "reasoning", title: "Reasoning", detail: "checking tools" })
+    ]);
+  });
+
+  it("marks reasoning blocks completed when the run reaches a terminal state", () => {
+    const state = reduceHostEvents(initialState(), [
+      event({
+        type: "run.started",
+        input: "think"
+      }),
+      event({
+        type: "message.reasoning_delta",
+        seq: 2,
+        messageId: "reasoning-run-1-1",
+        text: "checking tools"
+      }),
+      event({
+        type: "run.completed",
+        seq: 3,
+        finalAnswer: "done"
+      })
+    ]);
+
+    expect(state.transcriptBlocks).toEqual([
+      expect.objectContaining({ kind: "user" }),
+      expect.objectContaining({ kind: "reasoning", status: "completed", lastSeq: 3 }),
+      expect.objectContaining({ kind: "assistant", text: "done", status: "completed" })
+    ]);
+    expect(createWorkbenchViewModel(state).transcript[1]).toMatchObject({
+      title: "Reasoning"
+    });
   });
 
   it("keeps tool lifecycle in one scannable transcript block", () => {
@@ -107,6 +176,12 @@ describe("workbench event reducer", () => {
       firstSeq: 1,
       lastSeq: 3
     });
+    expect(createWorkbenchViewModel(state).transcript[0]).toMatchObject({
+      title: "Tool completed: shell",
+      detail: expect.stringContaining("progress 50%")
+    });
+    expect(createWorkbenchViewModel(state).transcript[0]?.detail).toContain("input {\"command\":\"pwd\"}");
+    expect(createWorkbenchViewModel(state).transcript[0]?.detail).toContain("output /repo");
   });
 
   it("tracks retry events as transcript status", () => {
@@ -352,7 +427,7 @@ describe("workbench event reducer", () => {
       name: "shell"
     }));
 
-    expect(cleared.transcriptBlocks).toHaveLength(1);
+    expect(cleared.transcriptBlocks).toHaveLength(2);
     expect(createWorkbenchViewModel(cleared).transcript).toEqual([]);
     expect(cleared.activeRunId).toBe("run-1");
     expect(cleared.runStatus).toBe("running");

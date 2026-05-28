@@ -76,4 +76,29 @@ describe("workbench views", () => {
       disconnectedReason: "seq-discontinuity"
     });
   });
+
+  it("renders failed tool terminal details visibly", () => {
+    const state = reduceHostEvent(createInitialWorkbenchState({
+      projectPath: "/workspace/app",
+      profileId: "code",
+      slashCommands: []
+    }), {
+      type: "tool.failed",
+      seq: 1,
+      occurredAt: "2026-05-28T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      callId: "call-1",
+      name: "shell",
+      error: {
+        code: "TOOL_DENIED",
+        message: "Permission denied"
+      }
+    });
+
+    expect(createWorkbenchViewModel(state).transcript[0]).toMatchObject({
+      title: "Tool failed: shell",
+      detail: "Permission denied"
+    });
+  });
 });

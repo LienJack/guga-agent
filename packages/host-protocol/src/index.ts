@@ -10,6 +10,7 @@ export type {
   InteractionResolvedHostEvent,
   MessageCompletedHostEvent,
   MessageDeltaHostEvent,
+  MessageReasoningDeltaHostEvent,
   PermissionRequestedHostEvent,
   PermissionCancelledHostEvent,
   PermissionResolvedHostEvent,

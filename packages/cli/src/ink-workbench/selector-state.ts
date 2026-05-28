@@ -130,6 +130,7 @@ export function applySelectorIntent(state: SelectorState, intent: KeyIntent): Se
     case "left":
     case "right":
     case "newline":
+    case "complete":
     case "noop":
       return { state };
   }

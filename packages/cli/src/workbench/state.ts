@@ -84,6 +84,16 @@ export type AssistantTranscriptBlock = TranscriptBlockBase<"assistant"> & {
   status: "streaming" | "completed";
 };
 
+export type UserTranscriptBlock = TranscriptBlockBase<"user"> & {
+  text: string;
+};
+
+export type ReasoningTranscriptBlock = TranscriptBlockBase<"reasoning"> & {
+  messageId: string;
+  text: string;
+  status: "streaming" | "completed";
+};
+
 export type ToolTranscriptBlock = TranscriptBlockBase<"tool"> & {
   callId: string;
   name: string;
@@ -145,6 +155,8 @@ export type RetryTranscriptBlock = TranscriptBlockBase<"retry"> & {
 
 export type TranscriptBlock =
   | AssistantTranscriptBlock
+  | UserTranscriptBlock
+  | ReasoningTranscriptBlock
   | ToolTranscriptBlock
   | PermissionTranscriptBlock
   | InteractionTranscriptBlock

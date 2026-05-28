@@ -139,7 +139,8 @@ describe("CLI host factory", () => {
   });
 
   it("fails clearly when no model is configured", async () => {
-    await expect(createCliHost({ env: {} })).rejects.toMatchObject({
+    const root = await mkdtemp(join(tmpdir(), "guga-host-empty-"));
+    await expect(createCliHost({ env: { GUGA_HOME: join(root, "home") } })).rejects.toMatchObject({
       code: "MODEL_REQUIRED"
     } satisfies Partial<CliHostFactoryError>);
   });

@@ -62,6 +62,16 @@ export function projectAgentEvent(event: AgentEvent, context: AgentEventProjecti
     ];
   }
 
+  if (event.type === AgentEventType.ModelEvent && event.event.type === ModelEventType.ReasoningDelta) {
+    return [context.sequencer.next({
+      type: "message.reasoning_delta",
+      sessionId: context.sessionId,
+      runId: context.runId,
+      messageId: `reasoning-${context.runId}-${event.turn}`,
+      text: event.event.delta
+    })];
+  }
+
   if (event.type === AgentEventType.ModelEvent && event.event.type === ModelEventType.RetryScheduled) {
     return [context.sequencer.next({
       type: "retry.started",

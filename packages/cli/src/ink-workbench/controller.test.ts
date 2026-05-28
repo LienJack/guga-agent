@@ -25,7 +25,9 @@ describe("workbench controller", () => {
       modelId: "mock-model"
     });
     expect(controller.state.runStatus).toBe("completed");
-    expect(controller.state.transcriptBlocks[0]).toMatchObject({ kind: "assistant", text: "done" });
+    expect(controller.state.transcriptBlocks).toEqual([
+      expect.objectContaining({ kind: "assistant", text: "done" })
+    ]);
   });
 
   it("routes active run input, permission responses, and interactions through explicit host actions", async () => {
@@ -79,8 +81,46 @@ describe("workbench controller", () => {
     expect(client.respondInteraction).toHaveBeenCalledWith("interaction-1", true);
   });
 
-  it("locks host-writing submissions while disconnected but allows reload", async () => {
-    const client = fakeClient();
+  it("locks host-writing submissions while disconnected but allows reload after the replay seq", async () => {
+    const replayEvents = [
+      {
+        type: "run.started" as const,
+        seq: 1,
+        occurredAt: "2026-05-28T00:00:00.000Z",
+        sessionId: "session-1",
+        runId: "run-1",
+        input: "hello"
+      },
+      {
+        type: "message.delta" as const,
+        seq: 2,
+        occurredAt: "2026-05-28T00:00:01.000Z",
+        sessionId: "session-1",
+        runId: "run-1",
+        messageId: "message-1",
+        role: "assistant" as const,
+        text: "safe replay"
+      },
+      {
+        type: "queue.updated" as const,
+        seq: 3,
+        occurredAt: "2026-05-28T00:00:02.000Z",
+        sessionId: "session-1",
+        runId: "run-1",
+        pending: []
+      }
+    ];
+    const client = fakeClient({
+      replayEvents,
+      streamEvents: [{
+        type: "run.completed",
+        seq: 4,
+        occurredAt: "2026-05-28T00:00:03.000Z",
+        sessionId: "session-1",
+        runId: "run-1",
+        finalAnswer: "done"
+      }]
+    });
     const controller = controllerFor(client);
     controller.applyEvent({
       type: "run.started",
@@ -105,7 +145,21 @@ describe("workbench controller", () => {
     expect(client.sendRunInput).not.toHaveBeenCalled();
 
     await expect(controller.submitText("/reload")).resolves.toMatchObject({ ok: true });
+    await tick();
     expect(client.listRunEvents).toHaveBeenCalledWith("run-1");
+    expect(client.streamRunEvents).toHaveBeenLastCalledWith("run-1", expect.objectContaining({ afterSeq: 3 }));
+    expect(controller.state.disconnected).toBeUndefined();
+    expect(controller.state.transcriptBlocks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "user", text: "hello" }),
+      expect.objectContaining({ kind: "assistant", text: "safe replay" })
+    ]));
+
+    await expect(controller.submitText("next")).resolves.toMatchObject({ ok: true });
+    expect(client.startRun).toHaveBeenCalledWith("session-1", {
+      input: "next",
+      providerId: "mock",
+      modelId: "mock-model"
+    });
   });
 
   it("uses the selected model for future prompt runs", async () => {
@@ -187,7 +241,10 @@ function controllerFor(client: HostClient) {
   });
 }
 
-function fakeClient(options: { readonly streamEvents?: readonly Awaited<ReturnType<HostClient["listRunEvents"]>>[number][] } = {}): HostClient {
+function fakeClient(options: {
+  readonly streamEvents?: readonly Awaited<ReturnType<HostClient["listRunEvents"]>>[number][];
+  readonly replayEvents?: readonly Awaited<ReturnType<HostClient["listRunEvents"]>>[number][];
+} = {}): HostClient {
   return {
     getProtocolInfo: vi.fn(),
     assertCompatibleProtocol: vi.fn(),
@@ -207,10 +264,12 @@ function fakeClient(options: { readonly streamEvents?: readonly Awaited<ReturnTy
       lastSeq: 0
     })),
     getRun: vi.fn(),
-    listRunEvents: vi.fn(async () => options.streamEvents ?? []),
-    streamRunEvents: vi.fn(async function* () {
+    listRunEvents: vi.fn(async () => options.replayEvents ?? options.streamEvents ?? []),
+    streamRunEvents: vi.fn(async function* (_runId: string, streamOptions?: { afterSeq?: number }) {
       for (const event of options.streamEvents ?? []) {
-        yield event;
+        if (streamOptions?.afterSeq === undefined || event.seq > streamOptions.afterSeq) {
+          yield event;
+        }
       }
     }),
     sendRunInput: vi.fn(async () => runResource()),

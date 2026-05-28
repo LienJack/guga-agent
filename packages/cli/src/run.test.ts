@@ -69,7 +69,8 @@ describe("CLI run command", () => {
   });
 
   it("prints a friendly error when headless run has no configured model", async () => {
-    const io = captureIo({ env: {} });
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-empty-"));
+    const io = captureIo({ env: { GUGA_HOME: gugaHome } });
 
     await expect(runCli(["run", "hello"], io)).resolves.toBe(2);
 
@@ -78,7 +79,8 @@ describe("CLI run command", () => {
   });
 
   it("prints a friendly error when interactive mode has no configured model", async () => {
-    const io = captureIo({ stdin: ttyReadable("/exit\n"), tty: true, env: {} });
+    const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-empty-"));
+    const io = captureIo({ stdin: ttyReadable("/exit\n"), tty: true, env: { GUGA_HOME: gugaHome } });
 
     await expect(runCli([], io)).resolves.toBe(2);
 
@@ -216,6 +218,18 @@ describe("CLI run command", () => {
       message: "running tests",
       progress: 0.5
     })).toEqual(["tool shell progress 50%: running tests"]);
+  });
+
+  it("renders explicit reasoning deltas in headless event output", () => {
+    expect(renderHostEvent({
+      type: "message.reasoning_delta",
+      seq: 1,
+      occurredAt: "2026-05-27T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      messageId: "reasoning-1",
+      text: "checking tools"
+    })).toEqual(["reasoning: checking tools"]);
   });
 
   it("reads real provider config from environment", async () => {

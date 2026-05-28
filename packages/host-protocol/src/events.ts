@@ -8,6 +8,7 @@ export type HostEventType =
   | "run.failed"
   | "run.cancelled"
   | "message.delta"
+  | "message.reasoning_delta"
   | "message.completed"
   | "tool.started"
   | "tool.progress"
@@ -60,6 +61,11 @@ export type RunCancelledHostEvent = RunScopedEvent<"run.cancelled"> & {
 export type MessageDeltaHostEvent = RunScopedEvent<"message.delta"> & {
   messageId: string;
   role: "assistant";
+  text: string;
+};
+
+export type MessageReasoningDeltaHostEvent = RunScopedEvent<"message.reasoning_delta"> & {
+  messageId: string;
   text: string;
 };
 
@@ -183,6 +189,7 @@ export type HostEvent =
   | RunFailedHostEvent
   | RunCancelledHostEvent
   | MessageDeltaHostEvent
+  | MessageReasoningDeltaHostEvent
   | MessageCompletedHostEvent
   | ToolStartedHostEvent
   | ToolProgressHostEvent

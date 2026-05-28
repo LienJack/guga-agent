@@ -1,6 +1,7 @@
 export type KeyIntent =
   | { readonly type: "abort" }
   | { readonly type: "backspace" }
+  | { readonly type: "complete" }
   | { readonly type: "delete" }
   | { readonly type: "history-next" }
   | { readonly type: "history-previous" }
@@ -45,6 +46,10 @@ export function mapKeypressToIntent(key: TerminalKeypress): KeyIntent {
     }
 
     return { type: "submit" };
+  }
+
+  if (key.name === "tab" || key.sequence === "\t") {
+    return { type: "complete" };
   }
 
   if (key.name === "backspace") {

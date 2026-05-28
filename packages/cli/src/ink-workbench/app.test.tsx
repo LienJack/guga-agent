@@ -20,6 +20,15 @@ describe("Ink workbench app", () => {
     expect(lastFrame()).toContain("prompt");
   });
 
+  it("echoes prompt text in the bottom editor before submission", async () => {
+    const { stdin, lastFrame } = render(<InkWorkbenchApp controller={controllerFor(fakeClient())} />);
+
+    stdin.write("hello");
+    await tick();
+
+    expect(lastFrame()).toContain("hello");
+  });
+
   it("opens the slash palette before submitting slash-prefixed text", async () => {
     const { stdin, lastFrame } = render(<InkWorkbenchApp controller={controllerFor(fakeClient())} />);
 
@@ -30,6 +39,18 @@ describe("Ink workbench app", () => {
 
     expect(lastFrame()).toContain("Slash commands /model");
     expect(lastFrame()).toContain("/model");
+  });
+
+  it("completes the highlighted slash command into the editor with Tab", async () => {
+    const { stdin, lastFrame } = render(<InkWorkbenchApp controller={controllerFor(fakeClient())} />);
+
+    stdin.write("/mod");
+    await tick();
+    stdin.write("\t");
+    await tick();
+
+    expect(lastFrame()).toContain("/model");
+    expect(lastFrame()).not.toContain("Slash commands");
   });
 
   it("submits slash commands with arguments from the prompt buffer", async () => {
@@ -90,6 +111,81 @@ describe("Ink workbench app", () => {
 
     expect(client.respondPermission).toHaveBeenCalledWith("permission-1", { decision: "allow", remember: "once" });
     expect(client.abortRun).not.toHaveBeenCalled();
+  });
+
+  it("restores the previous prompt draft after a permission overlay resolves", async () => {
+    const client = fakeClient();
+    const controller = controllerFor(client);
+    const { stdin, lastFrame } = render(<InkWorkbenchApp controller={controller} />);
+
+    stdin.write("draft");
+    await tick();
+    expect(lastFrame()).toContain("draft");
+
+    controller.applyEvent({
+      type: "permission.requested",
+      seq: 1,
+      occurredAt: "2026-05-28T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      requestId: "permission-1",
+      callId: "call-1",
+      toolName: "shell"
+    });
+    await tick();
+    stdin.write("allow");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    controller.applyEvent({
+      type: "permission.resolved",
+      seq: 2,
+      occurredAt: "2026-05-28T00:00:01.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      requestId: "permission-1",
+      decision: "allow"
+    });
+    await tick();
+
+    expect(client.respondPermission).toHaveBeenCalledWith("permission-1", { decision: "allow", remember: "once" });
+    expect(lastFrame()).toContain("draft");
+    expect(lastFrame()).toContain("run:steer");
+  });
+
+  it("keeps the editor draft when disconnected input is locked", async () => {
+    const client = fakeClient();
+    const controller = controllerFor(client);
+    const { stdin, lastFrame } = render(<InkWorkbenchApp controller={controller} />);
+
+    controller.applyEvent({
+      type: "run.started",
+      seq: 1,
+      occurredAt: "2026-05-28T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      input: "hello"
+    });
+    controller.applyEvent({
+      type: "message.delta",
+      seq: 3,
+      occurredAt: "2026-05-28T00:00:01.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      messageId: "message-1",
+      role: "assistant",
+      text: "missed seq"
+    });
+    await tick();
+
+    stdin.write("draft");
+    await tick();
+    stdin.write("\r");
+    await tick();
+
+    expect(client.sendRunInput).not.toHaveBeenCalled();
+    expect(lastFrame()).toContain("draft");
+    expect(lastFrame()).toContain("Input is locked while the host stream is disconnected.");
   });
 
   it("does not abort the active run when Escape is captured by pending permission", async () => {

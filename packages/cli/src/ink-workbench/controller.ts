@@ -290,7 +290,12 @@ export class WorkbenchController {
       return { ok: false, error: "No active run to reload." };
     }
     const events = await this.client.listRunEvents(runId);
-    this.setState(reduceWorkbenchAction(reduceHostEvents(this.#state, events), { type: "stream.reconnected" }));
+    const replayBase = createInitialWorkbenchState({
+      ...this.#state.startup,
+      sessionId: this.#session.id,
+      ...(this.#session.activeBranchId ? { branchId: this.#session.activeBranchId } : {})
+    });
+    this.setState(reduceWorkbenchAction(reduceHostEvents(replayBase, events), { type: "stream.reconnected" }));
     this.attachRunStream(runId, this.#state.lastSeq);
     return { ok: true, message: "reload requested" };
   }

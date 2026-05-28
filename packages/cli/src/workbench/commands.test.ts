@@ -28,7 +28,9 @@ describe("workbench slash commands", () => {
     expect(WORKBENCH_SLASH_COMMAND_METADATA.find((command) => command.command === "/model")).toMatchObject({
       label: "Switch model",
       selector: "model",
-      usage: "/model <id>"
+      usage: "/model <id>",
+      source: "built-in",
+      availability: "available"
     });
     expect(WORKBENCH_SLASH_COMMAND_METADATA.find((command) => command.command === "/profile")).toMatchObject({
       selector: "profile"
@@ -36,7 +38,8 @@ describe("workbench slash commands", () => {
     expect(WORKBENCH_SLASH_COMMAND_METADATA.find((command) => command.command === "/resume")).toMatchObject({
       selector: "resume"
     });
-    expect(formatCommandHelp()).toContain("/abort - Abort the active run.");
+    expect(formatCommandHelp()).toContain("/abort - Abort the active run. (built-in)");
+    expect(formatCommandHelp()).toContain("/compact - Reserved compaction command. (built-in) [reserved:");
   });
 
   it("lists and selects models from the CLI config registry", async () => {
@@ -122,22 +125,25 @@ describe("workbench slash commands", () => {
     await expect(executeWorkbenchCommand(parseWorkbenchInput("/permissions"), ctx)).resolves.toMatchObject({
       ok: true,
       action: "permissions",
-      message: expect.stringContaining("tool:fs_write registered")
+      message: expect.stringContaining("tool:fs_write registered (source=plugin) trust=first-party")
     });
     await expect(executeWorkbenchCommand(parseWorkbenchInput("/mcp"), ctx)).resolves.toMatchObject({
       ok: true,
       action: "mcp",
-      message: expect.stringContaining("tool:mcp_tool registered")
+      message: expect.stringContaining("tool:mcp_tool skipped-conflict (source=mcp owner=code-agent-mcp) reason=name already registered")
     });
     await expect(executeWorkbenchCommand(parseWorkbenchInput("/tools"), ctx)).resolves.toMatchObject({
       ok: true,
-      action: "tools",
-      message: expect.stringContaining("tool:fs_write registered")
+      action: "tools"
     });
+    const tools = await executeWorkbenchCommand(parseWorkbenchInput("/tools"), ctx);
+    expect(tools).toMatchObject({ ok: true });
+    expect(tools.ok ? tools.message : "").toContain("tool:fs_write registered (source=plugin) trust=first-party");
+    expect(tools.ok ? tools.message : "").toContain("tool:mcp_tool skipped-conflict (source=mcp owner=code-agent-mcp) reason=name already registered");
     await expect(executeWorkbenchCommand(parseWorkbenchInput("/skills"), ctx)).resolves.toMatchObject({
       ok: true,
       action: "skills",
-      message: "No matching capabilities."
+      message: expect.stringContaining("skill:review disabled (source=plugin namespace=local-skills owner=skills-plugin) reason=missing body")
     });
   });
 
@@ -274,7 +280,8 @@ function fakeClient(): HostClient {
     })),
     listCapabilities: vi.fn(async () => [
       { type: "tool", name: "fs_write", source: "plugin", status: "registered", trust: { level: "first-party" } },
-      { type: "tool", name: "mcp_tool", source: "mcp", status: "registered", ownerPluginId: "code-agent-mcp" },
+      { type: "tool", name: "mcp_tool", source: "mcp", status: "skipped-conflict", ownerPluginId: "code-agent-mcp", reason: "name already registered" },
+      { type: "skill", name: "review", source: "plugin", status: "disabled", namespace: "local-skills", ownerPluginId: "skills-plugin", reason: "missing body" },
       { type: "operation", name: "provider.health", source: "plugin", status: "registered" }
     ]),
     listProviderHealth: vi.fn(async () => []),
