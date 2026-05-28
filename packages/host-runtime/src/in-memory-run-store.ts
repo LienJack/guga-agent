@@ -1,6 +1,7 @@
 import type {
   HostErrorPayload,
   HostEvent,
+  QueuedRunInputResource,
   RunResource,
   RunStatus,
   SessionResource
@@ -62,6 +63,7 @@ export class InMemoryRunStore {
     status?: RunStatus;
     finalAnswer?: string;
     error?: HostErrorPayload;
+    queuedInputs?: QueuedRunInputResource[];
     updatedAt: string;
   }): void {
     const run = this.runs.get(runId);
@@ -73,6 +75,7 @@ export class InMemoryRunStore {
       ...(patch.status ? { status: patch.status } : {}),
       ...(patch.finalAnswer !== undefined ? { finalAnswer: patch.finalAnswer } : {}),
       ...(patch.error ? { error: patch.error } : {}),
+      ...(patch.queuedInputs ? { queuedInputs: patch.queuedInputs } : {}),
       updatedAt: patch.updatedAt
     });
   }

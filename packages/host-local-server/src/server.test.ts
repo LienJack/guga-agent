@@ -19,7 +19,7 @@ describe("HostLocalServer", () => {
       { input: "hello", providerId: "mock" }
     );
 
-    expect(run).toMatchObject({ status: "completed", finalAnswer: "hello from server" });
+    expect(run).toMatchObject({ status: "running" });
 
     const eventResponse = await fetch(`${server.url}/runs/${run.id}/events`, {
       headers: { accept: "text/event-stream" }
@@ -54,6 +54,7 @@ describe("HostLocalServer", () => {
     const reader = eventResponse.body?.getReader();
     await reader?.read();
     await reader?.cancel();
+    await drainRunEvents(server.url, run.id);
 
     await expect(fetchJson(`${server.url}/runs/${run.id}/events`)).resolves.toMatchObject({
       events: expect.arrayContaining([
@@ -70,6 +71,7 @@ describe("HostLocalServer", () => {
       input: "hello",
       providerId: "mock"
     });
+    await drainRunEvents(server.url, run.id);
 
     await expect(fetchJson(`${server.url}/capabilities`)).resolves.toMatchObject({
       capabilities: expect.arrayContaining([
@@ -101,7 +103,47 @@ describe("HostLocalServer", () => {
       status: "completed"
     });
   });
+
+  it("queues active run input and exposes abort as a control alias", async () => {
+    const { server } = await startControlledServer();
+    const session = await postJson<{ id: string }>(`${server.url}/sessions`, {});
+    const run = await postJson<{ id: string; status: string }>(`${server.url}/sessions/${session.id}/runs`, {
+      input: "wait",
+      providerId: "controlled"
+    });
+
+    expect(run).toMatchObject({ status: "running" });
+    await expect(postJson(`${server.url}/runs/${run.id}/input`, {
+      mode: "follow_up",
+      text: "next turn"
+    })).resolves.toMatchObject({
+      queuedInputs: [
+        expect.objectContaining({
+          mode: "follow_up",
+          text: "next turn",
+          textPreview: "next turn"
+        })
+      ]
+    });
+    await expect(fetchJson(`${server.url}/runs/${run.id}/events`)).resolves.toMatchObject({
+      events: expect.arrayContaining([
+        expect.objectContaining({ type: "queue.updated" })
+      ])
+    });
+
+    await expect(postJson(`${server.url}/runs/${run.id}/abort`, {})).resolves.toMatchObject({
+      id: run.id,
+      status: "cancelled"
+    });
+  });
 });
+
+async function drainRunEvents(baseUrl: string, runId: string): Promise<void> {
+  const response = await fetch(`${baseUrl}/runs/${runId}/events`, {
+    headers: { accept: "text/event-stream" }
+  });
+  await response.text();
+}
 
 async function startTestServer(): Promise<HostLocalServer> {
   const runtime = createAgentRuntime();
@@ -120,6 +162,32 @@ async function startTestServer(): Promise<HostLocalServer> {
   await server.listen();
   servers.push(server);
   return server;
+}
+
+async function startControlledServer(): Promise<{ server: HostLocalServer; finish: (content: string) => void }> {
+  let finish: (content: string) => void = () => undefined;
+  const runtime = createAgentRuntime();
+  runtime.registerProvider({
+    id: "controlled",
+    async generate(request) {
+      const content = await new Promise<string>((resolve) => {
+        finish = resolve;
+        request.signal?.addEventListener("abort", () => resolve("aborted"), { once: true });
+      });
+      return { type: "final", content };
+    }
+  });
+  const server = new HostLocalServer({
+    hostRuntime: new HostRuntime({
+      runtime,
+      now: () => new Date("2026-05-27T00:00:00.000Z"),
+      idFactory: deterministicIds(["session-1", "run-1", "input-1"])
+    }),
+    pollIntervalMs: 1
+  });
+  await server.listen();
+  servers.push(server);
+  return { server, finish };
 }
 
 async function postJson<ResponseBody>(url: string, body: unknown): Promise<ResponseBody> {

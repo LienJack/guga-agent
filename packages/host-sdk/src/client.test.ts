@@ -18,6 +18,7 @@ describe("host SDK", () => {
 
     const session = await client.createSession({ title: "SDK" });
     const run = await client.startRun(session.id, { input: "hello", providerId: "mock" });
+    expect(run).toMatchObject({ status: "running" });
 
     const events: string[] = [];
     for await (const event of client.streamRunEvents(run.id)) {
@@ -41,6 +42,7 @@ describe("host SDK", () => {
     const host = await startSdkHost();
     const session = await host.client.createSession();
     const run = await host.client.startRun(session.id, { input: "hello", providerId: "mock" });
+    await drainRunEvents(host, run.id);
 
     await expect(host.client.listRunEvents(run.id)).resolves.toEqual(expect.arrayContaining([
       expect.objectContaining({ type: "run.started" }),
@@ -70,6 +72,25 @@ describe("host SDK", () => {
     await expect(host.client.getRun("missing")).rejects.toBeInstanceOf(HostClientError);
   });
 
+  it("sends queued run input through the typed client", async () => {
+    const host = await startControlledSdkHost();
+    const session = await host.client.createSession();
+    const run = await host.client.startRun(session.id, { input: "wait", providerId: "controlled" });
+
+    await expect(host.client.sendRunInput(run.id, {
+      mode: "steer",
+      text: "use the shorter path"
+    })).resolves.toMatchObject({
+      queuedInputs: [
+        expect.objectContaining({
+          mode: "steer",
+          textPreview: "use the shorter path"
+        })
+      ]
+    });
+    await expect(host.client.abortRun(run.id)).resolves.toMatchObject({ status: "cancelled" });
+  });
+
   it("parses buffered SSE payloads", () => {
     expect(parseSsePayload([
       "id: run-1:1",
@@ -97,6 +118,37 @@ async function startSdkHost(): Promise<LocalGugaHost> {
   });
   hosts.push(host);
   return host;
+}
+
+async function startControlledSdkHost(): Promise<LocalGugaHost> {
+  const runtime = createAgentRuntime();
+  runtime.registerProvider({
+    id: "controlled",
+    async generate(request) {
+      const content = await new Promise<string>((resolve) => {
+        request.signal?.addEventListener("abort", () => resolve("aborted"), { once: true });
+      });
+      return { type: "final", content };
+    }
+  });
+  const host = await createLocalGugaHost({
+    hostRuntime: new HostRuntime({
+      runtime,
+      now: () => new Date("2026-05-27T00:00:00.000Z"),
+      idFactory: deterministicIds(["session-1", "run-1", "input-1"])
+    }),
+    pollIntervalMs: 1
+  });
+  hosts.push(host);
+  return host;
+}
+
+async function drainRunEvents(host: LocalGugaHost, runId: string): Promise<void> {
+  let eventCount = 0;
+  for await (const event of host.client.streamRunEvents(runId)) {
+    eventCount += event.type.length > 0 ? 1 : 0;
+  }
+  expect(eventCount).toBeGreaterThan(0);
 }
 
 function deterministicIds(values: string[]): () => string {

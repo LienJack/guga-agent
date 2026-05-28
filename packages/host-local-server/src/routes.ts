@@ -68,7 +68,7 @@ async function handleRequest(
         ...(typeof body.modelId === "string" ? { modelId: body.modelId } : {}),
         ...(typeof body.maxTurns === "number" ? { maxTurns: body.maxTurns } : {})
       };
-      const run = await hostRuntime.startRun(runOptions);
+      const run = hostRuntime.startRunDetached(runOptions);
       sendJson(response, 201, run);
       return;
     }
@@ -103,6 +103,33 @@ async function handleRequest(
     if (request.method === "POST" && segments.length === 3 && segments[0] === "runs" && segments[2] === "cancel") {
       const run = hostRuntime.cancelRun(segments[1] ?? "");
       sendJsonOrNotFound(response, run, "Run not found");
+      return;
+    }
+
+    if (request.method === "POST" && segments.length === 3 && segments[0] === "runs" && segments[2] === "abort") {
+      const run = hostRuntime.cancelRun(segments[1] ?? "");
+      sendJsonOrNotFound(response, run, "Run not found");
+      return;
+    }
+
+    if (request.method === "POST" && segments.length === 3 && segments[0] === "runs" && segments[2] === "input") {
+      const runId = segments[1] ?? "";
+      const run = hostRuntime.getRun(runId);
+      if (!run) {
+        sendError(response, 404, "NOT_FOUND", "Run not found");
+        return;
+      }
+      if (run.status === "completed" || run.status === "failed" || run.status === "cancelled") {
+        sendError(response, 409, "RUN_NOT_ACTIVE", "Run input can only be queued while a run is active");
+        return;
+      }
+      const body = await readJsonBody<{ mode?: unknown; text?: unknown }>(request);
+      const mode = body.mode === "follow_up" ? "follow_up" : body.mode === "steer" ? "steer" : undefined;
+      if (!mode || typeof body.text !== "string" || body.text.trim().length === 0) {
+        sendError(response, 400, "BAD_REQUEST", "Run input requires mode steer|follow_up and non-empty text");
+        return;
+      }
+      sendJson(response, 202, hostRuntime.enqueueRunInput(runId, { mode, text: body.text }) ?? run);
       return;
     }
 

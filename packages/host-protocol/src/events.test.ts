@@ -71,4 +71,23 @@ describe("host protocol events", () => {
       ""
     ].join("\n"));
   });
+
+  it("serializes queue updates without queued input bodies", () => {
+    const event = createHostEventSequencer({
+      now: () => new Date("2026-05-27T00:00:00.000Z")
+    }).next({
+      type: "queue.updated",
+      sessionId: "session-1",
+      runId: "run-1",
+      pending: [{
+        id: "input-1",
+        mode: "steer",
+        textPreview: "revise plan",
+        createdAt: "2026-05-27T00:00:00.000Z"
+      }]
+    });
+
+    expect(JSON.parse(JSON.stringify(event))).toEqual(event);
+    expect(JSON.stringify(event)).not.toContain("\"text\":");
+  });
 });

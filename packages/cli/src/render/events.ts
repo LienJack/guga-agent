@@ -9,6 +9,9 @@ export function renderHostEvent(event: HostEvent, options: RenderEventOptions = 
     return [JSON.stringify(event)];
   }
 
+  if (event.type === "message.delta") {
+    return [event.text];
+  }
   if (event.type === "tool.started") {
     return [`tool ${event.name} started`];
   }
@@ -20,6 +23,9 @@ export function renderHostEvent(event: HostEvent, options: RenderEventOptions = 
   }
   if (event.type === "permission.requested") {
     return [`permission requested for ${event.toolName}`];
+  }
+  if (event.type === "queue.updated") {
+    return [`queued inputs: ${event.pending.length}`];
   }
   if (event.type === "run.failed") {
     return [`run failed: ${event.error.code} ${event.error.message}`];

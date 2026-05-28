@@ -20,8 +20,21 @@ export type RunResource = {
   lastSeq: number;
   finalAnswer?: string;
   error?: HostErrorPayload;
+  queuedInputs?: QueuedRunInputResource[];
   events?: HostEvent[];
 };
+
+export type RunInputMode = "steer" | "follow_up";
+
+export type QueuedRunInputResource = {
+  id: string;
+  mode: RunInputMode;
+  text: string;
+  textPreview: string;
+  createdAt: string;
+};
+
+export type QueuedRunInputSummaryResource = Omit<QueuedRunInputResource, "text">;
 
 export type HostErrorPayload = {
   code: string;

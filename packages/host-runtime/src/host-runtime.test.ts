@@ -58,6 +58,97 @@ describe("HostRuntime", () => {
     ]));
   });
 
+  it("starts detached runs so callers can observe events while execution is active", async () => {
+    let finishRun: ((content: string) => void) | undefined;
+    const runtime = createAgentRuntime();
+    runtime.registerProvider({
+      id: "slow",
+      async generate() {
+        const content = await new Promise<string>((resolve) => {
+          finishRun = resolve;
+        });
+        return {
+          type: "final",
+          content,
+          usage: { totalTokens: 5 }
+        };
+      }
+    });
+    const host = new HostRuntime({
+      runtime,
+      now: () => new Date("2026-05-27T00:00:00.000Z"),
+      idFactory: deterministicIds(["session-1", "run-1"])
+    });
+    const session = host.createSession();
+
+    const run = host.startRunDetached({ sessionId: session.id, input: "wait", providerId: "slow" });
+
+    expect(run).toMatchObject({ id: "run-run-1", status: "running" });
+    expect(host.getRun(run.id)).toMatchObject({ status: "running" });
+
+    await waitFor(() => !!finishRun);
+    finishRun?.("detached done");
+    await expect(waitForRunStatus(host, run.id, "completed")).resolves.toMatchObject({
+      status: "completed",
+      finalAnswer: "detached done"
+    });
+    expect(host.listRunEvents(run.id).map((event) => event.type)).toEqual([
+      "run.started",
+      "message.delta",
+      "message.completed",
+      "usage.recorded",
+      "run.completed"
+    ]);
+  });
+
+  it("queues run input and emits queue updates while a run is active", async () => {
+    let finishRun: ((content: string) => void) | undefined;
+    const runtime = createAgentRuntime();
+    runtime.registerProvider({
+      id: "slow",
+      async generate() {
+        const content = await new Promise<string>((resolve) => {
+          finishRun = resolve;
+        });
+        return { type: "final", content };
+      }
+    });
+    const host = new HostRuntime({
+      runtime,
+      now: () => new Date("2026-05-27T00:00:00.000Z"),
+      idFactory: deterministicIds(["session-1", "run-1", "input-1"])
+    });
+    const session = host.createSession();
+    const run = host.startRunDetached({ sessionId: session.id, input: "wait", providerId: "slow" });
+    await waitFor(() => !!finishRun);
+
+    const updatedRun = host.enqueueRunInput(run.id, { mode: "steer", text: "adjust course" });
+
+    expect(updatedRun?.queuedInputs).toEqual([
+      expect.objectContaining({
+        id: "input-input-1",
+        mode: "steer",
+        text: "adjust course",
+        textPreview: "adjust course"
+      })
+    ]);
+    expect(host.listRunEvents(run.id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "queue.updated",
+        pending: [
+          expect.objectContaining({
+            id: "input-input-1",
+            mode: "steer",
+            textPreview: "adjust course"
+          })
+        ]
+      })
+    ]));
+
+    finishRun?.("done");
+    await waitForRunStatus(host, run.id, "completed");
+  });
+
   it("stores structured run failures", async () => {
     const runtime = createAgentRuntime();
     const host = new HostRuntime({
@@ -138,4 +229,29 @@ function deterministicIds(values: string[]): () => string {
     }
     return value;
   };
+}
+
+async function waitForRunStatus(
+  host: HostRuntime,
+  runId: string,
+  status: "completed" | "failed" | "cancelled"
+): Promise<ReturnType<HostRuntime["getRun"]>> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const run = host.getRun(runId);
+    if (run?.status === status) {
+      return run;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  throw new Error(`Timed out waiting for run ${runId} to reach ${status}`);
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+  throw new Error("Timed out waiting for condition");
 }

@@ -57,14 +57,20 @@ export async function runCommand(args: RunArgs, io: CliIO): Promise<number> {
       ...(args.providerId || args.mock ? { providerId: args.providerId ?? "mock" } : {}),
       ...(args.modelId ? { modelId: args.modelId } : {})
     });
-    const events = await host.client.listRunEvents(run.id);
-    for (const event of events) {
+    let renderedAssistantText = false;
+    for await (const event of host.client.streamRunEvents(run.id)) {
+      if (event.type === "message.delta" && !args.debugEvents) {
+        renderedAssistantText = true;
+      }
       for (const line of renderHostEvent(event, { debug: args.debugEvents })) {
         io.stdout.write(`${line}\n`);
       }
     }
-    if (run.status === "completed") {
-      io.stdout.write(`${run.finalAnswer ?? ""}\n`);
+    const finalRun = await host.client.getRun(run.id);
+    if (finalRun.status === "completed") {
+      if (!renderedAssistantText) {
+        io.stdout.write(`${finalRun.finalAnswer ?? ""}\n`);
+      }
       if (args.ops) {
         await printOperationalStatus(host, io);
       }
@@ -73,7 +79,7 @@ export async function runCommand(args: RunArgs, io: CliIO): Promise<number> {
     if (args.ops) {
       await printOperationalStatus(host, io);
     }
-    io.stderr.write(`${run.error?.message ?? `Run ended with status ${run.status}`}\n`);
+    io.stderr.write(`${finalRun.error?.message ?? `Run ended with status ${finalRun.status}`}\n`);
     return 1;
   } finally {
     await host.close();

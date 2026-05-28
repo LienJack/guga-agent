@@ -5,6 +5,7 @@ import type {
   MetricsSnapshotResource,
   OperationalStatusResource,
   ProviderHealthResource,
+  RunInputMode,
   RunResource,
   SessionResource
 } from "@guga-agent/host-protocol";
@@ -28,6 +29,11 @@ export type StartRunRequest = {
   maxTurns?: number;
 };
 
+export type SendRunInputRequest = {
+  mode: RunInputMode;
+  text: string;
+};
+
 export type HostClient = {
   createSession(request?: CreateSessionRequest): Promise<SessionResource>;
   getSession(sessionId: string): Promise<SessionResource>;
@@ -35,7 +41,9 @@ export type HostClient = {
   getRun(runId: string): Promise<RunResource>;
   listRunEvents(runId: string): Promise<HostEvent[]>;
   streamRunEvents(runId: string, options?: { afterSeq?: number; signal?: AbortSignal }): AsyncIterable<HostEvent>;
+  sendRunInput(runId: string, request: SendRunInputRequest): Promise<RunResource>;
   cancelRun(runId: string): Promise<RunResource>;
+  abortRun(runId: string): Promise<RunResource>;
   listCapabilities(): Promise<CapabilityResource[]>;
   listProviderHealth(): Promise<ProviderHealthResource[]>;
   listAuditSummaries(): Promise<AuditSummaryResource[]>;
@@ -98,8 +106,20 @@ export function connectHost(options: ConnectHostOptions): HostClient {
         ...(streamOptions.signal ? { signal: streamOptions.signal } : {})
       });
     },
+    sendRunInput(runId, request) {
+      return requestJson(fetchImpl, `${baseUrl}/runs/${encodeURIComponent(runId)}/input`, {
+        method: "POST",
+        body: request
+      });
+    },
     cancelRun(runId) {
       return requestJson(fetchImpl, `${baseUrl}/runs/${encodeURIComponent(runId)}/cancel`, {
+        method: "POST",
+        body: {}
+      });
+    },
+    abortRun(runId) {
+      return requestJson(fetchImpl, `${baseUrl}/runs/${encodeURIComponent(runId)}/abort`, {
         method: "POST",
         body: {}
       });

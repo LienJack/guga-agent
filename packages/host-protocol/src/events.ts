@@ -1,3 +1,5 @@
+import type { QueuedRunInputSummaryResource } from "./resources";
+
 export const HOST_EVENT_SSE_NAME = "guga.host-event";
 
 export type HostEventType =
@@ -11,6 +13,7 @@ export type HostEventType =
   | "tool.failed"
   | "permission.requested"
   | "permission.resolved"
+  | "queue.updated"
   | "context.compacted"
   | "artifact.created"
   | "usage.recorded";
@@ -92,6 +95,10 @@ export type PermissionResolvedHostEvent = RunScopedEvent<"permission.resolved"> 
   reason?: string;
 };
 
+export type QueueUpdatedHostEvent = RunScopedEvent<"queue.updated"> & {
+  pending: QueuedRunInputSummaryResource[];
+};
+
 export type ContextCompactedHostEvent = RunScopedEvent<"context.compacted"> & {
   boundaryId: string;
   trigger: string;
@@ -131,6 +138,7 @@ export type HostEvent =
   | ToolFailedHostEvent
   | PermissionRequestedHostEvent
   | PermissionResolvedHostEvent
+  | QueueUpdatedHostEvent
   | ContextCompactedHostEvent
   | ArtifactCreatedHostEvent
   | UsageRecordedHostEvent;

@@ -8,11 +8,15 @@ import {
   createHostEventSequencer,
   type AuditSummaryResource,
   type CapabilityResource,
+  type HostEventSequencer,
   type HostEvent,
   type MetricsSnapshotResource,
   type OperationalDiagnosticResource,
   type OperationalStatusResource,
   type ProviderHealthResource,
+  type QueuedRunInputResource,
+  type QueuedRunInputSummaryResource,
+  type RunInputMode,
   type RunResource,
   type SessionResource,
   type UsageCostResource
@@ -35,6 +39,11 @@ export type StartRunOptions = {
   maxTurns?: number;
 };
 
+export type EnqueueRunInputOptions = {
+  mode: RunInputMode;
+  text: string;
+};
+
 export class HostRuntime {
   private readonly runtime: AgentRuntime;
   private readonly ownsRuntime: boolean;
@@ -42,6 +51,8 @@ export class HostRuntime {
   private readonly idFactory: () => string;
   private readonly store = new InMemoryRunStore();
   private readonly activeRunControllers = new Map<string, AbortController>();
+  private readonly activeRunCompletions = new Map<string, Promise<RunResource>>();
+  private readonly activeRunSequencers = new Map<string, HostEventSequencer>();
 
   constructor(options: HostRuntimeOptions = {}) {
     this.runtime = options.runtime ?? createAgentRuntime(options.runtimeOptions ?? {});
@@ -72,6 +83,11 @@ export class HostRuntime {
   }
 
   async startRun(options: StartRunOptions): Promise<RunResource> {
+    const run = this.startRunDetached(options);
+    return this.activeRunCompletions.get(run.id) ?? run;
+  }
+
+  startRunDetached(options: StartRunOptions): RunResource {
     const session = this.requireSession(options.sessionId);
     const timestamp = this.now().toISOString();
     const runId = `run-${this.idFactory()}`;
@@ -90,62 +106,105 @@ export class HostRuntime {
     const sequencer = createHostEventSequencer({ now: this.now });
     const controller = new AbortController();
     this.activeRunControllers.set(runId, controller);
+    this.activeRunSequencers.set(runId, sequencer);
     const unsubscribe = this.runtime.onEvent((event) => {
       const hostEvents = projectAgentEvent(event, { sessionId: session.id, runId, sequencer });
       this.store.appendEvents(runId, hostEvents);
       this.applyEventEffects(runId, hostEvents);
     });
 
-    const result = await this.runtime.run({
-      input: options.input,
+    const completion = this.executeRun(options, {
+      sessionId: session.id,
+      branchId: session.activeBranchId ?? "main",
       runId,
-      session: { sessionId: session.id, branchId: session.activeBranchId ?? "main" },
-      signal: controller.signal,
-      ...(options.providerId ? { providerId: options.providerId } : {}),
-      ...(options.modelId ? { modelId: options.modelId } : {}),
-      ...(options.maxTurns !== undefined ? { maxTurns: options.maxTurns } : {})
+      controller,
+      sequencer,
+      unsubscribe
     })
       .finally(() => {
         unsubscribe();
         this.activeRunControllers.delete(runId);
+        this.activeRunCompletions.delete(runId);
+        this.activeRunSequencers.delete(runId);
       });
+    this.activeRunCompletions.set(runId, completion);
+    void completion.catch(() => undefined);
 
-    const wasCancelled = controller.signal.aborted;
+    return run;
+  }
+
+  private async executeRun(
+    options: StartRunOptions,
+    state: {
+      sessionId: string;
+      branchId: string;
+      runId: string;
+      controller: AbortController;
+      sequencer: HostEventSequencer;
+      unsubscribe: () => void;
+    }
+  ): Promise<RunResource> {
+    const result = await this.runtime.run({
+      input: options.input,
+      runId: state.runId,
+      session: { sessionId: state.sessionId, branchId: state.branchId },
+      signal: state.controller.signal,
+      ...(options.providerId ? { providerId: options.providerId } : {}),
+      ...(options.modelId ? { modelId: options.modelId } : {}),
+      ...(options.maxTurns !== undefined ? { maxTurns: options.maxTurns } : {})
+    }).catch((error: unknown) => ({
+      ok: false as const,
+      error: {
+        code: "RUN_EXECUTION_ERROR",
+        message: error instanceof Error ? error.message : "Run execution failed",
+        details: error
+      }
+    }));
+
+    const wasCancelled = state.controller.signal.aborted;
     const cancelError = {
       code: "RUN_CANCELLED",
       message: "Run was cancelled"
     };
     const terminalEvent = wasCancelled
-      ? sequencer.next({
+      ? state.sequencer.next({
           type: "run.failed",
-          sessionId: session.id,
-          runId,
+          sessionId: state.sessionId,
+          runId: state.runId,
           error: cancelError
         })
       : result.ok
-      ? sequencer.next({
+      ? state.sequencer.next({
           type: "run.completed",
-          sessionId: session.id,
-          runId,
+          sessionId: state.sessionId,
+          runId: state.runId,
           finalAnswer: result.finalAnswer
         })
-      : sequencer.next({
+      : state.sequencer.next({
           type: "run.failed",
-          sessionId: session.id,
-          runId,
+          sessionId: state.sessionId,
+          runId: state.runId,
           error: result.error
         });
-    this.store.appendEvents(runId, [terminalEvent]);
-    this.applyEventEffects(runId, [terminalEvent]);
+    this.store.appendEvents(state.runId, [terminalEvent]);
+    this.applyEventEffects(state.runId, [terminalEvent]);
     if (wasCancelled) {
-      this.store.updateRun(runId, {
+      this.store.updateRun(state.runId, {
         status: "cancelled",
         error: cancelError,
         updatedAt: terminalEvent.occurredAt
       });
     }
 
-    return this.store.getRun(runId) ?? run;
+    return this.store.getRun(state.runId) ?? {
+      id: state.runId,
+      sessionId: state.sessionId,
+      status: wasCancelled ? "cancelled" : result.ok ? "completed" : "failed",
+      input: options.input,
+      createdAt: terminalEvent.occurredAt,
+      updatedAt: terminalEvent.occurredAt,
+      lastSeq: terminalEvent.seq
+    };
   }
 
   cancelRun(runId: string): RunResource | undefined {
@@ -161,6 +220,36 @@ export class HostRuntime {
       status: "cancelled",
       updatedAt: this.now().toISOString()
     });
+    return this.store.getRun(runId);
+  }
+
+  enqueueRunInput(runId: string, options: EnqueueRunInputOptions): RunResource | undefined {
+    const run = this.store.getRun(runId);
+    if (!run) {
+      return undefined;
+    }
+    const timestamp = this.now().toISOString();
+    const queuedInput: QueuedRunInputResource = {
+      id: `input-${this.idFactory()}`,
+      mode: options.mode,
+      text: options.text,
+      textPreview: previewText(options.text),
+      createdAt: timestamp
+    };
+    const queuedInputs = [...(run.queuedInputs ?? []), queuedInput];
+    this.store.updateRun(runId, {
+      queuedInputs,
+      updatedAt: timestamp
+    });
+    const sequencer = this.activeRunSequencers.get(runId)
+      ?? createHostEventSequencer({ startSeq: run.lastSeq, now: this.now });
+    const event = sequencer.next({
+      type: "queue.updated",
+      sessionId: run.sessionId,
+      runId,
+      pending: queuedInputs.map(queuedRunInputSummary)
+    });
+    this.store.appendEvents(runId, [event]);
     return this.store.getRun(runId);
   }
 
@@ -253,6 +342,20 @@ export class HostRuntime {
       }
     }
   }
+}
+
+function queuedRunInputSummary(input: QueuedRunInputResource): QueuedRunInputSummaryResource {
+  return {
+    id: input.id,
+    mode: input.mode,
+    textPreview: input.textPreview,
+    createdAt: input.createdAt
+  };
+}
+
+function previewText(text: string): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  return normalized.length > 80 ? `${normalized.slice(0, 77)}...` : normalized;
 }
 
 export function createHostRuntime(options: HostRuntimeOptions = {}): HostRuntime {
