@@ -5,7 +5,7 @@ import { CapabilityRegistry } from "../registry/capability-registry";
 import { createBuiltInFilesystemTools, type BuiltInFilesystemOptions } from "./filesystem";
 import { createBuiltInGitTools, type BuiltInGitOptions } from "./git";
 import { createBuiltInShellTool, type BuiltInShellOptions } from "./shell";
-import type { AiSdkProviderConfig, AiSdkProviderFactoryOptions } from "./provider-ai-sdk";
+import type { AiSdkProviderConfig, AiSdkProviderFactoryOptions } from "./provider-ai-sdk/index";
 
 export type BuiltInCoreCapabilitySet = {
   providers?: Provider[];
@@ -109,7 +109,7 @@ function createLazyBuiltInAiSdkProviderCapabilities(
     provider: {
       id: providerId,
       async generate(request) {
-        const { createAiSdkProvider } = await import("./provider-ai-sdk");
+        const { createAiSdkProvider } = await import("./provider-ai-sdk/index");
         return createAiSdkProvider(config, factory).generate(request);
       }
     },

@@ -1,7 +1,9 @@
 # @guga-agent/plugin-tools-filesystem
 
-First-party filesystem tools for Guga runtimes.
+Compatibility re-export for the built-in filesystem tools.
 
-The package registers `fs_read`, `fs_write`, `fs_edit`, `fs_list`, and `fs_search` through the normal plugin context. Paths are contained to a configured workspace root using realpath checks, including symlink escape tests.
+New first-party code should import from `@guga-agent/core/builtins`.
 
-`@guga-agent/core` does not import this package. Hosts opt in with `createFilesystemPlugin({ workspaceRoot })`.
+The implementation registers `fs_read`, `fs_write`, `fs_edit`, `fs_list`, and `fs_search` through the normal plugin context. Paths are contained to a configured workspace root using realpath checks, including symlink escape tests.
+
+The implementation lives in `packages/core/src/builtins/filesystem.ts`. This package remains only to avoid breaking older imports.

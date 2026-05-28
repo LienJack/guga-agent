@@ -8,7 +8,7 @@ Real providers introduce stream formats, tool-call formats, usage accounting, au
 
 ## Decision
 
-Keep provider runtime contracts in core and place AI SDK integration in `@guga-agent/provider-ai-sdk`.
+Keep provider runtime contracts in core and place the built-in AI SDK integration under `@guga-agent/core/builtins`.
 
 Core owns:
 
@@ -18,7 +18,7 @@ Core owns:
 - model events;
 - tool-intent semantics.
 
-The bridge owns SDK-specific request/response mapping.
+The bridge owns SDK-specific request/response mapping inside `packages/core/src/builtins/provider-ai-sdk/`. The legacy `@guga-agent/provider-ai-sdk` package remains only as a compatibility re-export path.
 
 ## Why This Shape
 

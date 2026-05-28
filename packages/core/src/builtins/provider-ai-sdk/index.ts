@@ -2,12 +2,12 @@ import { generateText as defaultGenerateText, gateway } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { LocalModelPlugin, LocalPlugin } from "../contracts/plugins";
-import type { ModelMetadata, Provider, ProviderRequest, ProviderResponse } from "../contracts/provider";
-import type { ToolCall } from "../contracts/messages";
-import { mapCoreMessagesToAiSdk } from "./ai-sdk-message-mapper";
-import { mapToolsToAiSdk } from "./ai-sdk-tool-mapper";
-import { mapAiSdkError, mapAiSdkFinishReason, mapAiSdkUsage } from "./ai-sdk-usage-error-mapper";
+import type { ToolCall } from "../../contracts/messages";
+import type { LocalModelPlugin, LocalPlugin } from "../../contracts/plugins";
+import type { ModelMetadata, Provider, ProviderRequest, ProviderResponse } from "../../contracts/provider";
+import { mapCoreMessagesToAiSdk } from "./message-mapper";
+import { mapToolsToAiSdk } from "./tool-mapper";
+import { mapAiSdkError, mapAiSdkFinishReason, mapAiSdkUsage } from "./usage-error-mapper";
 
 export type AiSdkBridgeMode = "gateway" | "openai-compatible" | "openai" | "anthropic";
 

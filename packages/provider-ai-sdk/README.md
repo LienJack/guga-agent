@@ -1,10 +1,12 @@
 # @guga-agent/provider-ai-sdk
 
-First-party bridge from Vercel AI SDK providers into Guga's provider runtime contracts.
+Compatibility re-export for the built-in AI SDK provider bridge.
+
+New first-party code should import from `@guga-agent/core/builtins`.
 
 ## Boundary
 
-This package owns AI SDK dependency churn. `@guga-agent/core` does not import AI SDK, OpenAI, Anthropic, or OpenAI-compatible provider types.
+The implementation lives in `packages/core/src/builtins/provider-ai-sdk/`. This package remains only to avoid breaking older imports.
 
 The bridge performs one selected model call and maps the result back to Guga:
 
@@ -18,7 +20,7 @@ The bridge performs one selected model call and maps the result back to Guga:
 ## Usage
 
 ```ts
-import { createAiSdkProviderPlugin } from "@guga-agent/provider-ai-sdk";
+import { createAiSdkProviderPlugin } from "@guga-agent/core/builtins";
 
 const plugin = createAiSdkProviderPlugin({
   id: "ai-sdk",

@@ -33,7 +33,6 @@
     "@guga-agent/profile-code-agent": "workspace:*",
     "@guga-agent/profile-deep-research-agent": "workspace:*",
     "@guga-agent/profile-review-agent": "workspace:*",
-    "@guga-agent/provider-ai-sdk": "workspace:*",
     "smol-toml": "^1.6.1"
   }
 }

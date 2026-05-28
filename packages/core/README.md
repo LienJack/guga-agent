@@ -73,7 +73,7 @@ Core owns provider-neutral runtime semantics. Providers can describe available m
 
 Tool calls from a model are only tool intent. They are converted into Guga `ToolCall` values and executed through the core `ExecutionPipeline`. The pipeline performs lookup, schema checks, tool hooks, permission resolution, execution, result budgeting, and lifecycle events. Provider bridges must not execute tools on their own.
 
-The built-in AI SDK bridge lives under `@guga-agent/core/builtins`, but provider SDK types do not leak into core public contracts. `@guga-agent/provider-ai-sdk` remains a compatibility import path.
+The built-in AI SDK bridge lives under `packages/core/src/builtins/provider-ai-sdk/` and is exported through `@guga-agent/core/builtins`, but provider SDK types do not leak into core public contracts. `@guga-agent/provider-ai-sdk` remains a compatibility import path.
 
 ## Tool Runtime Boundary
 

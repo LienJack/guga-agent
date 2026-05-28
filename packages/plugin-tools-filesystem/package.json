@@ -17,8 +17,6 @@
     "typecheck": "pnpm --filter @guga-agent/core build && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@guga-agent/core": "workspace:*",
-    "fast-glob": "^3.3.3",
-    "ignore": "^7.0.5"
+    "@guga-agent/core": "workspace:*"
   }
 }

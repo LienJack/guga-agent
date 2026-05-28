@@ -17,10 +17,6 @@
     "typecheck": "pnpm --filter @guga-agent/core build && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "3.0.79",
-    "@ai-sdk/openai": "3.0.65",
-    "@ai-sdk/openai-compatible": "2.0.48",
-    "@guga-agent/core": "workspace:*",
-    "ai": "6.0.191"
+    "@guga-agent/core": "workspace:*"
   }
 }

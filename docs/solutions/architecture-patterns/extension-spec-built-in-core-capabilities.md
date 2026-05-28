@@ -53,7 +53,7 @@ V1 fail closed：
 | `packages/core/src/builtins/filesystem.ts` | Built-in core capability | Default workspace file substrate. |
 | `packages/core/src/builtins/git.ts` | Built-in core capability | Safe git read helpers and commit-message helper. |
 | `packages/core/src/builtins/shell.ts` | Built-in core capability | Local shell backend with permission and timeout metadata. |
-| `packages/core/src/builtins/provider-ai-sdk.ts` | Built-in core capability | AI SDK bridge/adapter, not concrete credentials or endpoint ownership. |
+| `packages/core/src/builtins/provider-ai-sdk/` | Built-in core capability | AI SDK bridge/adapter, not concrete credentials or endpoint ownership. |
 | `packages/plugin-tools-filesystem` | Compatibility wrapper | Re-exports core built-in filesystem path. |
 | `packages/plugin-tools-git` | Compatibility wrapper | Re-exports core built-in git path. |
 | `packages/plugin-tools-shell` | Compatibility wrapper | Re-exports core built-in shell path. |

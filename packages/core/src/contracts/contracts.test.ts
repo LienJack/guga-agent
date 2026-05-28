@@ -406,7 +406,7 @@ describe("core contracts", () => {
         },
         resultBudget: { maxContentChars: 4_000, strategy: "truncate" },
         renderer: { category: "read", label: "Read file" },
-        source: { kind: "first-party", packageName: "@guga-agent/plugin-tools-filesystem" },
+        source: { kind: "first-party", packageName: "@guga-agent/core/builtins" },
         visibility: "model",
         availability: { status: "available" },
         backend: { kind: "local-workspace" }

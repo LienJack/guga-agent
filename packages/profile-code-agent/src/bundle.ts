@@ -1,12 +1,10 @@
 import type { AgentRuntimeOptions, LocalPlugin } from "@guga-agent/core";
+import { createFilesystemPlugin, createGitPlugin, createShellPlugin } from "@guga-agent/core/builtins";
 import { createAuditExportPlugin } from "@guga-agent/plugin-audit-export";
 import { createEvalRunnerPlugin } from "@guga-agent/plugin-eval-runner";
 import { createMcpPlugin, type McpServerConfig } from "@guga-agent/plugin-mcp";
 import { createOpsHealthPlugin } from "@guga-agent/plugin-ops-health";
 import { createSkillsPlugin, type SkillRoot } from "@guga-agent/plugin-skills";
-import { createFilesystemPlugin } from "@guga-agent/plugin-tools-filesystem";
-import { createGitPlugin } from "@guga-agent/plugin-tools-git";
-import { createShellPlugin } from "@guga-agent/plugin-tools-shell";
 import { createCodeAgentPermissionPolicy } from "./permissions";
 
 export type CodeAgentBundleOptions = {

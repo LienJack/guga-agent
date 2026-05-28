@@ -1,4 +1,5 @@
 import { createMockProvider, type AgentRuntimeOptions, type LocalPlugin } from "@guga-agent/core";
+import { createAiSdkProviderPlugin } from "@guga-agent/core/builtins";
 import { HostRuntime } from "@guga-agent/host-runtime";
 import { createLocalGugaHost, type LocalGugaHost } from "@guga-agent/host-sdk";
 import { createAuditExportPlugin } from "@guga-agent/plugin-audit-export";
@@ -13,7 +14,6 @@ import {
 } from "@guga-agent/profile-code-agent";
 import { DEEP_RESEARCH_PROFILE_ID } from "@guga-agent/profile-deep-research-agent";
 import { REVIEW_AGENT_PROFILE_ID } from "@guga-agent/profile-review-agent";
-import { createAiSdkProviderPlugin } from "@guga-agent/provider-ai-sdk";
 import {
   CliConfigError,
   CliConfigPathError,
