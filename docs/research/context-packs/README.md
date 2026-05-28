@@ -13,6 +13,7 @@
 | UI / protocol / remote clients | `ui-protocol.md` | 比较 CLI/TUI/server/ACP/LSP/remote bridge |
 | Multi-agent / delegation | `multi-agent.md` | 比较 subagent、worker、coordinator、trace 隔离 |
 | Memory systems | `memory-systems.md` | 比较 graph memory、vector memory、user graph、thread context、SDK/tool integration |
+| CLI 管理 / 本地配置中枢 | `cc-switch-core-management.md` | 研究 provider 切换、MCP/Skills/Prompts SSOT、proxy、会话管理和多 CLI 配置投影 |
 
 ## Pack 模板
 
