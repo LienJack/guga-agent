@@ -1,4 +1,4 @@
-import type { QueuedRunInputSummaryResource } from "./resources";
+import type { InteractionRequest, QueuedRunInputSummaryResource } from "./resources";
 
 export const HOST_EVENT_SSE_NAME = "guga.host-event";
 
@@ -13,6 +13,8 @@ export type HostEventType =
   | "tool.failed"
   | "permission.requested"
   | "permission.resolved"
+  | "interaction.requested"
+  | "interaction.resolved"
   | "queue.updated"
   | "context.compacted"
   | "artifact.created"
@@ -95,6 +97,16 @@ export type PermissionResolvedHostEvent = RunScopedEvent<"permission.resolved"> 
   reason?: string;
 };
 
+export type InteractionRequestedHostEvent = RunScopedEvent<"interaction.requested"> & {
+  requestId: string;
+  request: InteractionRequest;
+};
+
+export type InteractionResolvedHostEvent = RunScopedEvent<"interaction.resolved"> & {
+  requestId: string;
+  response?: unknown;
+};
+
 export type QueueUpdatedHostEvent = RunScopedEvent<"queue.updated"> & {
   pending: QueuedRunInputSummaryResource[];
 };
@@ -138,6 +150,8 @@ export type HostEvent =
   | ToolFailedHostEvent
   | PermissionRequestedHostEvent
   | PermissionResolvedHostEvent
+  | InteractionRequestedHostEvent
+  | InteractionResolvedHostEvent
   | QueueUpdatedHostEvent
   | ContextCompactedHostEvent
   | ArtifactCreatedHostEvent

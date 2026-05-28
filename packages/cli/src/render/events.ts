@@ -24,6 +24,12 @@ export function renderHostEvent(event: HostEvent, options: RenderEventOptions = 
   if (event.type === "permission.requested") {
     return [`permission requested for ${event.toolName}`];
   }
+  if (event.type === "interaction.requested") {
+    return [`interaction requested: ${event.request.kind}`];
+  }
+  if (event.type === "interaction.resolved") {
+    return [`interaction resolved: ${event.requestId}`];
+  }
   if (event.type === "queue.updated") {
     return [`queued inputs: ${event.pending.length}`];
   }

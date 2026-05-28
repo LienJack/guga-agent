@@ -90,4 +90,27 @@ describe("host protocol events", () => {
     expect(JSON.parse(JSON.stringify(event))).toEqual(event);
     expect(JSON.stringify(event)).not.toContain("\"text\":");
   });
+
+  it("serializes generic interaction request and response events", () => {
+    const sequencer = createHostEventSequencer({
+      now: () => new Date("2026-05-27T00:00:00.000Z")
+    });
+    const requested = sequencer.next({
+      type: "interaction.requested",
+      sessionId: "session-1",
+      runId: "run-1",
+      requestId: "interaction-1",
+      request: { kind: "confirm", message: "Continue?" }
+    });
+    const resolved = sequencer.next({
+      type: "interaction.resolved",
+      sessionId: "session-1",
+      runId: "run-1",
+      requestId: "interaction-1",
+      response: true
+    });
+
+    expect(requested).toMatchObject({ type: "interaction.requested", request: { kind: "confirm" } });
+    expect(resolved).toMatchObject({ type: "interaction.resolved", response: true });
+  });
 });

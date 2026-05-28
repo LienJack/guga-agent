@@ -2,12 +2,15 @@ import type {
   CapabilityResource,
   HostEvent,
   AuditSummaryResource,
+  InteractionRequest,
+  InteractionResource,
   MetricsSnapshotResource,
   OperationalStatusResource,
   ProviderHealthResource,
   RunInputMode,
   RunResource,
-  SessionResource
+  SessionResource,
+  SessionTreeResource
 } from "@guga-agent/host-protocol";
 import { streamHostEvents } from "./sse-client";
 
@@ -34,9 +37,24 @@ export type SendRunInputRequest = {
   text: string;
 };
 
+export type ForkSessionRequest = {
+  parentBranchId?: string;
+  createdFromRunId?: string;
+  summary?: string;
+};
+
+export type RequestInteractionRequest = {
+  runId?: string;
+  request: InteractionRequest;
+};
+
 export type HostClient = {
   createSession(request?: CreateSessionRequest): Promise<SessionResource>;
+  listSessions(): Promise<SessionResource[]>;
   getSession(sessionId: string): Promise<SessionResource>;
+  resumeSession(sessionId: string, request?: { branchId?: string }): Promise<SessionResource>;
+  forkSession(sessionId: string, request?: ForkSessionRequest): Promise<SessionResource>;
+  getSessionTree(sessionId: string): Promise<SessionTreeResource>;
   startRun(sessionId: string, request: StartRunRequest): Promise<RunResource>;
   getRun(runId: string): Promise<RunResource>;
   listRunEvents(runId: string): Promise<HostEvent[]>;
@@ -44,6 +62,9 @@ export type HostClient = {
   sendRunInput(runId: string, request: SendRunInputRequest): Promise<RunResource>;
   cancelRun(runId: string): Promise<RunResource>;
   abortRun(runId: string): Promise<RunResource>;
+  requestInteraction(sessionId: string, request: RequestInteractionRequest): Promise<InteractionResource>;
+  getInteraction(interactionId: string): Promise<InteractionResource>;
+  respondInteraction(interactionId: string, response: unknown): Promise<InteractionResource>;
   listCapabilities(): Promise<CapabilityResource[]>;
   listProviderHealth(): Promise<ProviderHealthResource[]>;
   listAuditSummaries(): Promise<AuditSummaryResource[]>;
@@ -76,8 +97,27 @@ export function connectHost(options: ConnectHostOptions): HostClient {
         body: request
       });
     },
+    async listSessions() {
+      const response = await requestJson<{ sessions: SessionResource[] }>(fetchImpl, `${baseUrl}/sessions`);
+      return response.sessions;
+    },
     getSession(sessionId) {
       return requestJson(fetchImpl, `${baseUrl}/sessions/${encodeURIComponent(sessionId)}`);
+    },
+    resumeSession(sessionId, request = {}) {
+      return requestJson(fetchImpl, `${baseUrl}/sessions/${encodeURIComponent(sessionId)}/resume`, {
+        method: "POST",
+        body: request
+      });
+    },
+    forkSession(sessionId, request = {}) {
+      return requestJson(fetchImpl, `${baseUrl}/sessions/${encodeURIComponent(sessionId)}/fork`, {
+        method: "POST",
+        body: request
+      });
+    },
+    getSessionTree(sessionId) {
+      return requestJson(fetchImpl, `${baseUrl}/sessions/${encodeURIComponent(sessionId)}/tree`);
     },
     startRun(sessionId, request) {
       return requestJson(fetchImpl, `${baseUrl}/sessions/${encodeURIComponent(sessionId)}/runs`, {
@@ -122,6 +162,21 @@ export function connectHost(options: ConnectHostOptions): HostClient {
       return requestJson(fetchImpl, `${baseUrl}/runs/${encodeURIComponent(runId)}/abort`, {
         method: "POST",
         body: {}
+      });
+    },
+    requestInteraction(sessionId, request) {
+      return requestJson(fetchImpl, `${baseUrl}/sessions/${encodeURIComponent(sessionId)}/interactions`, {
+        method: "POST",
+        body: request
+      });
+    },
+    getInteraction(interactionId) {
+      return requestJson(fetchImpl, `${baseUrl}/interactions/${encodeURIComponent(interactionId)}`);
+    },
+    respondInteraction(interactionId, response) {
+      return requestJson(fetchImpl, `${baseUrl}/interactions/${encodeURIComponent(interactionId)}/respond`, {
+        method: "POST",
+        body: { response }
       });
     },
     async listCapabilities() {

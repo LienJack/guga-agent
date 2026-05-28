@@ -6,6 +6,23 @@ export type SessionResource = {
   createdAt: string;
   updatedAt: string;
   activeBranchId?: string;
+  branches?: SessionBranchResource[];
+};
+
+export type SessionBranchResource = {
+  id: string;
+  sessionId: string;
+  parentBranchId?: string;
+  createdFromRunId?: string;
+  summary?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SessionTreeResource = {
+  sessionId: string;
+  activeBranchId: string;
+  branches: SessionBranchResource[];
 };
 
 export type RunStatus = "queued" | "running" | "waiting-for-permission" | "completed" | "failed" | "cancelled";
@@ -35,6 +52,68 @@ export type QueuedRunInputResource = {
 };
 
 export type QueuedRunInputSummaryResource = Omit<QueuedRunInputResource, "text">;
+
+export type InteractionStatus = "pending" | "resolved" | "cancelled";
+
+export type InteractionRequest =
+  | {
+      kind: "select";
+      title?: string;
+      options: Array<{ id: string; label: string; description?: string }>;
+      multi?: boolean;
+    }
+  | {
+      kind: "confirm";
+      title?: string;
+      message: string;
+      defaultValue?: boolean;
+    }
+  | {
+      kind: "input";
+      title?: string;
+      placeholder?: string;
+      defaultValue?: string;
+      secret?: boolean;
+    }
+  | {
+      kind: "editor";
+      title?: string;
+      language?: string;
+      initialText?: string;
+    }
+  | {
+      kind: "notify";
+      level: "info" | "warning" | "error";
+      message: string;
+    }
+  | {
+      kind: "setStatus";
+      text: string;
+    }
+  | {
+      kind: "setWidget";
+      widgetId: string;
+      payload: unknown;
+    }
+  | {
+      kind: "setTitle";
+      title: string;
+    }
+  | {
+      kind: "set_editor_text";
+      text: string;
+    };
+
+export type InteractionResource = {
+  id: string;
+  sessionId: string;
+  runId?: string;
+  status: InteractionStatus;
+  request: InteractionRequest;
+  response?: unknown;
+  createdAt: string;
+  resolvedAt?: string;
+};
 
 export type HostErrorPayload = {
   code: string;

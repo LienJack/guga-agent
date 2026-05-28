@@ -91,6 +91,43 @@ describe("host SDK", () => {
     await expect(host.client.abortRun(run.id)).resolves.toMatchObject({ status: "cancelled" });
   });
 
+  it("manages sessions, branches, and interactions through the typed client", async () => {
+    const host = await startControlledSdkHost(["session-1", "branch-1", "run-1", "interaction-1"]);
+    const session = await host.client.createSession({ title: "SDK tree" });
+
+    await expect(host.client.listSessions()).resolves.toEqual([
+      expect.objectContaining({ id: session.id, title: "SDK tree" })
+    ]);
+    await expect(host.client.forkSession(session.id, { summary: "alternate" })).resolves.toMatchObject({
+      activeBranchId: "branch-branch-1"
+    });
+    await expect(host.client.getSessionTree(session.id)).resolves.toMatchObject({
+      activeBranchId: "branch-branch-1",
+      branches: expect.arrayContaining([
+        expect.objectContaining({ id: "main" }),
+        expect.objectContaining({ id: "branch-branch-1", summary: "alternate" })
+      ])
+    });
+    await expect(host.client.resumeSession(session.id, { branchId: "main" })).resolves.toMatchObject({
+      activeBranchId: "main"
+    });
+
+    const run = await host.client.startRun(session.id, { input: "wait", providerId: "controlled" });
+    const interaction = await host.client.requestInteraction(session.id, {
+      runId: run.id,
+      request: { kind: "input", title: "Name" }
+    });
+    await expect(host.client.getInteraction(interaction.id)).resolves.toMatchObject({
+      status: "pending",
+      request: { kind: "input", title: "Name" }
+    });
+    await expect(host.client.respondInteraction(interaction.id, "Guga")).resolves.toMatchObject({
+      status: "resolved",
+      response: "Guga"
+    });
+    await host.client.abortRun(run.id);
+  });
+
   it("parses buffered SSE payloads", () => {
     expect(parseSsePayload([
       "id: run-1:1",
@@ -120,7 +157,7 @@ async function startSdkHost(): Promise<LocalGugaHost> {
   return host;
 }
 
-async function startControlledSdkHost(): Promise<LocalGugaHost> {
+async function startControlledSdkHost(ids: string[] = ["session-1", "run-1", "input-1"]): Promise<LocalGugaHost> {
   const runtime = createAgentRuntime();
   runtime.registerProvider({
     id: "controlled",
@@ -135,7 +172,7 @@ async function startControlledSdkHost(): Promise<LocalGugaHost> {
     hostRuntime: new HostRuntime({
       runtime,
       now: () => new Date("2026-05-27T00:00:00.000Z"),
-      idFactory: deterministicIds(["session-1", "run-1", "input-1"])
+      idFactory: deterministicIds(ids)
     }),
     pollIntervalMs: 1
   });

@@ -136,6 +136,61 @@ describe("HostLocalServer", () => {
       status: "cancelled"
     });
   });
+
+  it("manages session tree and generic interactions over HTTP", async () => {
+    const { server } = await startControlledServer([
+      "session-1",
+      "branch-1",
+      "run-1",
+      "interaction-1"
+    ]);
+    const session = await postJson<{ id: string }>(`${server.url}/sessions`, { title: "Tree" });
+    await expect(fetchJson(`${server.url}/sessions`)).resolves.toMatchObject({
+      sessions: [expect.objectContaining({ id: session.id })]
+    });
+    await expect(postJson(`${server.url}/sessions/${session.id}/fork`, {
+      summary: "alternate"
+    })).resolves.toMatchObject({
+      activeBranchId: "branch-branch-1",
+      branches: expect.arrayContaining([
+        expect.objectContaining({ id: "branch-branch-1", summary: "alternate" })
+      ])
+    });
+    await expect(fetchJson(`${server.url}/sessions/${session.id}/tree`)).resolves.toMatchObject({
+      activeBranchId: "branch-branch-1",
+      branches: expect.arrayContaining([
+        expect.objectContaining({ id: "main" }),
+        expect.objectContaining({ id: "branch-branch-1" })
+      ])
+    });
+    await expect(postJson(`${server.url}/sessions/${session.id}/resume`, {
+      branchId: "main"
+    })).resolves.toMatchObject({ activeBranchId: "main" });
+
+    const run = await postJson<{ id: string }>(`${server.url}/sessions/${session.id}/runs`, {
+      input: "wait",
+      providerId: "controlled"
+    });
+    const interaction = await postJson<{ id: string }>(`${server.url}/sessions/${session.id}/interactions`, {
+      runId: run.id,
+      request: { kind: "confirm", message: "Continue?" }
+    });
+    await expect(postJson(`${server.url}/interactions/${interaction.id}/respond`, {
+      response: true
+    })).resolves.toMatchObject({
+      id: interaction.id,
+      status: "resolved",
+      response: true
+    });
+    await expect(fetchJson(`${server.url}/runs/${run.id}/events`)).resolves.toMatchObject({
+      events: expect.arrayContaining([
+        expect.objectContaining({ type: "interaction.requested", requestId: interaction.id }),
+        expect.objectContaining({ type: "interaction.resolved", requestId: interaction.id })
+      ])
+    });
+
+    await postJson(`${server.url}/runs/${run.id}/abort`, {});
+  });
 });
 
 async function drainRunEvents(baseUrl: string, runId: string): Promise<void> {
@@ -164,7 +219,7 @@ async function startTestServer(): Promise<HostLocalServer> {
   return server;
 }
 
-async function startControlledServer(): Promise<{ server: HostLocalServer; finish: (content: string) => void }> {
+async function startControlledServer(ids: string[] = ["session-1", "run-1", "input-1"]): Promise<{ server: HostLocalServer; finish: (content: string) => void }> {
   let finish: (content: string) => void = () => undefined;
   const runtime = createAgentRuntime();
   runtime.registerProvider({
@@ -181,7 +236,7 @@ async function startControlledServer(): Promise<{ server: HostLocalServer; finis
     hostRuntime: new HostRuntime({
       runtime,
       now: () => new Date("2026-05-27T00:00:00.000Z"),
-      idFactory: deterministicIds(["session-1", "run-1", "input-1"])
+      idFactory: deterministicIds(ids)
     }),
     pollIntervalMs: 1
   });

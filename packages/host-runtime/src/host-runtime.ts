@@ -10,6 +10,8 @@ import {
   type CapabilityResource,
   type HostEventSequencer,
   type HostEvent,
+  type InteractionRequest,
+  type InteractionResource,
   type MetricsSnapshotResource,
   type OperationalDiagnosticResource,
   type OperationalStatusResource,
@@ -18,7 +20,9 @@ import {
   type QueuedRunInputSummaryResource,
   type RunInputMode,
   type RunResource,
+  type SessionBranchResource,
   type SessionResource,
+  type SessionTreeResource,
   type UsageCostResource
 } from "@guga-agent/host-protocol";
 import { projectAgentEvent } from "./event-projector";
@@ -44,6 +48,18 @@ export type EnqueueRunInputOptions = {
   text: string;
 };
 
+export type ForkSessionOptions = {
+  parentBranchId?: string;
+  createdFromRunId?: string;
+  summary?: string;
+};
+
+export type RequestInteractionOptions = {
+  sessionId: string;
+  runId?: string;
+  request: InteractionRequest;
+};
+
 export class HostRuntime {
   private readonly runtime: AgentRuntime;
   private readonly ownsRuntime: boolean;
@@ -63,14 +79,23 @@ export class HostRuntime {
 
   createSession(options: { title?: string } = {}): SessionResource {
     const timestamp = this.now().toISOString();
+    const sessionId = `session-${this.idFactory()}`;
+    const mainBranch: SessionBranchResource = {
+      id: "main",
+      sessionId,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
     const session: SessionResource = {
-      id: `session-${this.idFactory()}`,
+      id: sessionId,
       ...(options.title ? { title: options.title } : {}),
       createdAt: timestamp,
       updatedAt: timestamp,
-      activeBranchId: "main"
+      activeBranchId: mainBranch.id,
+      branches: [mainBranch]
     };
     this.store.putSession(session);
+    this.store.putBranch(mainBranch);
     return session;
   }
 
@@ -80,6 +105,64 @@ export class HostRuntime {
 
   listSessions(): SessionResource[] {
     return this.store.listSessions();
+  }
+
+  resumeSession(sessionId: string, options: { branchId?: string } = {}): SessionResource | undefined {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      return undefined;
+    }
+    if (!options.branchId) {
+      return session;
+    }
+    const branch = this.store.listBranches(sessionId).find((candidate) => candidate.id === options.branchId);
+    if (!branch) {
+      return undefined;
+    }
+    this.store.updateSession(sessionId, {
+      activeBranchId: branch.id,
+      updatedAt: this.now().toISOString()
+    });
+    return this.store.getSession(sessionId);
+  }
+
+  forkSession(sessionId: string, options: ForkSessionOptions = {}): SessionResource | undefined {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      return undefined;
+    }
+    const timestamp = this.now().toISOString();
+    const parentBranchId = options.parentBranchId ?? session.activeBranchId ?? "main";
+    if (!this.store.listBranches(sessionId).some((branch) => branch.id === parentBranchId)) {
+      return undefined;
+    }
+    const branch: SessionBranchResource = {
+      id: `branch-${this.idFactory()}`,
+      sessionId,
+      parentBranchId,
+      ...(options.createdFromRunId ? { createdFromRunId: options.createdFromRunId } : {}),
+      ...(options.summary ? { summary: options.summary } : {}),
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+    this.store.putBranch(branch);
+    this.store.updateSession(sessionId, {
+      activeBranchId: branch.id,
+      updatedAt: timestamp
+    });
+    return this.store.getSession(sessionId);
+  }
+
+  getSessionTree(sessionId: string): SessionTreeResource | undefined {
+    const session = this.store.getSession(sessionId);
+    if (!session) {
+      return undefined;
+    }
+    return {
+      sessionId,
+      activeBranchId: session.activeBranchId ?? "main",
+      branches: this.store.listBranches(sessionId)
+    };
   }
 
   async startRun(options: StartRunOptions): Promise<RunResource> {
@@ -251,6 +334,76 @@ export class HostRuntime {
     });
     this.store.appendEvents(runId, [event]);
     return this.store.getRun(runId);
+  }
+
+  requestInteraction(options: RequestInteractionOptions): InteractionResource | undefined {
+    const session = this.store.getSession(options.sessionId);
+    if (!session) {
+      return undefined;
+    }
+    if (options.runId) {
+      const run = this.store.getRun(options.runId);
+      if (!run || run.sessionId !== options.sessionId) {
+        return undefined;
+      }
+    }
+    const timestamp = this.now().toISOString();
+    const interaction: InteractionResource = {
+      id: `interaction-${this.idFactory()}`,
+      sessionId: options.sessionId,
+      ...(options.runId ? { runId: options.runId } : {}),
+      status: "pending",
+      request: options.request,
+      createdAt: timestamp
+    };
+    this.store.putInteraction(interaction);
+    if (options.runId) {
+      const run = this.store.getRun(options.runId);
+      const sequencer = this.activeRunSequencers.get(options.runId)
+        ?? createHostEventSequencer({ startSeq: run?.lastSeq ?? 0, now: this.now });
+      this.store.appendEvents(options.runId, [
+        sequencer.next({
+          type: "interaction.requested",
+          sessionId: options.sessionId,
+          runId: options.runId,
+          requestId: interaction.id,
+          request: options.request
+        })
+      ]);
+    }
+    return interaction;
+  }
+
+  getInteraction(interactionId: string): InteractionResource | undefined {
+    return this.store.getInteraction(interactionId);
+  }
+
+  resolveInteraction(interactionId: string, response: unknown): InteractionResource | undefined {
+    const interaction = this.store.getInteraction(interactionId);
+    if (!interaction) {
+      return undefined;
+    }
+    const timestamp = this.now().toISOString();
+    this.store.updateInteraction(interactionId, {
+      status: "resolved",
+      response,
+      resolvedAt: timestamp
+    });
+    if (interaction.runId) {
+      const run = this.store.getRun(interaction.runId);
+      const sequencer = this.activeRunSequencers.get(interaction.runId)
+        ?? createHostEventSequencer({ startSeq: run?.lastSeq ?? 0, now: this.now });
+      this.store.appendEvents(interaction.runId, [
+        sequencer.next({
+          type: "interaction.resolved",
+          sessionId: interaction.sessionId,
+          runId: interaction.runId,
+          requestId: interaction.id,
+          response
+        })
+      ]);
+    }
+    return this.store.getInteraction(interactionId);
   }
 
   getRun(runId: string): RunResource | undefined {

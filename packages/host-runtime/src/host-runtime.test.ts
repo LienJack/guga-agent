@@ -149,6 +149,75 @@ describe("HostRuntime", () => {
     await waitForRunStatus(host, run.id, "completed");
   });
 
+  it("tracks generic interactions and emits run-scoped interaction events", async () => {
+    let finishRun: ((content: string) => void) | undefined;
+    const runtime = createAgentRuntime();
+    runtime.registerProvider({
+      id: "slow",
+      async generate() {
+        const content = await new Promise<string>((resolve) => {
+          finishRun = resolve;
+        });
+        return { type: "final", content };
+      }
+    });
+    const host = new HostRuntime({
+      runtime,
+      now: () => new Date("2026-05-27T00:00:00.000Z"),
+      idFactory: deterministicIds(["session-1", "run-1", "interaction-1"])
+    });
+    const session = host.createSession();
+    const run = host.startRunDetached({ sessionId: session.id, input: "wait", providerId: "slow" });
+    await waitFor(() => !!finishRun);
+
+    const interaction = host.requestInteraction({
+      sessionId: session.id,
+      runId: run.id,
+      request: { kind: "confirm", message: "Continue?" }
+    });
+    const resolved = host.resolveInteraction(interaction?.id ?? "", true);
+
+    expect(interaction).toMatchObject({
+      id: "interaction-interaction-1",
+      status: "pending",
+      request: { kind: "confirm", message: "Continue?" }
+    });
+    expect(resolved).toMatchObject({ status: "resolved", response: true });
+    expect(host.listRunEvents(run.id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "interaction.requested", requestId: "interaction-interaction-1" }),
+      expect.objectContaining({ type: "interaction.resolved", requestId: "interaction-interaction-1", response: true })
+    ]));
+
+    finishRun?.("done");
+    await waitForRunStatus(host, run.id, "completed");
+  });
+
+  it("forks and resumes session branches", () => {
+    const host = new HostRuntime({
+      now: () => new Date("2026-05-27T00:00:00.000Z"),
+      idFactory: deterministicIds(["session-1", "branch-1"])
+    });
+    const session = host.createSession({ title: "Branches" });
+
+    const forked = host.forkSession(session.id, { summary: "Try another path" });
+
+    expect(forked).toMatchObject({
+      activeBranchId: "branch-branch-1",
+      branches: expect.arrayContaining([
+        expect.objectContaining({ id: "main" }),
+        expect.objectContaining({ id: "branch-branch-1", parentBranchId: "main", summary: "Try another path" })
+      ])
+    });
+    expect(host.getSessionTree(session.id)).toMatchObject({
+      activeBranchId: "branch-branch-1",
+      branches: expect.arrayContaining([
+        expect.objectContaining({ id: "main" }),
+        expect.objectContaining({ id: "branch-branch-1" })
+      ])
+    });
+    expect(host.resumeSession(session.id, { branchId: "main" })).toMatchObject({ activeBranchId: "main" });
+  });
+
   it("stores structured run failures", async () => {
     const runtime = createAgentRuntime();
     const host = new HostRuntime({

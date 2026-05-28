@@ -39,9 +39,59 @@ async function handleRequest(
       return;
     }
 
+    if (request.method === "GET" && segments.length === 1 && segments[0] === "sessions") {
+      sendJson(response, 200, { sessions: hostRuntime.listSessions() });
+      return;
+    }
+
     if (request.method === "GET" && segments.length === 2 && segments[0] === "sessions") {
       const session = hostRuntime.getSession(segments[1] ?? "");
       sendJsonOrNotFound(response, session, "Session not found");
+      return;
+    }
+
+    if (request.method === "POST" && segments.length === 3 && segments[0] === "sessions" && segments[2] === "resume") {
+      const body = await readJsonBody<{ branchId?: unknown }>(request);
+      const session = hostRuntime.resumeSession(segments[1] ?? "", {
+        ...(typeof body.branchId === "string" ? { branchId: body.branchId } : {})
+      });
+      sendJsonOrNotFound(response, session, "Session or branch not found");
+      return;
+    }
+
+    if (request.method === "POST" && segments.length === 3 && segments[0] === "sessions" && segments[2] === "fork") {
+      const body = await readJsonBody<{
+        parentBranchId?: unknown;
+        createdFromRunId?: unknown;
+        summary?: unknown;
+      }>(request);
+      const session = hostRuntime.forkSession(segments[1] ?? "", {
+        ...(typeof body.parentBranchId === "string" ? { parentBranchId: body.parentBranchId } : {}),
+        ...(typeof body.createdFromRunId === "string" ? { createdFromRunId: body.createdFromRunId } : {}),
+        ...(typeof body.summary === "string" ? { summary: body.summary } : {})
+      });
+      sendJsonOrNotFound(response, session, "Session or branch not found");
+      return;
+    }
+
+    if (request.method === "GET" && segments.length === 3 && segments[0] === "sessions" && segments[2] === "tree") {
+      sendJsonOrNotFound(response, hostRuntime.getSessionTree(segments[1] ?? ""), "Session not found");
+      return;
+    }
+
+    if (request.method === "POST" && segments.length === 3 && segments[0] === "sessions" && segments[2] === "interactions") {
+      const sessionId = segments[1] ?? "";
+      const body = await readJsonBody<{ runId?: unknown; request?: unknown }>(request);
+      if (!isInteractionRequest(body.request)) {
+        sendError(response, 400, "BAD_REQUEST", "Interaction request is invalid");
+        return;
+      }
+      const interaction = hostRuntime.requestInteraction({
+        sessionId,
+        ...(typeof body.runId === "string" ? { runId: body.runId } : {}),
+        request: body.request
+      });
+      sendJsonOrNotFound(response, interaction, "Session or run not found");
       return;
     }
 
@@ -133,6 +183,21 @@ async function handleRequest(
       return;
     }
 
+    if (request.method === "GET" && segments.length === 2 && segments[0] === "interactions") {
+      sendJsonOrNotFound(response, hostRuntime.getInteraction(segments[1] ?? ""), "Interaction not found");
+      return;
+    }
+
+    if (request.method === "POST" && segments.length === 3 && segments[0] === "interactions" && segments[2] === "respond") {
+      const body = await readJsonBody<{ response?: unknown }>(request);
+      sendJsonOrNotFound(
+        response,
+        hostRuntime.resolveInteraction(segments[1] ?? "", body.response),
+        "Interaction not found"
+      );
+      return;
+    }
+
     if (request.method === "GET" && segments.length === 1 && segments[0] === "capabilities") {
       sendJson(response, 200, { capabilities: hostRuntime.listCapabilities() });
       return;
@@ -161,6 +226,33 @@ async function handleRequest(
     sendError(response, 404, "NOT_FOUND", "Route not found");
   } catch (error) {
     sendError(response, 500, "INTERNAL_ERROR", error instanceof Error ? error.message : "Unexpected error");
+  }
+}
+
+function isInteractionRequest(value: unknown): value is Parameters<HostRuntime["requestInteraction"]>[0]["request"] {
+  if (!value || typeof value !== "object" || !("kind" in value) || typeof value.kind !== "string") {
+    return false;
+  }
+  switch (value.kind) {
+    case "select":
+      return "options" in value && Array.isArray(value.options);
+    case "confirm":
+      return "message" in value && typeof value.message === "string";
+    case "input":
+    case "editor":
+      return true;
+    case "notify":
+      return "level" in value && ["info", "warning", "error"].includes(String(value.level)) && "message" in value && typeof value.message === "string";
+    case "setStatus":
+      return "text" in value && typeof value.text === "string";
+    case "setWidget":
+      return "widgetId" in value && typeof value.widgetId === "string" && "payload" in value;
+    case "setTitle":
+      return "title" in value && typeof value.title === "string";
+    case "set_editor_text":
+      return "text" in value && typeof value.text === "string";
+    default:
+      return false;
   }
 }
 
