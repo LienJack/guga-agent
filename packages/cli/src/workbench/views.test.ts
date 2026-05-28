@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { reduceHostEvent, reduceWorkbenchAction } from "./event-reducer";
 import { createInitialWorkbenchState } from "./state";
 import { createWorkbenchViewModel } from "./views";
 
@@ -28,7 +29,51 @@ describe("workbench views", () => {
       text: "Idle",
       sessionId: "session-1",
       queueLabel: "queue empty",
-      usageLabel: "tokens 0 in 0 out 0"
+      usageLabel: "tokens 0 in 0 out 0",
+      inputLocked: false
+    });
+    expect(view.connection).toEqual({
+      status: "connected",
+      inputLocked: false
+    });
+  });
+
+  it("projects active run and disconnected input lock facts", () => {
+    const running = reduceHostEvent(createInitialWorkbenchState({
+      projectPath: "/workspace/app",
+      profileId: "code",
+      slashCommands: []
+    }), {
+      type: "run.started",
+      seq: 1,
+      occurredAt: "2026-05-28T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      input: "hello"
+    });
+    const state = reduceWorkbenchAction(running, {
+      type: "stream.seq_discontinuity",
+      expectedSeq: 2,
+      actualSeq: 5
+    });
+    const view = createWorkbenchViewModel(state);
+
+    expect(view.activeRun).toEqual({
+      sessionId: "session-1",
+      runId: "run-1",
+      status: "running",
+      text: "Disconnected: Host event sequence jumped from 1 to 5."
+    });
+    expect(view.connection).toMatchObject({
+      status: "disconnected",
+      reason: "seq-discontinuity",
+      expectedSeq: 2,
+      actualSeq: 5,
+      inputLocked: true
+    });
+    expect(view.statusBar).toMatchObject({
+      inputLocked: true,
+      disconnectedReason: "seq-discontinuity"
     });
   });
 });

@@ -1,23 +1,24 @@
 # Host UI Protocol v1
 
-Guga's CLI workbench may use OpenTUI, and the future desktop GUI may use a native/web renderer, but both clients must consume the same host protocol. The renderer is replaceable; session/run/control facts are not.
+Guga's CLI workbench now uses an Ink/React renderer, and the future desktop GUI may use a native/web renderer, but both clients must consume the same host protocol. The renderer is replaceable; session/run/control facts are not.
 
 ## 一句话结论
 
-Adopt a renderer-agnostic Host UI Protocol v1: REST resources and controls are the command surface, SSE `HostEvent` streams are the observation surface, and both CLI/OpenTUI and desktop GUI reduce the same events into their own view models. OpenTUI is an implementation detail of the terminal client, not a protocol layer.
+Adopt a renderer-agnostic Host UI Protocol v1: REST resources and controls are the command surface, SSE `HostEvent` streams are the observation surface, and both CLI/Ink and desktop GUI reduce the same events into their own view models. Ink is an implementation detail of the terminal client, not a protocol layer.
 
 ## Runtime Renderer Decision
 
-Decision: use the minimal fallback renderer for the current Node/pnpm CLI workbench path.
+Decision: use Ink/React as the current Node/pnpm CLI workbench renderer.
 
 Evidence captured on 2026-05-28:
 
 - The workspace package manager is `pnpm@10.33.2` and the CLI runs as a Node ESM package.
-- Local `package.json` / `pnpm-lock.yaml` do not already contain an OpenTUI dependency.
+- `@guga-agent/cli` now declares `ink`, `react`, and `ink-testing-library`, and keeps the interactive renderer behind a dynamic import.
 - `@opentui/core@0.2.16` depends on `bun-ffi-structs` and optional native `@opentui/core-*` packages.
 - A standard Node 22 import smoke for `@opentui/core@0.2.16` fails because it requires Bun or Node FFI flags.
+- Ink 7.x runs on the existing Node 22+ CLI runtime and matches the Claude Code style terminal workbench target.
 
-Implication: do not add `@opentui/*` to `@guga-agent/cli` until OpenTUI can load under the normal Node CLI distribution path, or until the project deliberately changes the CLI runtime contract. The fallback renderer keeps terminal frame, key, editor, overlay, and theme behavior deterministic while preserving an adapter seam for a future OpenTUI implementation.
+Implication: do not add `@opentui/*` to `@guga-agent/cli` until OpenTUI can load under the normal Node CLI distribution path, or until the project deliberately changes the CLI runtime contract. The Ink renderer owns terminal frame, key, editor, overlay, and cleanup behavior while preserving the HostClient/reducer boundary for future renderer swaps.
 
 ## Project Comparison
 
@@ -31,7 +32,7 @@ Implication: do not add `@opentui/*` to `@guga-agent/cli` until OpenTUI can load
 ## Protocol Principles
 
 1. **Host is the source of truth.** Core executes runs; HostRuntime projects core facts into public resources/events. Clients do not infer tool, permission, or run status from assistant text.
-2. **Renderers are clients.** OpenTUI, desktop GUI, browser, stdio, and future ACP are adapters over Host UI Protocol v1.
+2. **Renderers are clients.** Ink, desktop GUI, browser, stdio, and future ACP are adapters over Host UI Protocol v1.
 3. **Resources are queryable; streams are observable.** SSE can disconnect. Clients must be able to re-fetch resources and replay events after `lastSeq`.
 4. **Permission is first-class.** Permission requests are not ordinary UI interactions because they carry security/audit semantics and must fail closed.
 5. **Interactions are generic UI requests.** Select/input/editor/notify/status/widget requests are generic host-to-client UI requests.
@@ -337,13 +338,13 @@ When a run-scoped interaction is pending, `RunResource.status` becomes `waiting-
 
 ## Client View Model Boundary
 
-CLI/OpenTUI and desktop GUI should share the same host-facing reducer shape:
+CLI/Ink and desktop GUI should share the same host-facing reducer shape:
 
 ```text
 Host resources + HostEvent stream
   -> workbench state reducer
   -> renderer-specific view model
-  -> OpenTUI / desktop GUI renderer
+  -> Ink / desktop GUI renderer
 ```
 
 Allowed client-local state:
@@ -383,13 +384,13 @@ Required v1 completion work:
 6. Wire permission resolver bridge so code-agent write/execute asks become Host permission resources.
 7. Define and implement queue consumption, especially `follow_up` after terminal run.
 8. Ensure SSE `afterSeq` replay, event IDs, and client reconnect behavior are tested.
-9. Keep OpenTUI imports out of host protocol/runtime/SDK packages.
+9. Keep Ink/React imports out of host protocol/runtime/SDK and renderer-neutral workbench packages.
 10. Add cross-transport contract tests for HTTP and in-memory HostClient implementations.
 11. Ensure fork semantics stay branch-within-session and expose optional `profileId` / `modelId` session metadata.
 
 ## Guga 落点
 
-- CLI workbench can use OpenTUI freely behind `packages/cli/src/tui/*`.
+- CLI workbench uses Ink-specific code behind `packages/cli/src/ink-workbench/*`; renderer-neutral workbench projection code stays under `packages/cli/src/workbench/*`.
 - Desktop GUI should use the same Host SDK and reducer semantics, not a separate GUI-specific agent protocol.
 - The protocol package remains serializable TypeScript DTOs only.
 - Host runtime remains the bridge from core execution facts to UI facts.
@@ -404,4 +405,4 @@ Required v1 completion work:
 - Fact: `packages/host-protocol/src/events.ts` already defines ordered Host events for run/message/tool/permission/interaction/queue/context/artifact/usage.
 - Fact: `packages/host-protocol/src/resources.ts` already defines session, run, interaction, permission, queue, capability, audit, health, usage, and metrics resources.
 - Fact: `packages/host-sdk/src/client.ts` already exposes session/run/event/queue/interaction/operations methods, but not permission response.
-- Inference: Guga should stabilize Host UI Protocol v1 before binding the terminal UX to OpenTUI, so the desktop GUI can reuse the same session/run/event/control semantics.
+- Inference: Guga should keep Ink as a replaceable client adapter over Host UI Protocol v1, so the desktop GUI can reuse the same session/run/event/control semantics.

@@ -5,6 +5,7 @@ export interface EditorState {
   readonly cursor: number;
   readonly history: readonly string[];
   readonly historyIndex: number | null;
+  readonly historyDraft?: string;
 }
 
 export type EditorActionResult =
@@ -29,6 +30,8 @@ export function applyEditorIntent(state: EditorState, intent: KeyIntent): Editor
   switch (intent.type) {
     case "text":
       return { state: insertText(state, intent.value) };
+    case "paste":
+      return { state: insertText(state, intent.value) };
     case "newline":
       return { state: insertText(state, "\n") };
     case "backspace":
@@ -36,9 +39,9 @@ export function applyEditorIntent(state: EditorState, intent: KeyIntent): Editor
     case "delete":
       return { state: deleteForward(state) };
     case "left":
-      return { state: { ...state, cursor: Math.max(0, state.cursor - 1) } };
+      return { state: { ...state, cursor: previousCursorPosition(state.text, state.cursor) } };
     case "right":
-      return { state: { ...state, cursor: Math.min(state.text.length, state.cursor + 1) } };
+      return { state: { ...state, cursor: nextCursorPosition(state.text, state.cursor) } };
     case "history-previous":
       return { state: moveHistory(state, -1) };
     case "history-next":
@@ -68,10 +71,11 @@ function backspace(state: EditorState): EditorState {
     return state;
   }
 
+  const previousCursor = previousCursorPosition(state.text, state.cursor);
   return {
     ...state,
-    text: `${state.text.slice(0, state.cursor - 1)}${state.text.slice(state.cursor)}`,
-    cursor: state.cursor - 1,
+    text: `${state.text.slice(0, previousCursor)}${state.text.slice(state.cursor)}`,
+    cursor: previousCursor,
     historyIndex: null
   };
 }
@@ -81,9 +85,10 @@ function deleteForward(state: EditorState): EditorState {
     return state;
   }
 
+  const nextCursor = nextCursorPosition(state.text, state.cursor);
   return {
     ...state,
-    text: `${state.text.slice(0, state.cursor)}${state.text.slice(state.cursor + 1)}`,
+    text: `${state.text.slice(0, state.cursor)}${state.text.slice(nextCursor)}`,
     historyIndex: null
   };
 }
@@ -95,9 +100,15 @@ function moveHistory(state: EditorState, direction: -1 | 1): EditorState {
 
   const current = state.historyIndex ?? state.history.length;
   const next = Math.min(state.history.length, Math.max(0, current + direction));
+  const historyDraft = state.historyIndex === null ? state.text : state.historyDraft;
 
   if (next === state.history.length) {
-    return { ...state, text: "", cursor: 0, historyIndex: null };
+    return withoutHistoryDraft({
+      ...state,
+      text: historyDraft ?? "",
+      cursor: (historyDraft ?? "").length,
+      historyIndex: null
+    });
   }
 
   const text = state.history[next];
@@ -109,6 +120,50 @@ function moveHistory(state: EditorState, direction: -1 | 1): EditorState {
     ...state,
     text,
     cursor: text.length,
-    historyIndex: next
+    historyIndex: next,
+    ...(historyDraft !== undefined ? { historyDraft } : {})
   };
+}
+
+function previousCursorPosition(text: string, cursor: number): number {
+  if (cursor <= 0) {
+    return 0;
+  }
+
+  let previous = 0;
+  for (const character of text) {
+    const next = previous + character.length;
+    if (next >= cursor) {
+      return previous;
+    }
+    previous = next;
+  }
+  return Math.max(0, cursor - 1);
+}
+
+function nextCursorPosition(text: string, cursor: number): number {
+  if (cursor >= text.length) {
+    return text.length;
+  }
+
+  for (let index = 0; index < text.length;) {
+    const character = Array.from(text.slice(index))[0];
+    if (character === undefined) {
+      return text.length;
+    }
+    const next = index + character.length;
+    if (index >= cursor) {
+      return next;
+    }
+    if (next > cursor) {
+      return next;
+    }
+    index = next;
+  }
+  return text.length;
+}
+
+function withoutHistoryDraft(state: EditorState): EditorState {
+  const { historyDraft: _historyDraft, ...rest } = state;
+  return rest;
 }

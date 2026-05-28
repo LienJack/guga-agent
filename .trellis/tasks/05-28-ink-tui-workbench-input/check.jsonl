@@ -1,0 +1,10 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Review component host-boundary and keyboard accessibility"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Review runtime fact projection and stale stream behavior"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Review visible states and dense TUI layout quality"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Review strict TS, tests, and runtime boundary constraints"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Review controller/projection error and disconnected paths"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Review stdout/logging contract under Ink"}
+{"file": "docs/solutions/architecture-patterns/host-ui-protocol-v1.md", "reason": "Review host UI protocol compliance"}
+{"file": "docs/solutions/architecture-patterns/host-protocol-cli-workbench.md", "reason": "Review CLI workbench protocol alignment"}
+{"file": "docs/research/context-packs/ui-protocol.md", "reason": "Review terminal workbench parity against reference context"}

@@ -9,6 +9,19 @@ import type {
 } from "./state";
 
 export function reduceHostEvent(state: WorkbenchState, event: HostEvent): WorkbenchState {
+  const nextState = reduceKnownHostEvent(state, event);
+  if (event.seq > state.lastSeq + 1) {
+    return withDisconnected(nextState, {
+      reason: "seq-discontinuity",
+      message: `Host event sequence jumped from ${state.lastSeq} to ${event.seq}.`,
+      expectedSeq: state.lastSeq + 1,
+      actualSeq: event.seq
+    });
+  }
+  return nextState;
+}
+
+function reduceKnownHostEvent(state: WorkbenchState, event: HostEvent): WorkbenchState {
   switch (event.type) {
     case "run.started":
       return {
@@ -20,13 +33,13 @@ export function reduceHostEvent(state: WorkbenchState, event: HostEvent): Workbe
       };
     case "run.completed":
       return {
-        ...withAssistantFinal(baseEventState(state, event), event),
+        ...withAssistantFinal(withoutPendingForRun(baseEventState(state, event), event.runId), event),
         runStatus: "completed",
         statusText: "Completed"
       };
     case "run.failed":
       return withTranscriptBlock({
-        ...baseEventState(state, event),
+        ...withoutPendingForRun(baseEventState(state, event), event.runId),
         runStatus: isAbortError(event.error.code) ? "cancelled" : "failed",
         statusText: isAbortError(event.error.code) ? "Aborted" : `Failed: ${event.error.message}`
       }, {
@@ -41,7 +54,7 @@ export function reduceHostEvent(state: WorkbenchState, event: HostEvent): Workbe
       });
     case "run.cancelled":
       return withTranscriptBlock({
-        ...baseEventState(state, event),
+        ...withoutPendingForRun(baseEventState(state, event), event.runId),
         runStatus: "cancelled",
         statusText: "Aborted"
       }, {
@@ -174,7 +187,19 @@ export function reduceHostEvent(state: WorkbenchState, event: HostEvent): Workbe
       return withTranscriptBlock({
         ...baseEventState(state, event),
         runStatus: "waiting-for-permission",
-        statusText: `Waiting for permission: ${event.toolName}`
+        statusText: `Waiting for permission: ${event.toolName}`,
+        pendingPermission: {
+          sessionId: event.sessionId,
+          runId: event.runId,
+          requestId: event.requestId,
+          callId: event.callId,
+          toolName: event.toolName,
+          ...(event.input !== undefined ? { input: event.input } : {}),
+          ...(event.reason ? { reason: event.reason } : {}),
+          firstSeq: event.seq,
+          lastSeq: event.seq,
+          occurredAt: event.occurredAt
+        }
       }, {
         id: `permission:${event.requestId}`,
         kind: "permission",
@@ -192,7 +217,7 @@ export function reduceHostEvent(state: WorkbenchState, event: HostEvent): Workbe
       });
     case "permission.resolved":
       return updateTranscriptBlock({
-        ...baseEventState(state, event),
+        ...withoutPendingPermission(baseEventState(state, event), event.requestId),
         runStatus: "running",
         statusText: "Running"
       }, `permission:${event.requestId}`, (block) => {
@@ -210,7 +235,7 @@ export function reduceHostEvent(state: WorkbenchState, event: HostEvent): Workbe
       });
     case "permission.cancelled":
       return updateTranscriptBlock({
-        ...baseEventState(state, event),
+        ...withoutPendingPermission(baseEventState(state, event), event.requestId),
         runStatus: "cancelled",
         statusText: "Permission cancelled"
       }, `permission:${event.requestId}`, (block) => {
@@ -242,7 +267,16 @@ export function reduceHostEvent(state: WorkbenchState, event: HostEvent): Workbe
       return withTranscriptBlock({
         ...baseEventState(state, event),
         runStatus: "waiting-for-interaction",
-        statusText: `Waiting for interaction: ${event.request.kind}`
+        statusText: `Waiting for interaction: ${event.request.kind}`,
+        pendingInteraction: {
+          sessionId: event.sessionId,
+          runId: event.runId,
+          requestId: event.requestId,
+          request: event.request,
+          firstSeq: event.seq,
+          lastSeq: event.seq,
+          occurredAt: event.occurredAt
+        }
       }, {
         id: `interaction:${event.requestId}`,
         kind: "interaction",
@@ -257,7 +291,7 @@ export function reduceHostEvent(state: WorkbenchState, event: HostEvent): Workbe
       });
     case "interaction.resolved":
       return updateTranscriptBlock({
-        ...baseEventState(state, event),
+        ...withoutPendingInteraction(baseEventState(state, event), event.requestId),
         runStatus: "running",
         statusText: "Running"
       }, `interaction:${event.requestId}`, (block) => {
@@ -274,7 +308,7 @@ export function reduceHostEvent(state: WorkbenchState, event: HostEvent): Workbe
       });
     case "interaction.cancelled":
       return updateTranscriptBlock({
-        ...baseEventState(state, event),
+        ...withoutPendingInteraction(baseEventState(state, event), event.requestId),
         runStatus: "cancelled",
         statusText: "Interaction cancelled"
       }, `interaction:${event.requestId}`, (block) => {
@@ -410,6 +444,31 @@ export function reduceWorkbenchAction(state: WorkbenchState, action: WorkbenchAc
         ...state,
         clearedThroughSeq: state.lastSeq
       };
+    case "stream.error":
+      return withDisconnected(state, {
+        reason: "stream-error",
+        message: action.message
+      });
+    case "stream.seq_discontinuity":
+      return withDisconnected(state, {
+        reason: "seq-discontinuity",
+        message: `Host event sequence jumped from ${action.expectedSeq - 1} to ${action.actualSeq}.`,
+        expectedSeq: action.expectedSeq,
+        actualSeq: action.actualSeq
+      });
+    case "stream.replay_unavailable":
+      return withDisconnected(state, {
+        reason: "replay-unavailable",
+        message: action.message ?? replayUnavailableMessage(action.afterSeq),
+        ...(action.afterSeq !== undefined ? { expectedSeq: action.afterSeq + 1 } : {})
+      });
+    case "stream.reconnected": {
+      const { disconnected: _disconnected, ...nextState } = state;
+      return {
+        ...nextState,
+        statusText: state.runStatus === "running" ? "Running" : state.statusText
+      };
+    }
   }
 }
 
@@ -522,6 +581,8 @@ function updateTranscriptBlock(
 function summarizeQueue(pending: QueuedRunInputSummaryResource[]): QueueSummary {
   return {
     pending,
+    pendingCount: pending.filter((input) => input.status === "pending").length,
+    deferredCount: pending.filter((input) => input.status === "deferred").length,
     followUpCount: pending.filter((input) => input.mode === "follow_up").length,
     steerCount: pending.filter((input) => input.mode === "steer").length
   };
@@ -529,12 +590,62 @@ function summarizeQueue(pending: QueuedRunInputSummaryResource[]): QueueSummary 
 
 function queueStatusText(state: WorkbenchState, queue: QueueSummary): string {
   if (queue.pending.length > 0) {
-    return `Queued ${queue.pending.length} input${queue.pending.length === 1 ? "" : "s"}`;
+    return `Queued ${queue.pending.length} input${queue.pending.length === 1 ? "" : "s"} (${queue.pendingCount} pending, ${queue.deferredCount} deferred)`;
   }
   if (state.runStatus === "running") {
     return "Running";
   }
   return state.statusText;
+}
+
+function withoutPendingPermission(state: WorkbenchState, requestId: string): WorkbenchState {
+  if (state.pendingPermission?.requestId !== requestId) {
+    return state;
+  }
+  const { pendingPermission: _pendingPermission, ...nextState } = state;
+  return nextState;
+}
+
+function withoutPendingInteraction(state: WorkbenchState, requestId: string): WorkbenchState {
+  if (state.pendingInteraction?.requestId !== requestId) {
+    return state;
+  }
+  const { pendingInteraction: _pendingInteraction, ...nextState } = state;
+  return nextState;
+}
+
+function withoutPendingForRun(state: WorkbenchState, runId: string): WorkbenchState {
+  const shouldRemovePermission = state.pendingPermission?.runId === runId;
+  const shouldRemoveInteraction = state.pendingInteraction?.runId === runId;
+  if (!shouldRemovePermission && !shouldRemoveInteraction) {
+    return state;
+  }
+  const { pendingPermission: _pendingPermission, pendingInteraction: _pendingInteraction, ...nextState } = state;
+  return {
+    ...nextState,
+    ...(!shouldRemovePermission && state.pendingPermission ? { pendingPermission: state.pendingPermission } : {}),
+    ...(!shouldRemoveInteraction && state.pendingInteraction ? { pendingInteraction: state.pendingInteraction } : {})
+  };
+}
+
+function withDisconnected(
+  state: WorkbenchState,
+  disconnected: Omit<NonNullable<WorkbenchState["disconnected"]>, "lockHint">
+): WorkbenchState {
+  return {
+    ...state,
+    disconnected: {
+      ...disconnected,
+      lockHint: "Input is locked while the host stream is disconnected. Run /reload to replay, or exit the workbench."
+    },
+    statusText: `Disconnected: ${disconnected.message}`
+  };
+}
+
+function replayUnavailableMessage(afterSeq: number | undefined): string {
+  return afterSeq === undefined
+    ? "Host event replay is unavailable."
+    : `Host event replay is unavailable after seq ${afterSeq}.`;
 }
 
 function usageCost(current: number | undefined, next: number | undefined): { costUsd?: number } {

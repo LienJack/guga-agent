@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { applyEditorIntent, createEditorState } from "./editor";
-import { mapKeypressToIntent } from "./keys";
+import {
+  BRACKETED_PASTE_DISABLE,
+  BRACKETED_PASTE_ENABLE,
+  BRACKETED_PASTE_END,
+  BRACKETED_PASTE_START,
+  mapKeypressToIntent
+} from "./keys";
 import { renderOverlayLines } from "./overlay";
 import {
   createFallbackTerminalAdapter,
@@ -39,6 +45,14 @@ describe("TUI runtime compatibility", () => {
     expect(mapKeypressToIntent({ name: "return" })).toEqual({ type: "submit" });
     expect(mapKeypressToIntent({ name: "return", shift: true })).toEqual({ type: "newline" });
     expect(mapKeypressToIntent({ sequence: "x" })).toEqual({ type: "text", value: "x" });
+  });
+
+  it("maps bracketed paste as a single text payload intent", () => {
+    expect(BRACKETED_PASTE_ENABLE).toBe("\u001B[?2004h");
+    expect(BRACKETED_PASTE_DISABLE).toBe("\u001B[?2004l");
+    expect(mapKeypressToIntent({
+      sequence: `${BRACKETED_PASTE_START}first\nsecond${BRACKETED_PASTE_END}`
+    })).toEqual({ type: "paste", value: "first\nsecond" });
   });
 
   it("keeps prompt editing deterministic for fallback tests", () => {

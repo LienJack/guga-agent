@@ -9,7 +9,13 @@ export type KeyIntent =
   | { readonly type: "noop" }
   | { readonly type: "right" }
   | { readonly type: "submit" }
+  | { readonly type: "paste"; readonly value: string }
   | { readonly type: "text"; readonly value: string };
+
+export const BRACKETED_PASTE_ENABLE = "\u001B[?2004h";
+export const BRACKETED_PASTE_DISABLE = "\u001B[?2004l";
+export const BRACKETED_PASTE_START = "\u001B[200~";
+export const BRACKETED_PASTE_END = "\u001B[201~";
 
 export interface TerminalKeypress {
   readonly name?: string;
@@ -20,6 +26,11 @@ export interface TerminalKeypress {
 }
 
 export function mapKeypressToIntent(key: TerminalKeypress): KeyIntent {
+  const pastePayload = parseBracketedPastePayload(key.sequence);
+  if (pastePayload !== undefined) {
+    return { type: "paste", value: pastePayload };
+  }
+
   if (key.name === "c" && key.ctrl === true) {
     return { type: "abort" };
   }
@@ -65,6 +76,18 @@ export function mapKeypressToIntent(key: TerminalKeypress): KeyIntent {
   }
 
   return { type: "noop" };
+}
+
+export function parseBracketedPastePayload(sequence: string | undefined): string | undefined {
+  if (sequence === undefined) {
+    return undefined;
+  }
+
+  if (!sequence.startsWith(BRACKETED_PASTE_START) || !sequence.endsWith(BRACKETED_PASTE_END)) {
+    return undefined;
+  }
+
+  return sequence.slice(BRACKETED_PASTE_START.length, sequence.length - BRACKETED_PASTE_END.length);
 }
 
 function isPrintableSequence(sequence: string | undefined): sequence is string {

@@ -11,28 +11,41 @@ import {
   summarizeOperationalStatus
 } from "./session-control";
 
-export const WORKBENCH_SLASH_COMMANDS = [
-  "/new",
-  "/resume",
-  "/fork",
-  "/tree",
-  "/status",
-  "/clear",
-  "/models",
-  "/model",
-  "/login",
-  "/profile",
-  "/permissions",
-  "/mcp",
-  "/tools",
-  "/skills",
-  "/compact",
-  "/follow",
-  "/respond",
-  "/abort",
-  "/help",
-  "/exit"
+export type WorkbenchSlashSelectorKind = "model" | "profile" | "resume";
+
+export interface WorkbenchSlashCommandMetadata {
+  readonly command: string;
+  readonly label: string;
+  readonly help: string;
+  readonly usage: string;
+  readonly aliases?: readonly string[];
+  readonly selector?: WorkbenchSlashSelectorKind;
+}
+
+export const WORKBENCH_SLASH_COMMAND_METADATA = [
+  { command: "/new", label: "New session", usage: "/new [title]", help: "Create a workbench session." },
+  { command: "/resume", label: "Resume session", usage: "/resume <session> [branch]", help: "Resume a session branch.", selector: "resume" },
+  { command: "/fork", label: "Fork session", usage: "/fork [summary]", help: "Fork the active session." },
+  { command: "/tree", label: "Session tree", usage: "/tree", help: "Show session branches." },
+  { command: "/status", label: "Status", usage: "/status", help: "Show operational status." },
+  { command: "/clear", label: "Clear", usage: "/clear", help: "Clear the visible transcript." },
+  { command: "/models", label: "Models", usage: "/models", help: "List configured models." },
+  { command: "/model", label: "Switch model", usage: "/model <id>", help: "Switch model.", selector: "model" },
+  { command: "/login", label: "Login", usage: "/login <provider>", help: "Show provider login guidance." },
+  { command: "/profile", label: "Switch profile", usage: "/profile <id>", help: "Switch profile and start a new session.", selector: "profile" },
+  { command: "/permissions", label: "Permissions", usage: "/permissions", help: "List permission-relevant capabilities." },
+  { command: "/mcp", label: "MCP", usage: "/mcp", help: "List MCP capabilities." },
+  { command: "/tools", label: "Tools", usage: "/tools", help: "List tools." },
+  { command: "/skills", label: "Skills", usage: "/skills", help: "List skills." },
+  { command: "/compact", label: "Compact", usage: "/compact", help: "Reserved compaction command." },
+  { command: "/follow", label: "Follow-up", usage: "/follow <text>", help: "Queue a follow-up during an active run." },
+  { command: "/respond", label: "Respond", usage: "/respond <request-id> <value>", help: "Respond to an interaction request." },
+  { command: "/abort", label: "Abort", usage: "/abort", help: "Abort the active run.", aliases: ["/cancel"] },
+  { command: "/help", label: "Help", usage: "/help", help: "Show command help." },
+  { command: "/exit", label: "Exit", usage: "/exit", help: "Exit the workbench.", aliases: ["/quit"] }
 ] as const;
+
+export const WORKBENCH_SLASH_COMMANDS = WORKBENCH_SLASH_COMMAND_METADATA.map((metadata) => metadata.command);
 
 export type WorkbenchInputIntent =
   | { kind: "prompt"; text: string }
@@ -314,25 +327,7 @@ function formatSessionTree(tree: { activeBranchId: string; branches: Array<{ id:
 }
 
 export function formatCommandHelp(): string {
-  return [
-    "/new [title] - create a session",
-    "/resume <session> [branch] - resume a session branch",
-    "/fork [summary] - fork the active session",
-    "/tree - show session branches",
-    "/models - list configured models",
-    "/model <id> - switch model",
-    "/profile <id> - switch profile",
-    "/tools - list tools",
-    "/skills - list skills",
-    "/permissions - list permission-relevant capabilities",
-    "/mcp - list MCP capabilities",
-    "/follow <text> - queue a follow-up during an active run",
-    "/respond <request-id> <value> - respond to an interaction request",
-    "/abort - abort the active run",
-    "/compact - reserved compaction command",
-    "/clear - clear transcript",
-    "/exit - exit"
-  ].join("\n");
+  return WORKBENCH_SLASH_COMMAND_METADATA.map((metadata) => `${metadata.usage} - ${metadata.help}`).join("\n");
 }
 
 function parseInteractionResponse(text: string): unknown {

@@ -29,8 +29,43 @@ export type WorkbenchUsage = {
 
 export type QueueSummary = {
   pending: QueuedRunInputSummaryResource[];
+  pendingCount: number;
+  deferredCount: number;
   followUpCount: number;
   steerCount: number;
+};
+
+export type WorkbenchDisconnectedReason = "stream-error" | "seq-discontinuity" | "replay-unavailable";
+
+export type WorkbenchDisconnectedState = {
+  reason: WorkbenchDisconnectedReason;
+  message: string;
+  lockHint: string;
+  expectedSeq?: number;
+  actualSeq?: number;
+};
+
+export type PendingPermissionProjection = {
+  sessionId: string;
+  runId: string;
+  requestId: string;
+  callId: string;
+  toolName: string;
+  input?: unknown;
+  reason?: string;
+  firstSeq: number;
+  lastSeq: number;
+  occurredAt: string;
+};
+
+export type PendingInteractionProjection = {
+  sessionId: string;
+  runId: string;
+  requestId: string;
+  request: InteractionRequest;
+  firstSeq: number;
+  lastSeq: number;
+  occurredAt: string;
 };
 
 type TranscriptBlockBase<Kind extends string> = {
@@ -127,15 +162,36 @@ export type WorkbenchState = {
   activeRunId?: string;
   runStatus: WorkbenchRunStatus;
   statusText: string;
+  disconnected?: WorkbenchDisconnectedState;
+  pendingPermission?: PendingPermissionProjection;
+  pendingInteraction?: PendingInteractionProjection;
   queue: QueueSummary;
   usage: WorkbenchUsage;
   lastSeq: number;
   clearedThroughSeq: number;
 };
 
-export type WorkbenchAction = {
-  type: "ui.clear";
-};
+export type WorkbenchAction =
+  | {
+      type: "ui.clear";
+    }
+  | {
+      type: "stream.error";
+      message: string;
+    }
+  | {
+      type: "stream.seq_discontinuity";
+      expectedSeq: number;
+      actualSeq: number;
+    }
+  | {
+      type: "stream.replay_unavailable";
+      message?: string;
+      afterSeq?: number;
+    }
+  | {
+      type: "stream.reconnected";
+    };
 
 export function createInitialWorkbenchState(startup: WorkbenchStartupMetadata): WorkbenchState {
   const state: WorkbenchState = {
@@ -145,6 +201,8 @@ export function createInitialWorkbenchState(startup: WorkbenchStartupMetadata): 
     statusText: "Idle",
     queue: {
       pending: [],
+      pendingCount: 0,
+      deferredCount: 0,
       followUpCount: 0,
       steerCount: 0
     },

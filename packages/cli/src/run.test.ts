@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readCliConfigWithSources } from "./config";
 import { runCli } from "./commands/run";
 import { renderHostEvent } from "./render/events";
-import { Readable } from "node:stream";
+import { PassThrough, Readable } from "node:stream";
 import { mkdtemp } from "node:fs/promises";
 import { readFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,17 +24,30 @@ describe("CLI run command", () => {
     await expect(runCli(["-p", "hello", "--mock"], io)).resolves.toBe(0);
 
     expect(io.stdout()).toContain("mock: hello");
+    expect(io.stdout()).not.toContain("Guga Ink workbench");
     expect(io.stderr()).toBe("");
   });
 
-  it("starts the bare workbench launcher", async () => {
+  it("starts the bare Ink workbench launcher", async () => {
     const io = captureIo({ stdin: ttyReadable("/exit\n"), tty: true });
 
     await expect(runCli(["--mock"], io)).resolves.toBe(0);
 
-    expect(io.stdout()).toContain("Guga CLI interactive mode");
-    expect(io.stdout()).toContain("profile: code");
+    expect(io.stdout()).toContain("Guga Ink workbench");
+    expect(io.stdout()).toContain("profile code");
     expect(io.stderr()).toBe("");
+  });
+
+  it("starts chat and interactive aliases through the Ink workbench launcher", async () => {
+    for (const command of ["chat", "interactive"]) {
+      const io = captureIo({ stdin: ttyReadable("/exit\n"), tty: true });
+
+      await expect(runCli([command, "--mock"], io)).resolves.toBe(0);
+
+      expect(io.stdout()).toContain("Guga Ink workbench");
+      expect(io.stdout()).toContain("profile code");
+      expect(io.stderr()).toBe("");
+    }
   });
 
   it("rejects bare interactive mode without a TTY", async () => {
@@ -43,6 +56,16 @@ describe("CLI run command", () => {
     await expect(runCli(["--mock"], io)).resolves.toBe(2);
 
     expect(io.stderr()).toContain("guga interactive workbench requires a TTY");
+  });
+
+  it("rejects chat and interactive aliases without a TTY", async () => {
+    for (const command of ["chat", "interactive"]) {
+      const io = captureIo({ stdin: Readable.from(["/exit\n"]) });
+
+      await expect(runCli([command, "--mock"], io)).resolves.toBe(2);
+
+      expect(io.stderr()).toContain("guga interactive workbench requires a TTY");
+    }
   });
 
   it("prints a friendly error when headless run has no configured model", async () => {
@@ -224,6 +247,14 @@ function captureIo(options: { env?: NodeJS.ProcessEnv; stdin?: NodeJS.ReadableSt
   return {
     stdout: Object.assign((() => stdout.join("")), {
       ...(options.tty ? { isTTY: true } : {}),
+      columns: 100,
+      rows: 30,
+      on() {
+        return this;
+      },
+      off() {
+        return this;
+      },
       write(chunk: string) {
         stdout.push(chunk);
       }
@@ -238,6 +269,27 @@ function captureIo(options: { env?: NodeJS.ProcessEnv; stdin?: NodeJS.ReadableSt
   };
 }
 
-function ttyReadable(input: string): NodeJS.ReadableStream & { isTTY?: boolean } {
-  return Object.assign(Readable.from([input]), { isTTY: true });
+function ttyReadable(input: string): NodeJS.ReadableStream & { isTTY?: boolean; setRawMode(mode: boolean): void; ref(): void; unref(): void } {
+  const stream = new PassThrough();
+  const timer = setInterval(() => {
+    if (stream.listenerCount("readable") === 0) {
+      return;
+    }
+    clearInterval(timer);
+    const characters = Array.from(input.replaceAll("\n", "\r"));
+    characters.forEach((character, index) => {
+      setTimeout(() => {
+        stream.write(character);
+        if (index === characters.length - 1) {
+          stream.end();
+        }
+      }, index);
+    });
+  }, 0);
+  return Object.assign(stream, {
+    isTTY: true,
+    setRawMode() {},
+    ref() {},
+    unref() {}
+  });
 }

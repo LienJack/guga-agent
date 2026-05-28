@@ -1,5 +1,13 @@
 import type { InteractionRequest } from "@guga-agent/host-protocol";
-import type { QueueSummary, TranscriptBlock, WorkbenchStartupMetadata, WorkbenchState } from "./state";
+import type {
+  PendingInteractionProjection,
+  PendingPermissionProjection,
+  QueueSummary,
+  TranscriptBlock,
+  WorkbenchDisconnectedReason,
+  WorkbenchStartupMetadata,
+  WorkbenchState
+} from "./state";
 
 export type StartupViewModel = {
   projectPath: string;
@@ -17,6 +25,9 @@ export type StatusBarViewModel = {
   runId?: string;
   queueLabel: string;
   usageLabel: string;
+  inputLocked: boolean;
+  inputLockHint?: string;
+  disconnectedReason?: WorkbenchDisconnectedReason;
 };
 
 export type TranscriptViewBlock = TranscriptBlock & {
@@ -24,20 +35,68 @@ export type TranscriptViewBlock = TranscriptBlock & {
   detail: string;
 };
 
+export type ActiveRunViewModel = {
+  sessionId: string;
+  runId: string;
+  status: WorkbenchState["runStatus"];
+  text: string;
+};
+
+export type PendingPermissionViewModel = PendingPermissionProjection & {
+  title: string;
+  detail: string;
+};
+
+export type PendingInteractionViewModel = PendingInteractionProjection & {
+  title: string;
+  detail: string;
+};
+
+export type ConnectionViewModel =
+  | {
+      status: "connected";
+      inputLocked: false;
+    }
+  | {
+      status: "disconnected";
+      reason: WorkbenchDisconnectedReason;
+      message: string;
+      inputLocked: true;
+      inputLockHint: string;
+      expectedSeq?: number;
+      actualSeq?: number;
+    };
+
 export type WorkbenchViewModel = {
   startup: StartupViewModel;
   transcript: TranscriptViewBlock[];
   statusBar: StatusBarViewModel;
+  activeRun?: ActiveRunViewModel;
+  pendingPermission?: PendingPermissionViewModel;
+  pendingInteraction?: PendingInteractionViewModel;
+  connection: ConnectionViewModel;
   queue: QueueSummary;
 };
 
 export function createWorkbenchViewModel(state: WorkbenchState): WorkbenchViewModel {
-  return {
+  const view: WorkbenchViewModel = {
     startup: createStartupViewModel(state.startup),
     transcript: selectVisibleTranscriptBlocks(state).map(createTranscriptViewBlock),
     statusBar: createStatusBarViewModel(state),
+    connection: createConnectionViewModel(state),
     queue: state.queue
   };
+  const activeRun = createActiveRunViewModel(state);
+  if (activeRun) {
+    view.activeRun = activeRun;
+  }
+  if (state.pendingPermission) {
+    view.pendingPermission = createPendingPermissionViewModel(state.pendingPermission);
+  }
+  if (state.pendingInteraction) {
+    view.pendingInteraction = createPendingInteractionViewModel(state.pendingInteraction);
+  }
+  return view;
 }
 
 export function selectVisibleTranscriptBlocks(state: WorkbenchState): TranscriptBlock[] {
@@ -56,12 +115,18 @@ function createStartupViewModel(startup: WorkbenchStartupMetadata): StartupViewM
 }
 
 function createStatusBarViewModel(state: WorkbenchState): StatusBarViewModel {
+  const connection = createConnectionViewModel(state);
   const status: StatusBarViewModel = {
     runStatus: state.runStatus,
     text: state.statusText,
     queueLabel: queueLabel(state.queue),
-    usageLabel: usageLabel(state)
+    usageLabel: usageLabel(state),
+    inputLocked: connection.inputLocked
   };
+  if (connection.status === "disconnected") {
+    status.inputLockHint = connection.inputLockHint;
+    status.disconnectedReason = connection.reason;
+  }
   if (state.activeSessionId) {
     status.sessionId = state.activeSessionId;
   }
@@ -69,6 +134,52 @@ function createStatusBarViewModel(state: WorkbenchState): StatusBarViewModel {
     status.runId = state.activeRunId;
   }
   return status;
+}
+
+function createActiveRunViewModel(state: WorkbenchState): ActiveRunViewModel | undefined {
+  if (!state.activeSessionId || !state.activeRunId || state.runStatus === "idle") {
+    return undefined;
+  }
+  return {
+    sessionId: state.activeSessionId,
+    runId: state.activeRunId,
+    status: state.runStatus,
+    text: state.statusText
+  };
+}
+
+function createConnectionViewModel(state: WorkbenchState): ConnectionViewModel {
+  if (!state.disconnected) {
+    return {
+      status: "connected",
+      inputLocked: false
+    };
+  }
+  return {
+    status: "disconnected",
+    reason: state.disconnected.reason,
+    message: state.disconnected.message,
+    inputLocked: true,
+    inputLockHint: state.disconnected.lockHint,
+    ...(state.disconnected.expectedSeq !== undefined ? { expectedSeq: state.disconnected.expectedSeq } : {}),
+    ...(state.disconnected.actualSeq !== undefined ? { actualSeq: state.disconnected.actualSeq } : {})
+  };
+}
+
+function createPendingPermissionViewModel(permission: PendingPermissionProjection): PendingPermissionViewModel {
+  return {
+    ...permission,
+    title: `Permission pending: ${permission.toolName}`,
+    detail: permission.reason ?? previewUnknown(permission.input)
+  };
+}
+
+function createPendingInteractionViewModel(interaction: PendingInteractionProjection): PendingInteractionViewModel {
+  return {
+    ...interaction,
+    title: `Interaction pending: ${interaction.request.kind}`,
+    detail: previewUnknown(requestDetail(interaction.request))
+  };
 }
 
 function createTranscriptViewBlock(block: TranscriptBlock): TranscriptViewBlock {
@@ -100,8 +211,8 @@ function createTranscriptViewBlock(block: TranscriptBlock): TranscriptViewBlock 
     case "queue":
       return {
         ...block,
-        title: `Queue updated: ${block.pending.length} pending`,
-        detail: block.pending.map((input) => `${input.mode}: ${input.textPreview}`).join("\n")
+        title: `Queue updated: ${block.pending.length} inputs`,
+        detail: block.pending.map((input) => `${input.mode} ${input.status}: ${input.textPreview}`).join("\n")
       };
     case "abort":
       return {
@@ -142,7 +253,7 @@ function queueLabel(queue: QueueSummary): string {
   if (queue.pending.length === 0) {
     return "queue empty";
   }
-  return `queue ${queue.pending.length} pending (${queue.followUpCount} follow-up, ${queue.steerCount} steer)`;
+  return `queue ${queue.pending.length} inputs (${queue.pendingCount} pending, ${queue.deferredCount} deferred, ${queue.followUpCount} follow-up, ${queue.steerCount} steer)`;
 }
 
 function usageLabel(state: WorkbenchState): string {

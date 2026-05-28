@@ -135,14 +135,14 @@ describe("workbench event reducer", () => {
   });
 
   it("updates permission request status when it resolves", () => {
-    const state = reduceHostEvents(initialState(), [
-      event({
-        type: "permission.requested",
-        requestId: "permission-1",
-        callId: "call-1",
-        toolName: "filesystem.write",
-        reason: "Write file"
-      }),
+    const requested = reduceHostEvent(initialState(), event({
+      type: "permission.requested",
+      requestId: "permission-1",
+      callId: "call-1",
+      toolName: "filesystem.write",
+      reason: "Write file"
+    }));
+    const state = reduceHostEvents(requested, [
       event({
         type: "permission.resolved",
         seq: 2,
@@ -153,7 +153,17 @@ describe("workbench event reducer", () => {
       })
     ]);
 
+    expect(requested.pendingPermission).toMatchObject({
+      requestId: "permission-1",
+      toolName: "filesystem.write",
+      reason: "Write file"
+    });
+    expect(createWorkbenchViewModel(requested).pendingPermission).toMatchObject({
+      title: "Permission pending: filesystem.write",
+      detail: "Write file"
+    });
     expect(state.runStatus).toBe("running");
+    expect(state.pendingPermission).toBeUndefined();
     expect(state.transcriptBlocks).toHaveLength(1);
     expect(state.transcriptBlocks[0]).toMatchObject({
       kind: "permission",
@@ -164,12 +174,12 @@ describe("workbench event reducer", () => {
   });
 
   it("tracks interaction prompt lifecycle", () => {
-    const state = reduceHostEvents(initialState(), [
-      event({
-        type: "interaction.requested",
-        requestId: "interaction-1",
-        request: { kind: "confirm", message: "Continue?" }
-      }),
+    const requested = reduceHostEvent(initialState(), event({
+      type: "interaction.requested",
+      requestId: "interaction-1",
+      request: { kind: "confirm", message: "Continue?" }
+    }));
+    const state = reduceHostEvents(requested, [
       event({
         type: "interaction.resolved",
         seq: 2,
@@ -178,6 +188,15 @@ describe("workbench event reducer", () => {
       })
     ]);
 
+    expect(requested.pendingInteraction).toMatchObject({
+      requestId: "interaction-1",
+      request: { kind: "confirm", message: "Continue?" }
+    });
+    expect(createWorkbenchViewModel(requested).pendingInteraction).toMatchObject({
+      title: "Interaction pending: confirm",
+      detail: "Continue?"
+    });
+    expect(state.pendingInteraction).toBeUndefined();
     expect(state.transcriptBlocks[0]).toMatchObject({
       kind: "interaction",
       status: "resolved",
@@ -211,11 +230,24 @@ describe("workbench event reducer", () => {
     }));
 
     expect(state.queue).toMatchObject({
+      pendingCount: 1,
+      deferredCount: 1,
       followUpCount: 1,
       steerCount: 1
     });
-    expect(createWorkbenchViewModel(state).statusBar.queueLabel).toBe("queue 2 pending (1 follow-up, 1 steer)");
-    expect(createWorkbenchViewModel(state).transcript[0]?.detail).toContain("follow_up: next question");
+    expect(createWorkbenchViewModel(state).statusBar.queueLabel).toBe("queue 2 inputs (1 pending, 1 deferred, 1 follow-up, 1 steer)");
+    expect(createWorkbenchViewModel(state).transcript[0]?.detail).toContain("follow_up pending: next question");
+    expect(createWorkbenchViewModel(state).transcript[0]?.detail).toContain("steer deferred: revise plan");
+  });
+
+  it("does not treat active run input as queued before a host queue event", () => {
+    const state = reduceHostEvent(initialState(), event({
+      type: "run.started",
+      input: "local draft submitted"
+    }));
+
+    expect(state.queue.pending).toEqual([]);
+    expect(createWorkbenchViewModel(state).statusBar.queueLabel).toBe("queue empty");
   });
 
   it("sets failed status and error transcript for run failures", () => {
@@ -330,6 +362,82 @@ describe("workbench event reducer", () => {
         name: "shell"
       })
     ]);
+  });
+
+  it("locks input and exposes stream error disconnected state", () => {
+    const running = reduceHostEvent(initialState(), event({
+      type: "run.started",
+      input: "hello"
+    }));
+    const state = reduceWorkbenchAction(running, {
+      type: "stream.error",
+      message: "socket closed"
+    });
+    const view = createWorkbenchViewModel(state);
+
+    expect(state.runStatus).toBe("running");
+    expect(state.disconnected).toMatchObject({
+      reason: "stream-error",
+      message: "socket closed"
+    });
+    expect(view.connection).toMatchObject({
+      status: "disconnected",
+      reason: "stream-error",
+      inputLocked: true
+    });
+    expect(view.statusBar).toMatchObject({
+      inputLocked: true,
+      disconnectedReason: "stream-error",
+      text: "Disconnected: socket closed"
+    });
+    expect(view.statusBar.inputLockHint).toContain("/reload");
+    expect(view.statusBar.inputLockHint).toContain("exit");
+  });
+
+  it("detects host event sequence discontinuity during reduction", () => {
+    const state = reduceHostEvents(initialState(), [
+      event({
+        type: "run.started",
+        seq: 1,
+        input: "hello"
+      }),
+      event({
+        type: "message.delta",
+        seq: 3,
+        messageId: "message-1",
+        role: "assistant",
+        text: "missed seq 2"
+      })
+    ]);
+    const view = createWorkbenchViewModel(state);
+
+    expect(state.disconnected).toMatchObject({
+      reason: "seq-discontinuity",
+      expectedSeq: 2,
+      actualSeq: 3
+    });
+    expect(view.connection).toMatchObject({
+      status: "disconnected",
+      reason: "seq-discontinuity",
+      expectedSeq: 2,
+      actualSeq: 3
+    });
+    expect(view.statusBar.inputLockHint).toContain("/reload");
+  });
+
+  it("locks input when host replay is unavailable", () => {
+    const state = reduceWorkbenchAction(initialState(), {
+      type: "stream.replay_unavailable",
+      afterSeq: 12
+    });
+
+    expect(createWorkbenchViewModel(state).connection).toMatchObject({
+      status: "disconnected",
+      reason: "replay-unavailable",
+      message: "Host event replay is unavailable after seq 12.",
+      expectedSeq: 13,
+      inputLocked: true
+    });
   });
 });
 

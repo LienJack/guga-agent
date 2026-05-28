@@ -1,4 +1,3 @@
-import type { HostEvent } from "@guga-agent/host-protocol";
 import { CliConfigError, initCliConfig, readCliConfig, type CliProviderMode } from "../config";
 import {
   CliHostFactoryError,
@@ -7,11 +6,10 @@ import {
   type CliHost,
   type CliProfileId
 } from "../host-factory";
-import { resolveModelRegistry, selectResolvedModel, unavailableReasonText } from "../model-registry";
+import { resolveModelRegistry, unavailableReasonText } from "../model-registry";
 import { loginProvider } from "../provider-login";
 import { renderHostEvent } from "../render/events";
 import { createFallbackTerminalAdapter } from "../tui/terminal";
-import { executeWorkbenchCommand, formatCommandHelp, parseWorkbenchInput } from "../workbench/commands";
 
 export type CliWriter = {
   isTTY?: boolean;
@@ -124,219 +122,8 @@ export async function runInteractiveCommand(args: InteractiveArgs, io: CliIO): P
     io.stderr.write(`${createFallbackTerminalAdapter({ isTTY: false }).nonTtyMessage("guga")}\n`);
     return 2;
   }
-  let selectedModel = args.modelId;
-  let selectedProfile = args.profile;
-  const sessionTitle = "CLI interactive";
-  let host = await createWorkbenchHost(args, selectedModel, selectedProfile, io.env);
-  let session = await host.local.client.createSession({ title: sessionTitle });
-  const lineQueue = createLineQueue(io.stdin);
-
-  io.stdout.write("Guga CLI interactive mode\n");
-  io.stdout.write("Type a task and press Enter. Commands: /help, /models, /model <id>, /profile <id>, /exit\n");
-  io.stdout.write(`model: ${host.selectedModel?.id ?? host.modelId ?? currentConfigModelLabel(io.env)} profile: ${host.profileId}\n`);
-  io.stdout.write(`config: ${describeConfigSource(host)}\n`);
-  io.stdout.write(`home: ${host.storage.home} project: ${host.storage.projectKey}\n`);
-  io.stdout.write("> ");
-
-  try {
-    while (true) {
-      const nextLine = await lineQueue.take().promise;
-      if (nextLine.done) {
-        return 0;
-      }
-      const rawLine = nextLine.value;
-      const line = rawLine.trim();
-      if (line.length === 0) {
-        io.stdout.write("> ");
-        continue;
-      }
-      const intent = parseWorkbenchInput(line);
-      if (intent.kind === "slash") {
-        const commandResult = await executeWorkbenchCommand(intent, {
-          client: host.local.client,
-          config: host.config.config,
-          storage: host.storage,
-          ...(io.env ? { env: io.env } : {}),
-          activeSessionId: session.id,
-          ...(session.activeBranchId ? { activeBranchId: session.activeBranchId } : {})
-        });
-        if (!commandResult.ok) {
-          io.stderr.write(`${commandResult.error}\n`);
-          if (commandResult.suggestions.length > 0) {
-            io.stderr.write(`try: ${commandResult.suggestions.join(", ")}\n`);
-          }
-          io.stdout.write("> ");
-          continue;
-        }
-        if (commandResult.action === "exit") {
-          return 0;
-        }
-        if (commandResult.action === "help") {
-          printInteractiveHelp(io);
-        } else if (commandResult.action === "select-model") {
-          selectedModel = intent.args.trim();
-          await host.local.close();
-          host = await createWorkbenchHost(args, selectedModel, selectedProfile, io.env);
-          session = await host.local.client.createSession({ title: sessionTitle });
-          io.stdout.write(`${commandResult.message}\n`);
-        } else if (commandResult.action === "select-profile") {
-          const nextProfile = intent.args.trim();
-          selectedProfile = isCliProfileId(nextProfile) ? nextProfile : undefined;
-          await host.local.close();
-          host = await createWorkbenchHost(args, selectedModel, selectedProfile, io.env);
-          session = await host.local.client.createSession({ title: sessionTitle });
-          io.stdout.write(`profile switched to ${host.profileId}\n`);
-        } else if (
-          commandResult.action === "new-session"
-          || commandResult.action === "resume-session"
-          || commandResult.action === "fork-session"
-        ) {
-          session = "data" in commandResult && isSessionSummary(commandResult.data)
-            ? commandResult.data.session
-            : session;
-          io.stdout.write(`${commandResult.message}\n`);
-        } else if (commandResult.message.length > 0) {
-          io.stdout.write(`${commandResult.message}\n`);
-        }
-        io.stdout.write("> ");
-        continue;
-      }
-
-      const run = await host.local.client.startRun(session.id, {
-        input: line,
-        ...(host.providerId ? { providerId: host.providerId } : {}),
-        ...(host.modelId ? { modelId: host.modelId } : {})
-      });
-      await streamRunWithInteractiveInput(host, run.id, lineQueue, args, io);
-      if (args.ops) {
-        await printOperationalStatus(host, io);
-      }
-      io.stdout.write("> ");
-    }
-    return 0;
-  } finally {
-    await host.local.close();
-  }
-}
-
-async function streamRunWithInteractiveInput(
-  host: CliHost,
-  runId: string,
-  lineQueue: LineQueue,
-  args: InteractiveArgs,
-  io: CliIO
-): Promise<void> {
-  const eventIterator = host.local.client.streamRunEvents(runId)[Symbol.asyncIterator]();
-  let eventNext = eventIterator.next();
-  let lineTake: LineTake | undefined = lineQueue.take();
-  let pendingPermissionId: string | undefined;
-  let pendingInteractionId: string | undefined;
-  try {
-    while (true) {
-      type StreamRace =
-        | { kind: "event"; value: IteratorResult<HostEvent> }
-        | { kind: "line"; value: IteratorResult<string> };
-      const waits: Array<Promise<StreamRace>> = [
-        eventNext.then((value) => ({ kind: "event", value }))
-      ];
-      if (lineTake) {
-        waits.push(lineTake.promise.then((value) => ({ kind: "line" as const, value })));
-      }
-      const result = await Promise.race(waits);
-      if (result.kind === "event") {
-        if (result.value.done) {
-          lineTake?.cancel();
-          return;
-        }
-        const event = result.value.value;
-        if (event.type === "permission.requested") {
-          pendingPermissionId = event.requestId;
-        }
-        if (event.type === "interaction.requested") {
-          pendingInteractionId = event.requestId;
-        }
-        for (const rendered of renderHostEvent(event, { debug: args.debugEvents })) {
-          io.stdout.write(`${rendered}\n`);
-        }
-        if (event.type === "run.completed" || event.type === "run.failed" || event.type === "run.cancelled") {
-          lineTake?.cancel();
-          return;
-        }
-        eventNext = eventIterator.next();
-        continue;
-      }
-
-      if (result.value.done) {
-        lineTake = undefined;
-        continue;
-      }
-      await handleActiveRunInput(host, runId, pendingPermissionId, pendingInteractionId, result.value.value.trim(), io);
-      lineTake = lineQueue.take();
-    }
-  } finally {
-    await eventIterator.return?.();
-    lineTake?.cancel();
-  }
-}
-
-async function handleActiveRunInput(
-  host: CliHost,
-  runId: string,
-  pendingPermissionId: string | undefined,
-  pendingInteractionId: string | undefined,
-  line: string,
-  io: CliIO
-): Promise<void> {
-  if (line.length === 0) {
-    return;
-  }
-  if (line === "/abort" || line === "/cancel") {
-    await host.local.client.abortRun(runId);
-    io.stdout.write("abort requested\n");
-    return;
-  }
-  const permission = line.match(/^\/?(allow|deny)(?:\s+(\S+))?$/);
-  if (permission) {
-    const decision = permission[1] as "allow" | "deny";
-    const permissionId = permission[2] ?? pendingPermissionId;
-    if (!permissionId) {
-      io.stderr.write("No pending permission to resolve\n");
-      return;
-    }
-    await host.local.client.respondPermission(permissionId, { decision, remember: "once" });
-    io.stdout.write(`permission ${decision} sent\n`);
-    return;
-  }
-  if (line === "respond" || line.startsWith("respond ") || line === "/respond" || line.startsWith("/respond ")) {
-    const responseArgs = line.replace(/^\/?respond\s*/, "").trim();
-    const [firstArg, ...restArgs] = responseArgs.split(/\s+/);
-    const hasExplicitRequestId = !!firstArg && restArgs.length > 0;
-    const requestId = hasExplicitRequestId ? firstArg : pendingInteractionId;
-    const responseText = hasExplicitRequestId ? restArgs.join(" ") : responseArgs;
-    if (!requestId || responseText === undefined || responseText.length === 0) {
-      io.stderr.write("Usage: /respond [request-id] <response>\n");
-      return;
-    }
-    await host.local.client.respondInteraction(requestId, parseActiveRunInteractionResponse(responseText));
-    io.stdout.write(`interaction response sent\n`);
-    return;
-  }
-  if (line.startsWith("/")) {
-    const result = await executeWorkbenchCommand(parseWorkbenchInput(line), {
-      client: host.local.client,
-      config: host.config.config,
-      storage: host.storage,
-      activeRunId: runId
-    });
-    if (result.ok) {
-      io.stdout.write(`${result.message}\n`);
-    } else {
-      io.stderr.write(`${result.error}\n`);
-    }
-    return;
-  }
-  await host.local.client.sendRunInput(runId, { mode: "steer", text: line });
-  io.stdout.write("sent steer\n");
+  const { launchInkWorkbench } = await import("../ink-workbench/launch");
+  return launchInkWorkbench({ args, io });
 }
 
 export async function runCommand(args: RunArgs, io: CliIO): Promise<number> {
@@ -595,122 +382,6 @@ function parseLoginArgs(argv: string[]): { ok: true; args: LoginArgs } | { ok: f
   };
 }
 
-async function* readLines(input: NodeJS.ReadableStream): AsyncIterable<string> {
-  let buffer = "";
-  input.setEncoding("utf8");
-  for await (const chunk of input) {
-    buffer += String(chunk);
-    let newlineIndex = buffer.search(/\r?\n/);
-    while (newlineIndex !== -1) {
-      const line = buffer.slice(0, newlineIndex);
-      buffer = buffer.slice(buffer[newlineIndex] === "\r" && buffer[newlineIndex + 1] === "\n" ? newlineIndex + 2 : newlineIndex + 1);
-      yield line;
-      newlineIndex = buffer.search(/\r?\n/);
-    }
-  }
-  if (buffer.length > 0) {
-    yield buffer;
-  }
-}
-
-type LineTake = {
-  promise: Promise<IteratorResult<string>>;
-  cancel(): void;
-};
-
-type LineQueue = {
-  take(): LineTake;
-  doneTake(): LineTake;
-};
-
-function createLineQueue(input: NodeJS.ReadableStream): LineQueue {
-  const lines: string[] = [];
-  const waiters: Array<(value: IteratorResult<string>) => void> = [];
-  let done = false;
-
-  void (async () => {
-    try {
-      for await (const line of readLines(input)) {
-        const waiter = waiters.shift();
-        if (waiter) {
-          waiter({ done: false, value: line });
-        } else {
-          lines.push(line);
-        }
-      }
-    } finally {
-      done = true;
-      for (const waiter of waiters.splice(0)) {
-        waiter({ done: true, value: undefined });
-      }
-    }
-  })();
-
-  return {
-    take() {
-      if (lines.length > 0) {
-        return resolvedTake({ done: false, value: lines.shift() ?? "" });
-      }
-      if (done) {
-        return this.doneTake();
-      }
-      let active = true;
-      let resolver: (value: IteratorResult<string>) => void = () => undefined;
-      const promise = new Promise<IteratorResult<string>>((resolve) => {
-        resolver = resolve;
-        waiters.push(resolve);
-      });
-      return {
-        promise,
-        cancel() {
-          if (!active) {
-            return;
-          }
-          active = false;
-          const index = waiters.indexOf(resolver);
-          if (index !== -1) {
-            waiters.splice(index, 1);
-          }
-        }
-      };
-    },
-    doneTake() {
-      return resolvedTake({ done: true, value: undefined });
-    }
-  };
-}
-
-function resolvedTake(value: IteratorResult<string>): LineTake {
-  return {
-    promise: Promise.resolve(value),
-    cancel() {
-      return undefined;
-    }
-  };
-}
-
-function isSessionSummary(value: unknown): value is { session: Awaited<ReturnType<CliHost["local"]["client"]["createSession"]>> } {
-  return !!value && typeof value === "object" && "session" in value;
-}
-
-function printInteractiveHelp(io: CliIO): void {
-  io.stdout.write(`${formatCommandHelp()}\n`);
-}
-
-function parseActiveRunInteractionResponse(text: string): unknown {
-  if (text === "true") {
-    return true;
-  }
-  if (text === "false") {
-    return false;
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
-}
-
 function printConfiguredModels(io: CliIO): void {
   const config = readCliConfig(io.env);
   const models = resolveModelRegistry({
@@ -726,15 +397,6 @@ function printConfiguredModels(io: CliIO): void {
     const availability = model.available ? "" : ` [unavailable: ${unavailableReasonText(model.unavailableReasons)}]`;
     io.stdout.write(`${marker} ${model.id} -> ${model.modelId}${model.label ? ` (${model.label})` : ""}${availability}\n`);
   }
-}
-
-function currentConfigModelLabel(env: NodeJS.ProcessEnv | undefined): string {
-  const config = readCliConfig(env);
-  const selected = selectResolvedModel({
-    config,
-    ...(env ? { env } : {})
-  });
-  return selected?.id ?? selected?.modelId ?? "(none)";
 }
 
 async function printOperationalStatus(host: CliHost, io: CliIO): Promise<void> {
@@ -802,39 +464,6 @@ function loginCommand(args: LoginArgs, io: CliIO): number {
     io.stderr.write(`${warning}\n`);
   }
   return 0;
-}
-
-async function createWorkbenchHost(
-  args: InteractiveArgs,
-  selectedModel: string | undefined,
-  selectedProfile: CliProfileId | undefined,
-  env: NodeJS.ProcessEnv | undefined
-): Promise<CliHost> {
-  return createCliHost({
-    mock: args.mock,
-    ...(selectedProfile ? { profileId: selectedProfile } : {}),
-    ...(args.providerId ? { providerId: args.providerId } : {}),
-    ...(selectedModel ? { modelSelector: selectedModel } : {}),
-    ...(env ? { env } : {})
-  });
-}
-
-function describeConfigSource(host: CliHost): string {
-  if (host.config.sourceStack?.length) {
-    return host.config.sourceStack
-      .map((source) => `${source.source}:${source.path}`)
-      .join(" < ");
-  }
-  if (host.config.filePath) {
-    return `${host.config.fileSource ?? "config"}:${host.config.filePath}`;
-  }
-  if (host.config.sources.modelId === "env" || host.config.sources.defaultModel === "env") {
-    return "env";
-  }
-  if (host.selectedModel || host.modelId) {
-    return "default";
-  }
-  return "none";
 }
 
 function handleCliError(error: unknown, io: CliIO): number {

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { HostClient } from "@guga-agent/host-sdk";
-import { executeWorkbenchCommand, parseWorkbenchInput } from "./commands";
+import {
+  executeWorkbenchCommand,
+  formatCommandHelp,
+  parseWorkbenchInput,
+  WORKBENCH_SLASH_COMMAND_METADATA
+} from "./commands";
 
 describe("workbench slash commands", () => {
   it("routes normal text outside the slash command router", () => {
@@ -17,6 +22,21 @@ describe("workbench slash commands", () => {
       ok: false,
       error: "Unknown command: /modl"
     });
+  });
+
+  it("exposes slash metadata for renderer-neutral palettes and selectors", () => {
+    expect(WORKBENCH_SLASH_COMMAND_METADATA.find((command) => command.command === "/model")).toMatchObject({
+      label: "Switch model",
+      selector: "model",
+      usage: "/model <id>"
+    });
+    expect(WORKBENCH_SLASH_COMMAND_METADATA.find((command) => command.command === "/profile")).toMatchObject({
+      selector: "profile"
+    });
+    expect(WORKBENCH_SLASH_COMMAND_METADATA.find((command) => command.command === "/resume")).toMatchObject({
+      selector: "resume"
+    });
+    expect(formatCommandHelp()).toContain("/abort - Abort the active run.");
   });
 
   it("lists and selects models from the CLI config registry", async () => {
