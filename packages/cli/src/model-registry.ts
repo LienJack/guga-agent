@@ -121,6 +121,9 @@ export function selectResolvedModel(
     ...(auth.material.apiKey ? { apiKey: auth.material.apiKey } : {}),
     ...(auth.material.accessToken ? { accessToken: auth.material.accessToken } : {}),
     ...(auth.material.tokenType ? { tokenType: auth.material.tokenType } : {}),
+    ...(auth.material.sessionKind ? { sessionKind: auth.material.sessionKind } : {}),
+    ...(auth.material.authMode ? { authMode: auth.material.authMode } : {}),
+    ...(auth.material.planType ? { planType: auth.material.planType } : {}),
     ...(selected.baseURL ? { baseURL: selected.baseURL } : {}),
     availability: selected
   };

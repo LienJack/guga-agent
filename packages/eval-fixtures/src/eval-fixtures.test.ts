@@ -11,12 +11,12 @@ describe("eval-fixtures", () => {
   it("builds a complete cross-module manifest", () => {
     expect(validateFlywheelEvalFixtures(flywheelEvalFixtures)).toEqual([]);
     expect(createFlywheelEvalManifest(flywheelEvalFixtures)).toEqual({
-      fixtureCount: 5,
+      fixtureCount: 6,
       categories: [
         { category: "capability-discovery", count: 1, fixtureIds: ["m6-capability-discovery-summary"] },
         { category: "host-protocol", count: 1, fixtureIds: ["m7-host-protocol-event-stream"] },
         { category: "production-ops", count: 1, fixtureIds: ["m8-production-ops-health"] },
-        { category: "code-agent", count: 1, fixtureIds: ["m9-code-agent-task-boundary"] },
+        { category: "code-agent", count: 2, fixtureIds: ["m9-code-agent-task-boundary", "m9-code-task-verification-gate"] },
         { category: "deep-research", count: 1, fixtureIds: ["m10-deep-research-evidence-ledger"] }
       ],
       modules: ["M10", "M6", "M7/M11", "M8", "M9"]
@@ -53,7 +53,7 @@ describe("eval-fixtures", () => {
   it("runs all fixtures through the hermetic eval runner", async () => {
     await expect(runEvalSuite([...flywheelEvalFixtures])).resolves.toMatchObject({
       ok: true,
-      passed: 5,
+      passed: 6,
       failed: 0
     });
   });

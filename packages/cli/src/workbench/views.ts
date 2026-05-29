@@ -23,6 +23,7 @@ export type StatusBarViewModel = {
   text: string;
   sessionId?: string;
   runId?: string;
+  taskLabel?: string;
   queueLabel: string;
   usageLabel: string;
   inputLocked: boolean;
@@ -149,6 +150,9 @@ function createStatusBarViewModel(state: WorkbenchState): StatusBarViewModel {
   }
   if (state.activeRunId) {
     status.runId = state.activeRunId;
+  }
+  if (state.activeTask) {
+    status.taskLabel = `task ${state.activeTask.phase} attempt ${state.activeTask.attempt}`;
   }
   return status;
 }

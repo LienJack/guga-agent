@@ -12,6 +12,8 @@ describe("default core capabilities", () => {
     expect(capabilities.models).toEqual([]);
     expect(capabilities.tools?.map((tool) => tool.name).sort()).toEqual([
       "fs_edit",
+      "fs_glob",
+      "fs_grep",
       "fs_list",
       "fs_read",
       "fs_search",
@@ -73,6 +75,8 @@ describe("default core capabilities", () => {
 
     expect(capabilities.tools?.map((tool) => tool.name).sort()).toEqual([
       "fs_edit",
+      "fs_glob",
+      "fs_grep",
       "fs_list",
       "fs_read",
       "fs_search",

@@ -7,29 +7,37 @@ Command-line entry point for running Guga through the shared host protocol.
 From the repository root:
 
 ```bash
-pnpm install:cli
+pnpm dev:cli --install
 source ~/.zshrc
 guga
 ```
 
-`pnpm install:cli` builds the CLI and installs an idempotent shell alias:
+`pnpm dev:cli --install` builds the CLI and installs an idempotent shell function:
 
 ```bash
-alias guga='node /path/to/guga-agent/packages/cli/dist/index.js'
+guga() {
+  (cd /path/to/guga-agent && pnpm run dev:cli "$@")
+}
 ```
 
-The path is generated on each developer machine from that local clone, so the committed installer does not hard-code one person's home directory.
+The function delegates to the repository's `pnpm run dev:cli` path, so local development uses the same CLI entry as manual runs. The path is generated on each developer machine from that local clone, so the committed installer does not hard-code one person's home directory.
 
-By default the alias is installed into the current user's shell startup file:
+By default the shell function is installed into common POSIX shell startup files:
 
 - zsh: `~/.zshrc`
 - bash: `~/.bashrc`
-- other shells: `~/.profile`
+- sh/profile-style shells: `~/.profile`
 
 Use a custom shell rc file when needed:
 
 ```bash
-pnpm install:cli -- --shell-rc ~/.bashrc
+pnpm dev:cli --install --shell-rc ~/.bashrc
+```
+
+Use only the current shell's startup file when you do not want the common-shell install:
+
+```bash
+pnpm dev:cli --install --current-shell
 ```
 
 ## Commands
@@ -82,6 +90,8 @@ Workbench 的底部输入框会保留可见光标和输入回显。提交后的 
 Permission 和 interaction prompt 会临时接管输入焦点。它们不会清掉你正在输入的 prompt 或 running input 草稿；完成响应后，原草稿会回到输入框。
 
 Transcript 会区分 user、assistant、reasoning/status、tool、permission、interaction、queue、abort、error、artifact、context 和 retry。Reasoning/status 只来自 host 明确暴露的 `message.reasoning_delta`，不会展示隐藏 chain-of-thought。
+
+Autonomous code-task state is also projected from typed host events. The workbench tracks active task phase, verification status and completion evidence through `task.*` and `verification.*` events instead of inferring progress from assistant text.
 
 ## Configuration
 

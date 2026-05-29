@@ -98,6 +98,16 @@ async function handleRequest(
       return;
     }
 
+    if (request.method === "GET" && segments.length === 3 && segments[0] === "sessions" && segments[2] === "tasks") {
+      const sessionId = segments[1] ?? "";
+      if (!await hostRuntime.getSession(sessionId)) {
+        sendError(response, 404, "NOT_FOUND", "Session not found");
+        return;
+      }
+      sendJson(response, 200, { tasks: hostRuntime.listSessionTasks(sessionId) });
+      return;
+    }
+
     if (request.method === "POST" && segments.length === 3 && segments[0] === "sessions" && segments[2] === "interactions") {
       const sessionId = segments[1] ?? "";
       const body = await readJsonBody<{ runId?: unknown; request?: unknown }>(request);
@@ -209,6 +219,21 @@ async function handleRequest(
 
     if (request.method === "GET" && segments.length === 2 && segments[0] === "permissions") {
       sendJsonOrNotFound(response, hostRuntime.getPermission(segments[1] ?? ""), "Permission request not found");
+      return;
+    }
+
+    if (request.method === "GET" && segments.length === 2 && segments[0] === "tasks") {
+      sendJsonOrNotFound(response, hostRuntime.getTask(segments[1] ?? ""), "Task not found");
+      return;
+    }
+
+    if (request.method === "GET" && segments.length === 3 && segments[0] === "tasks" && segments[2] === "verifications") {
+      const task = hostRuntime.getTask(segments[1] ?? "");
+      if (!task) {
+        sendError(response, 404, "NOT_FOUND", "Task not found");
+        return;
+      }
+      sendJson(response, 200, { attempts: task.verificationAttempts });
       return;
     }
 

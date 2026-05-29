@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import type { CliProviderConfig } from "./config";
-import { createProviderCredentialStore } from "./provider-credential-store";
+import { createProviderCredentialStore, type StoredProviderCredential } from "./provider-credential-store";
 
 export type ProviderAuthStatus =
   | "configured"
@@ -35,6 +35,9 @@ export type ProviderCredentialMaterial = {
   accessToken?: string;
   refreshToken?: string;
   tokenType?: string;
+  sessionKind?: StoredProviderCredential["sessionKind"];
+  authMode?: StoredProviderCredential["authMode"];
+  planType?: string;
 };
 
 export type ResolvedProviderAuth = {
@@ -299,7 +302,10 @@ function resolveOAuthCredential(options: {
       providerId: options.providerId,
       ...(stored.status === "configured" && credential?.accessToken ? { accessToken: credential.accessToken } : {}),
       ...(stored.status === "configured" && credential?.refreshToken ? { refreshToken: credential.refreshToken } : {}),
-      ...(stored.status === "configured" && credential?.tokenType ? { tokenType: credential.tokenType } : {})
+      ...(stored.status === "configured" && credential?.tokenType ? { tokenType: credential.tokenType } : {}),
+      ...(stored.status === "configured" && credential?.sessionKind ? { sessionKind: credential.sessionKind } : {}),
+      ...(stored.status === "configured" && credential?.authMode ? { authMode: credential.authMode } : {}),
+      ...(stored.status === "configured" && credential?.planType ? { planType: credential.planType } : {})
     }
   };
 }

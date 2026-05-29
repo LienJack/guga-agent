@@ -22,10 +22,10 @@ origin: docs/brainstorms/2026-05-28-m42-ink-tui-workbench-parity-requirements.md
 
 ## Requirements
 
-- R1. 交互入口与 headless 边界保持稳定：裸 `guga`/`guga --mock` 进入 TTY workbench，`guga run`/`guga -p`/非 TTY 路径保持 headless 或友好失败。（origin R1-R5, R61, AE1, AE6）
+- R1. 交互入口与 headless 边界保持稳定：裸 `guga`/`guga --mock` 进入 TTY workbench 并展示 Guga welcome panel，`guga run`/`guga -p`/非 TTY 路径保持 headless 或友好失败。（origin R1-R5B, R61, AE1, AE1A, AE6）
 - R2. Prompt editor 必须始终显示可见光标、输入回显和当前输入目标，支持多行、历史、粘贴、Unicode/CJK、Tab 补全和草稿保留。（origin R6-R12, R19-R24, R25-R26, AE1, AE3）
-- R3. Transcript 必须从 typed events 投影 user、assistant、reasoning/status、tool lifecycle、permission、interaction、queue、abort、error、retry、compact、artifact 和 usage，而不是解析 assistant prose。（origin R13-R18B, AE2）
-- R4. Slash、selector、capability views 必须覆盖 builtin/profile/skill/MCP/plugin/host capabilities，展示 source、availability、conflict/disabled reason，并支持 `/model`、`/profile`、`/resume`、`/tools`、`/mcp`、`/skills`、`/permissions`、`/status`、`/compact` 等入口。（origin R25-R31, R51-R54B, AE3, AE8）
+- R3. Transcript 和 status/footer 必须从 typed events、model metadata 或 operational status 投影 user、assistant、reasoning/status、tool lifecycle、permission、interaction、queue、abort、error、retry、compact、artifact、usage、context budget 和 cost，而不是解析 assistant prose。（origin R12A, R13-R18C, AE2, AE2A）
+- R4. Slash、selector、capability views 必须覆盖 builtin/profile/skill/MCP/plugin/host capabilities，展示 source、availability、conflict/disabled reason，并支持 `/model`、`/profile`、`/resume`、`/tools`、`/mcp`、`/skills`、`/permissions`、`/status`、`/compact` 等入口；`/status` 必须能展开 token/context/cost meter。（origin R25-R31, R51-R54C, AE3, AE8）
 - R5. Focus stack、permission/interaction overlay、running-state input、queue 和 abort 必须有明确路由，不丢失草稿，不误 abort，不在 disconnected state 下继续向不确定 run 写入。（origin R35-R50, R55-R58, AE4, AE5, AE7）
 - R6. Host protocol / HostClient 是 UI 事实源；OpenCode/Gemini 的 SDK/server/ACP/A2A/extension registry 仅作为后续阶段，不进入本计划实现范围。（origin 覆盖矩阵、范围边界、关键决策）
 - R7. 测试必须覆盖 renderer-neutral 状态机、protocol projection、controller routing、Ink smoke、import boundary、mock provider streaming、断线/seq、capability views 和至少一个 real-provider smoke 的手动或自动验收路径。（origin R59-R64）
@@ -34,7 +34,7 @@ origin: docs/brainstorms/2026-05-28-m42-ink-tui-workbench-parity-requirements.md
 
 **Origin flows:** F1 空闲状态提交 prompt, F2 Slash 命令发现与执行, F3 运行中 steer 与 follow-up, F4 权限或通用交互请求, F5 恢复与非 TTY 降级
 
-**Origin acceptance examples:** AE1 光标/回显/stream, AE2 reasoning + assistant + tool lifecycle, AE3 slash selector, AE4 permission focus, AE5 running input queue/abort, AE6 headless boundary, AE7 replay/disconnect, AE8 capability/source/status views
+**Origin acceptance examples:** AE1 光标/回显/stream, AE1A welcome panel + pixel mascot logo, AE2 reasoning + assistant + tool lifecycle, AE2A token/context/cost meter, AE3 slash selector, AE4 permission focus, AE5 running input queue/abort, AE6 headless boundary, AE7 replay/disconnect, AE8 capability/source/status views
 
 ---
 
@@ -45,6 +45,8 @@ origin: docs/brainstorms/2026-05-28-m42-ink-tui-workbench-parity-requirements.md
 - 当前主干的 Ink workbench 基座是可延展的；本计划优先扩展现有模块，不引入第二套 renderer 或 UI state store。
 - M42 首轮只要求 TUI 消费和展示 host/runtime 暴露的状态；不会在本计划内实现完整 REST server、OpenAPI SDK、ACP/A2A server、LSP client、mDNS、Desktop/Web UI 或遥测管线。
 - Reasoning/status 只能展示 provider/core 明确暴露的 delta；不得伪造或展示 hidden chain-of-thought。
+- Token、context window 和费用只能展示 Host/provider 明确暴露的数据或标明来源的估算；缺失字段必须显示 unknown/unavailable，不能用固定价格或 assistant 文本推断。
+- Welcome logo 的视觉来源是用户提供的 `咕咕嘎嘎 角色.png`，但 TUI 只使用抽象化 block-glyph 企鹅头像/头部轮廓派生资产；足够宽的欢迎页可使用 24-40 列 logo，窄终端降级为 12-20 列紧凑 logo。原始大图或高细节像素插画不应在运行时加载进终端 renderer。
 - Real-provider smoke 可以先作为手动验收或环境门控测试记录，不强制 CI 依赖真实外部模型。
 
 ---
@@ -90,6 +92,8 @@ origin: docs/brainstorms/2026-05-28-m42-ink-tui-workbench-parity-requirements.md
 
 - `docs/research/context-packs/ui-protocol.md` 支持采用 OpenCode 风格 REST/SSE/SDK 作为长期 host surface，但 M42 只实现 Ink TUI。
 - `docs/research/context-packs/gemini-cli-reference.md` 支持借鉴 Gemini CLI 的 core/cli/sdk/protocol 分层、tool scheduler、context pipeline、skills/MCP prompt loader 和 capability discovery 边界。
+- `docs/research/context-packs/context-compression.md` 支持把 context budget、context window 占比、auto-compact threshold、工具输出截断和 resume/compact 状态纳入 status/footer 与 `/status`。
+- `docs/research/source-analysis/learn-opencode/docs/internals/provider.md` 支持模型 metadata 包含 context limit、max output、input/output/cache pricing 和 capabilities，适合作为 Guga token/context/cost meter 的 host resource 形态参考。
 - `docs/research/source-analysis/claude-code-analysis/analysis/components/02-core-interaction-components.md` 将 PromptInput 视为输入编排器，而不是普通文本框。
 - `docs/research/repomix/pi-token-tree.txt` 与 M37 notes 支持 editor、autocomplete、queue、steer/follow-up、abort 和 session tree 语义。
 
@@ -99,7 +103,9 @@ origin: docs/brainstorms/2026-05-28-m42-ink-tui-workbench-parity-requirements.md
 
 - Extend current Ink workbench rather than create a parallel TUI: current code already has dynamic import, controller, reducer and state machines; duplication would increase parity drift.
 - Keep protocol-first ordering for new runtime facts: add or adjust HostEvent/resource types first, then update projector, reducer, views, components and adapters.
+- Render the welcome panel as an Ink component backed by a tiny static block-glyph logo matrix; use Unicode/ANSI blocks where supported, optimize colors for black terminal backgrounds, and provide a no-color/narrow-terminal text fallback.
 - Represent hidden reasoning safely: only render explicit `message.reasoning_delta` or equivalent typed status events from host/core, with wording that signals status/reasoning without exposing hidden chain-of-thought.
+- Represent usage safely: footer may use a compact meter such as `154k / 40.2k / 470k ($1.190, auto)`, but expanded status must define each number as used tokens, remaining/output reserve or context limit; unknown cost/context values must be explicit.
 - Treat user prompt as transcript data: `run.started.input` should become a user transcript block so submitted prompts remain visible after editor reset.
 - Make Tab completion a key intent: `Tab` should complete highlighted slash command in slash focus and be a no-op in plain editor/selectors unless a future owner explicitly handles it.
 - Keep capability views data-driven: slash metadata may provide builtin command descriptions, but `/tools`、`/mcp`、`/skills`、`/permissions`、`/status` must reflect `HostClient` capability/status resources rather than static documentation.
@@ -151,6 +157,8 @@ Implementation should preserve this data flow. If a UI needs a runtime fact, it 
 
 ```mermaid
 flowchart TB
+  U0["U0 welcome panel"] --> U7["U7 verification matrix"]
+  U0 --> U8["U8 docs + rollout notes"]
   U1["U1 protocol events"] --> U2["U2 transcript projection"]
   U2 --> U7["U7 verification matrix"]
   U3["U3 prompt/editor keys"] --> U5["U5 focus + running input"]
@@ -161,6 +169,39 @@ flowchart TB
   U4 --> U8
   U6 --> U8
 ```
+
+- U0. **Add branded welcome panel and pixel mascot logo**
+
+**Goal:** Give the TTY workbench a Claude Code-style first screen with Guga identity, startup facts, tips and a small pixel-art mascot logo.
+
+**Requirements:** R1, R7; origin R5A-R5B, AE1A
+
+**Dependencies:** None
+
+**Files:**
+- Add: `packages/cli/src/ink-workbench/components/welcome-panel.tsx`
+- Add: `packages/cli/src/ink-workbench/assets/guga-pixel-avatar.ts`
+- Modify: `packages/cli/src/ink-workbench/app.tsx`
+- Modify: `packages/cli/src/workbench/views.ts`
+- Test: `packages/cli/src/ink-workbench/app.test.tsx`
+- Test: `packages/cli/src/ink-workbench/workbench-smoke.test.tsx`
+
+**Approach:**
+- Convert the user-provided `咕咕嘎嘎 角色.png` into a tiny static ANSI/block-glyph avatar asset that only represents the penguin mascot head/hood, not the full role sheet.
+- Abstract the logo down to a terminal-readable matrix with large shapes only: cyan outline, light face/eyes, yellow beak, minimal coral accent and no hair/face micro-detail. The default welcome layout may use a larger 24-40 column matrix; narrow terminals use a 12-20 column fallback.
+- Render a bordered welcome panel above transcript on idle startup: left side shows welcome text, pixel avatar, model/context/cost/cwd; right side shows tips, what's new and common slash commands.
+- Use terminal-safe Unicode/ANSI block rendering with no-color and narrow-terminal fallbacks; hide or compress the panel once transcript content becomes dominant if needed.
+- Keep the welcome panel read-only and non-modal: it must never steal focus from prompt editor or block immediate typing.
+
+**Test scenarios:**
+- Covers AE1A. Happy path: mock TTY startup renders welcome panel, Guga label, high-contrast block-glyph mascot asset, model/cwd and tips.
+- Covers AE1A. Edge case: narrow or no-color rendering falls back to compact text without hiding the prompt editor.
+- Integration: headless commands still do not import or render the welcome panel.
+
+**Verification:**
+- Ink app/smoke tests prove welcome rendering coexists with status, transcript and bottom editor.
+
+---
 
 - U1. **Extend Host protocol and runtime event projection**
 
@@ -208,9 +249,9 @@ flowchart TB
 
 - U2. **Complete transcript projection for user, reasoning, and tool lifecycle**
 
-**Goal:** Ensure workbench transcript reflects what the user submitted, what the model is explicitly doing, and what each tool is doing from start through terminal status.
+**Goal:** Ensure workbench transcript reflects what the user submitted, what the model is explicitly doing, what each tool is doing from start through terminal status, and what the run costs in tokens/context/currency when host data is available.
 
-**Requirements:** R3, R7; origin R13-R18B, AE1, AE2
+**Requirements:** R3, R7; origin R12A, R13-R18C, AE1, AE2, AE2A
 
 **Dependencies:** U1 for new event types
 
@@ -226,6 +267,7 @@ flowchart TB
 **Approach:**
 - Add `user` transcript blocks from `run.started.input`, keeping submitted prompts visible after editor reset.
 - Add `reasoning` or `status` transcript blocks for explicit reasoning/status deltas, merging deltas by message/status id and finalizing them on terminal events when applicable.
+- Add usage/context/cost projection from `usage.recorded`, model metadata, audit/operational status, or future context budget resources into footer/status view model without deriving it from assistant prose.
 - Expand tool block view detail to include input summary, progress message/percentage, output preview, error message, artifact ids and terminal status.
 - Use previews/truncation for large unknown payloads; leave full inspector UX deferred.
 
@@ -238,6 +280,8 @@ flowchart TB
 - Covers AE1. Happy path: `run.started` adds a user block before assistant deltas.
 - Covers AE2. Happy path: reasoning/status deltas merge into one independent transcript block and do not appear as assistant prose.
 - Covers AE2. Happy path: tool started/progress/completed remains one scannable block with progress and output preview.
+- Covers AE2A. Happy path: usage/context/cost data renders as a compact footer meter and as an expanded `/status` detail with input/output/cached/reasoning tokens, context used/limit/remaining, cost and source.
+- Covers AE2A. Edge case: provider does not expose cost or context limit, so the UI renders unknown/unavailable instead of estimating silently.
 - Error path: tool failed/denied/timeout/cancelled projects to a visible terminal status with error detail when the host exposes it.
 - Edge case: `message.completed` without prior assistant delta does not crash or create duplicate unrelated blocks.
 
@@ -295,9 +339,9 @@ flowchart TB
 
 - U4. **Upgrade slash, selector, and capability/status views**
 
-**Goal:** Make command discovery and capability inspection match the M42 coverage matrix, including OpenCode/Gemini-style source and status visibility.
+**Goal:** Make command discovery and capability inspection match the M42 coverage matrix, including OpenCode/Gemini-style source, status, model window and cost visibility.
 
-**Requirements:** R4, R6, R7; origin R25-R31, R51-R54B, AE3, AE8
+**Requirements:** R4, R6, R7; origin R25-R31, R51-R54C, AE2A, AE3, AE8
 
 **Dependencies:** U1 for any new capability/status resource fields
 
@@ -321,6 +365,7 @@ flowchart TB
 - Keep builtin commands static enough for discovery, but populate capability views from `HostClient.listCapabilities()` and operational status resources.
 - Ensure `/model`、`/profile`、`/resume` selector rows show the metadata the origin requires: provider/model/config source, restart/next-turn semantics, session branch/updated/last status where available.
 - Add `/status` display coverage for checkpoint/context/sandbox/trusted-folder statuses only when host exposes them; unsupported items should show as unsupported rather than executable.
+- Add `/status` usage detail coverage for model context limit, max output reserve, used/remaining context, auto-compact threshold, token breakdown, cached/reasoning tokens, known/unknown cost and pricing source when host exposes them.
 
 **Patterns to follow:**
 - Existing `WORKBENCH_SLASH_COMMAND_METADATA`.
@@ -330,6 +375,7 @@ flowchart TB
 **Test scenarios:**
 - Covers AE3. Happy path: `/model`, `/profile`, `/resume` open selector flows and preserve drafts on Escape.
 - Covers AE8. Happy path: `/tools`, `/mcp`, `/skills`, `/permissions` show capabilities grouped or filtered by source/type/status.
+- Covers AE2A/AE8. Happy path: `/status` shows token/context/cost rows with source and unknown-state handling.
 - Covers AE8. Edge case: disabled or conflicting capability renders reason and is not executed as if supported.
 - Error path: `listCapabilities()` failure returns a structured command error and does not clear the prompt draft.
 - Edge case: unknown slash command suggests nearest known commands without submitting as normal prompt.
@@ -434,7 +480,7 @@ flowchart TB
 
 **Goal:** Convert M42 acceptance examples into durable tests across protocol, projection, controller, Ink renderer, import boundaries and CLI smoke paths.
 
-**Requirements:** R7; origin R59-R64, AE1-AE8
+**Requirements:** R7; origin R59-R64, AE1-AE8 plus AE1A
 
 **Dependencies:** U1-U6
 
@@ -469,7 +515,7 @@ flowchart TB
 - Existing Trellis guidance to prefer in-memory fixtures and mock provider coverage.
 
 **Test scenarios:**
-- Covers AE1-AE8. Integration: each acceptance example maps to at least one automated test or documented manual smoke.
+- Covers AE1-AE8 plus AE1A. Integration: each acceptance example maps to at least one automated test or documented manual smoke.
 - Edge case: local user config/API keys do not affect no-model and mock-provider tests.
 - Error path: unsupported or disconnected host states produce friendly visible failures, not thrown internal class names.
 - Integration: import-boundary test proves headless route does not statically import `ink`, `react`, or `packages/cli/src/ink-workbench`.
@@ -527,6 +573,7 @@ flowchart TB
 |------|------------|
 | Protocol churn breaks adapters | Make event changes additive, update host-stdio/headless render in the same unit, and cover union exhaustiveness in tests. |
 | UI shows hidden or invented reasoning | Only project explicit provider/core deltas; document that hidden chain-of-thought remains out of scope. |
+| UI shows misleading token/cost/context numbers | Only project provider/host usage and model metadata; show unknown/unavailable for missing values and label estimates with source. |
 | Local component state drifts from host state | Keep runtime facts in reducer/view models and make components consume projections instead of calling runtime internals. |
 | Permission UX accidentally allows unsafe actions | Keep permission fail-closed in disconnected/non-interactive states and test invalid responses. |
 | Terminal-specific rendering remains flaky | Cover mock TTY, resize/no-color/Unicode smoke where feasible, and record terminal-specific gaps as follow-up rather than changing renderer prematurely. |

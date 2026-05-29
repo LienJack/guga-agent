@@ -70,7 +70,7 @@ graphify path "ToolRegistry" "ToolExecutor"
 graphify explain "RateLimiter"
 ```
 
-多数成熟参考项目都有完整的 Graphify 图。若存在 `graphify-out/GRAPH_REPORT.md`，它会标出 god nodes 和意外关联。`pi` 目前有 repomix token tree 和聚焦上下文，但还没有检入 Graphify 图。
+多数成熟参考项目都有完整的 Graphify 图。若存在 `graphify-out/GRAPH_REPORT.md`，它会标出 god nodes 和意外关联。`gemini-cli` 已归档 Graphify 图到 `docs/research/graphs/gemini-cli/`；`pi` 目前有 repomix token tree 和聚焦上下文，但还没有检入 Graphify 图。
 
 **L3 — Understand-Anything** (`{project}/.understand-anything/knowledge-graph.json`)
 
@@ -102,8 +102,8 @@ rg -n "keyword|Symbol|file-name" docs/research/repomix/*-token-tree.txt
 
 ### “参考全项目”短语
 
-当用户说 **“参考全项目”** 时，将其解释为 **全部 9 个参考项目**：
-`blade-agent-sdk`, `blade-code`, `cc-haha`, `claude-code`, `deepagentsjs`, `deer-flow`, `hermes-agent`, `opencode`, `pi`
+当用户说 **“参考全项目”** 时，将其解释为 **全部 10 个参考项目**：
+`blade-agent-sdk`, `blade-code`, `cc-haha`, `claude-code`, `deepagentsjs`, `deer-flow`, `hermes-agent`, `gemini-cli`, `opencode`, `pi`
 
 这是研究范围短语，不代表日常编码时需要扫描每个参考仓库。
 

@@ -9,6 +9,17 @@ export function providerRuntimeAuthForSelection(
   if (!selected) {
     return {};
   }
+  if (selected.providerId === "codex" && selected.sessionKind === "codex-app-server") {
+    return {
+      providerOptions: {
+        openaiCodex: {
+          authMode: selected.authMode ?? "chatgpt",
+          sessionKind: selected.sessionKind,
+          ...(selected.planType ? { planType: selected.planType } : {})
+        }
+      }
+    };
+  }
   if (selected.accessToken) {
     const tokenType = selected.tokenType ?? "Bearer";
     return {

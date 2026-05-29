@@ -514,6 +514,64 @@ describe("workbench event reducer", () => {
       inputLocked: true
     });
   });
+
+  it("tracks code task and verification status from typed host events", () => {
+    const state = reduceHostEvents(initialState(), [
+      event({
+        type: "task.created",
+        taskId: "task-1",
+        rootRunId: "run-1",
+        cwd: "/repo",
+        objective: "implement feature",
+        state: "created"
+      }),
+      event({
+        type: "task.phase_changed",
+        seq: 2,
+        taskId: "task-1",
+        from: "executing",
+        to: "verifying",
+        activeRunId: "run-1",
+        attempt: 1
+      }),
+      event({
+        type: "verification.completed",
+        seq: 3,
+        taskId: "task-1",
+        attempt: {
+          id: "verify-1",
+          taskId: "task-1",
+          sessionId: "session-1",
+          runId: "run-1",
+          command: "pnpm test",
+          cwd: "/repo",
+          required: true,
+          status: "passed",
+          reason: "focused test",
+          exitCode: 0,
+          outputSummary: "ok"
+        }
+      }),
+      event({
+        type: "task.completed",
+        seq: 4,
+        taskId: "task-1",
+        evidence: {
+          completedAt: "2026-05-28T00:00:00.000Z",
+          passingVerificationAttemptIds: ["verify-1"]
+        }
+      })
+    ]);
+    const view = createWorkbenchViewModel(state);
+
+    expect(state.activeTask).toMatchObject({
+      taskId: "task-1",
+      phase: "completed",
+      lastVerification: { id: "verify-1", status: "passed" },
+      completionEvidence: { passingVerificationAttemptIds: ["verify-1"] }
+    });
+    expect(view.statusBar.taskLabel).toBe("task completed attempt 1");
+  });
 });
 
 function initialState() {

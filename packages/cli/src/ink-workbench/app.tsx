@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
+import type { WorkbenchSlashCommandMetadata } from "../workbench/commands";
 import { createWorkbenchViewModel } from "../workbench/views";
 import { mapKeypressToIntent, type KeyIntent, type TerminalKeypress } from "../tui/keys";
 import { StatusBar } from "./components/status-bar";
@@ -46,6 +47,7 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
   const [state, setState] = useState(controller.state);
   const [prompt, setPrompt] = useState<PromptState>(() => createPromptState());
   const [slash, setSlash] = useState<SlashPaletteState | undefined>();
+  const [completedSlash, setCompletedSlash] = useState<WorkbenchSlashCommandMetadata | undefined>();
   const [selector, setSelector] = useState<SelectorState | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const view = useMemo(() => createWorkbenchViewModel(state), [state]);
@@ -77,6 +79,11 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
   useEffect(() => () => controller.dispose(), [controller]);
 
   useInput((input, key) => {
+    if (isTerminalExitInput(input, key)) {
+      exit();
+      return;
+    }
+
     const intent = inkInputToKeyIntent(input, key);
     void handleIntent(intent);
   });
@@ -91,7 +98,7 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
 
     if (owner?.kind === "selector" && selector) {
       const result = applySelectorIntent(selector, intent);
-      setSelector(result.state);
+        setSelector(result.state);
       if (result.effect?.type === "close") {
         setSelector(undefined);
       } else if (result.effect?.type === "select" && result.effect.commandText) {
@@ -122,10 +129,12 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
         const command = result.effect.command;
         if (commandNeedsSelector(command)) {
           setSlash(undefined);
+          setCompletedSlash(undefined);
           setPrompt(createPromptState());
           setSelector(await controller.selectorForCommand(command.command));
         } else {
           setSlash(undefined);
+          setCompletedSlash(undefined);
           setPrompt(createPromptState());
           await submitText(command.command);
         }
@@ -141,6 +150,10 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
       setNotice(owner.kind === "permission" ? "Permission response required." : "Interaction response required.");
       return;
     }
+    if (intent.type === "submit" && completedSlash && matchesCompletedSlash(completedSlash, getPromptText(prompt))) {
+      await submitCompletedSlash(completedSlash, getPromptText(prompt));
+      return;
+    }
     if (intent.type === "submit" && state.disconnected && getPromptText(prompt).trim() !== "/reload") {
       setNotice(state.disconnected.lockHint);
       return;
@@ -148,6 +161,9 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
 
     const result = applyPromptIntent(prompt, intent, { slashPaletteOpen: slash !== undefined });
     setPrompt(result.state);
+    if (completedSlash && !matchesCompletedSlash(completedSlash, getPromptText(result.state))) {
+      setCompletedSlash(undefined);
+    }
     if (!result.effect) {
       return;
     }
@@ -157,6 +173,7 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
   async function handlePromptEffect(effect: PromptEffect): Promise<void> {
     switch (effect.type) {
       case "open-slash":
+        setCompletedSlash(undefined);
         setSlash((current) => updateSlashPaletteQuery(current ?? createSlashPaletteState(), effect.query));
         return;
       case "close-slash":
@@ -166,10 +183,12 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
         await applyControllerResponse(controller.abortActiveRun());
         return;
       case "submit-prompt":
+        setCompletedSlash(undefined);
         setSlash(undefined);
         await applyControllerResponse(controller.startPromptRun(effect.text));
         return;
       case "submit-run-input":
+        setCompletedSlash(undefined);
         await applyControllerResponse(controller.submitRunInput(effect.mode, effect.text));
         return;
       case "submit-permission-response":
@@ -179,6 +198,7 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
         await applyControllerResponse(controller.respondInteraction(effect.requestId, parseInteractionResponse(effect.text)));
         return;
       case "submit-slash":
+        setCompletedSlash(undefined);
         setSlash(undefined);
         await applyControllerResponse(controller.executeSlash(effect.text));
         return;
@@ -193,6 +213,7 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
     const highlighted = slash ? getHighlightedSlashCommand(slash) : undefined;
     if (!hasArguments && highlighted) {
       setSlash(undefined);
+      setCompletedSlash(undefined);
       setPrompt(createPromptState());
       if (commandNeedsSelector(highlighted)) {
         setSelector(await controller.selectorForCommand(highlighted.command));
@@ -215,7 +236,19 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
       return;
     }
     setSlash(undefined);
+    setCompletedSlash(highlighted);
     setPrompt((current) => replacePromptText(current, `${highlighted.command} `));
+  }
+
+  async function submitCompletedSlash(command: WorkbenchSlashCommandMetadata, text: string): Promise<void> {
+    setCompletedSlash(undefined);
+    setSlash(undefined);
+    setPrompt(createPromptState());
+    if (commandNeedsSelector(command) && text.trim() === command.command) {
+      setSelector(await controller.selectorForCommand(command.command));
+      return;
+    }
+    await applyControllerResponse(controller.executeSlash(text));
   }
 
   async function submitText(text: string): Promise<void> {
@@ -290,6 +323,15 @@ function isPromptEditingIntent(intent: KeyIntent): boolean {
     || intent.type === "left"
     || intent.type === "right"
     || intent.type === "newline";
+}
+
+function isTerminalExitInput(input: string, key: { readonly ctrl?: boolean }): boolean {
+  return key.ctrl === true && (input === "c" || input === "C" || input === "\u0003");
+}
+
+function matchesCompletedSlash(command: WorkbenchSlashCommandMetadata, text: string): boolean {
+  const value = text.trimStart();
+  return value === command.command || value.startsWith(`${command.command} `);
 }
 
 function retargetPrompt(state: PromptState, target: PromptState["target"]): PromptState {

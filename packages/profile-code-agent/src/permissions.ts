@@ -1,10 +1,12 @@
 import type {
   PermissionDecision,
   PermissionDenyDecision,
+  PermissionAllowDecision,
   PermissionPolicy,
   PermissionRequest,
   PermissionResolver
 } from "@guga-agent/core";
+import { isSafeVerificationCommand } from "./task/permission-policy";
 
 export type CodeAgentPermissionOptions = {
   delegate?: PermissionResolver;
@@ -38,6 +40,9 @@ export function createCodeAgentPermissionResolver(
   return async (request) => {
     if (isDestructiveShellRequest(request)) {
       return deny("Destructive shell command blocked by code-agent profile");
+    }
+    if (isAutomaticVerificationRequest(request)) {
+      return allow("Safe verification command allowed by code-task policy");
     }
     if (delegate) {
       return delegate(request);
@@ -73,6 +78,23 @@ function deny(reason: string): PermissionDenyDecision {
     source: "profile",
     reason
   };
+}
+
+function allow(reason: string): PermissionAllowDecision {
+  return {
+    action: "allow",
+    remember: "once",
+    source: "profile",
+    reason
+  };
+}
+
+function isAutomaticVerificationRequest(request: PermissionRequest): boolean {
+  if (request.metadata?.source !== "verification" || request.subject.toolName !== "shell_exec") {
+    return false;
+  }
+  const command = commandFromInput(request.call.input);
+  return command !== undefined && isSafeVerificationCommand(command);
 }
 
 function denyMissingHostResolver(reason: string): PermissionDenyDecision {

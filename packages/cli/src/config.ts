@@ -168,6 +168,9 @@ export type SelectedCliModel = {
   apiKey?: string;
   accessToken?: string;
   tokenType?: string;
+  sessionKind?: "bearer" | "codex-app-server";
+  authMode?: "chatgpt" | "apiKey";
+  planType?: string;
   baseURL?: string;
 };
 

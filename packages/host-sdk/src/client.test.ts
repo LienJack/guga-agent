@@ -166,6 +166,53 @@ describe("host SDK", () => {
     await host.client.abortRun(run.id);
   });
 
+  it("reads code task resources and verification attempts through the typed client", async () => {
+    const host = await startSdkHost();
+    const session = await host.client.createSession();
+    const run = await host.client.startRun(session.id, { input: "implement", providerId: "mock" });
+    await drainRunEvents(host, run.id);
+
+    host.server.hostRuntime.recordHostEvent(run.id, {
+      type: "task.created",
+      sessionId: session.id,
+      taskId: "task-1",
+      rootRunId: run.id,
+      cwd: "/repo",
+      objective: "implement feature",
+      state: "created"
+    });
+    host.server.hostRuntime.recordHostEvent(run.id, {
+      type: "verification.completed",
+      sessionId: session.id,
+      taskId: "task-1",
+      runId: run.id,
+      attempt: {
+        id: "verify-1",
+        taskId: "task-1",
+        sessionId: session.id,
+        runId: run.id,
+        command: "pnpm test",
+        cwd: "/repo",
+        required: true,
+        status: "passed",
+        reason: "focused test",
+        exitCode: 0,
+        outputSummary: "ok"
+      }
+    });
+
+    await expect(host.client.listSessionTasks(session.id)).resolves.toEqual([
+      expect.objectContaining({ id: "task-1", objective: "implement feature" })
+    ]);
+    await expect(host.client.getTask("task-1")).resolves.toMatchObject({
+      id: "task-1",
+      verificationAttempts: [expect.objectContaining({ id: "verify-1", status: "passed" })]
+    });
+    await expect(host.client.listTaskVerificationAttempts("task-1")).resolves.toEqual([
+      expect.objectContaining({ id: "verify-1", command: "pnpm test" })
+    ]);
+  });
+
   it("responds to permission resources through the typed client", async () => {
     const host = await startPermissionSdkHost();
     const session = await host.client.createSession();

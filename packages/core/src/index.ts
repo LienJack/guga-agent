@@ -294,6 +294,8 @@ export type {
   ToolResourceScopeExtractor,
   ToolResultBudget,
   ToolResultReference,
+  RuntimeToolInvocationSource,
+  RuntimeToolInvokeOptions,
   ToolRuntimeFailureReason,
   ToolRuntimeResult,
   ToolSchedulerMetadata,
@@ -329,6 +331,8 @@ export { ToolScheduler } from "./tools/tool-scheduler";
 export { ResultPolicy } from "./tools/result-policy";
 export { AgentRuntime as DefaultAgentRuntime } from "./runtime/agent-runtime";
 export { createAgentRuntime } from "./runtime/create-agent-runtime";
+export type { RuntimeToolInvoker } from "./runtime/tool-invoker";
+export { createRuntimeToolInvoker } from "./runtime/tool-invoker";
 export type {
   AiSdkBridgeMode,
   AiSdkGenerateText,

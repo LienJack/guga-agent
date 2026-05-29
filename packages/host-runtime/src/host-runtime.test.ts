@@ -495,6 +495,160 @@ describe("HostRuntime", () => {
       finalAnswer: "allowed"
     });
   });
+
+  it("stores typed code task and verification events as resources", async () => {
+    const runtime = createAgentRuntime();
+    runtime.registerProvider(createMockProvider([{ type: "final", content: "ready" }]));
+    const host = new HostRuntime({
+      runtime,
+      now: () => new Date("2026-05-29T00:00:00.000Z"),
+      idFactory: deterministicIds(["session-1", "run-1"])
+    });
+    const session = await host.createSession();
+    const run = await host.startRun({ sessionId: session.id, input: "implement", providerId: "mock" });
+
+    host.recordHostEvent(run.id, {
+      type: "task.created",
+      sessionId: session.id,
+      taskId: "task-1",
+      rootRunId: run.id,
+      cwd: "/repo",
+      objective: "implement feature",
+      state: "created"
+    });
+    host.recordHostEvent(run.id, {
+      type: "task.phase_changed",
+      sessionId: session.id,
+      taskId: "task-1",
+      from: "executing",
+      to: "verifying",
+      activeRunId: run.id,
+      attempt: 1
+    });
+    host.recordHostEvent(run.id, {
+      type: "verification.completed",
+      sessionId: session.id,
+      taskId: "task-1",
+      runId: run.id,
+      attempt: {
+        id: "verify-1",
+        taskId: "task-1",
+        sessionId: session.id,
+        runId: run.id,
+        command: "pnpm test",
+        cwd: "/repo",
+        required: true,
+        status: "passed",
+        reason: "focused unit test",
+        exitCode: 0,
+        outputSummary: "ok"
+      }
+    });
+    host.recordHostEvent(run.id, {
+      type: "task.completed",
+      sessionId: session.id,
+      taskId: "task-1",
+      evidence: {
+        completedAt: "2026-05-29T00:00:00.000Z",
+        passingVerificationAttemptIds: ["verify-1"]
+      }
+    });
+
+    expect(host.getTask("task-1")).toMatchObject({
+      id: "task-1",
+      state: "completed",
+      phase: "completed",
+      verificationAttempts: [expect.objectContaining({ id: "verify-1", status: "passed" })],
+      completionEvidence: { passingVerificationAttemptIds: ["verify-1"] }
+    });
+    expect(host.listSessionTasks(session.id).map((task) => task.id)).toEqual(["task-1"]);
+    expect(host.listRunEvents(run.id).map((event) => event.type)).toEqual(expect.arrayContaining([
+      "task.created",
+      "task.phase_changed",
+      "verification.completed",
+      "task.completed"
+    ]));
+  });
+
+  it("starts a configured code task loop for natural coding prompts", async () => {
+    const runtime = createAgentRuntime();
+    runtime.registerProvider({
+      id: "unused",
+      async generate() {
+        throw new Error("plain runtime path should not run");
+      }
+    });
+    const host = new HostRuntime({
+      runtime,
+      profileId: "code",
+      cwd: "/repo",
+      codeTasks: {
+        classify: () => ({
+          shouldCreateTask: true,
+          confidence: "high",
+          reason: "test coding task"
+        }),
+        async start(options) {
+          options.emit({
+            type: "task.created",
+            sessionId: options.sessionId,
+            taskId: options.taskId,
+            rootRunId: options.rootRunId,
+            cwd: options.cwd,
+            objective: options.objective,
+            state: "created"
+          });
+          options.emit({
+            type: "verification.completed",
+            sessionId: options.sessionId,
+            taskId: options.taskId,
+            runId: options.rootRunId,
+            attempt: {
+              id: "verify-1",
+              taskId: options.taskId,
+              sessionId: options.sessionId,
+              runId: options.rootRunId,
+              command: "pnpm test",
+              cwd: options.cwd,
+              required: true,
+              status: "passed",
+              reason: "focused test"
+            }
+          });
+          options.emit({
+            type: "task.completed",
+            sessionId: options.sessionId,
+            taskId: options.taskId,
+            evidence: {
+              completedAt: "2026-05-29T00:00:00.000Z",
+              passingVerificationAttemptIds: ["verify-1"]
+            }
+          });
+          return { finalAnswer: "task done" };
+        }
+      },
+      now: () => new Date("2026-05-29T00:00:00.000Z"),
+      idFactory: deterministicIds(["session-1", "run-1", "task-1"])
+    });
+    const session = await host.createSession();
+
+    const run = await host.startRun({ sessionId: session.id, input: "implement feature", providerId: "unused" });
+
+    expect(run).toMatchObject({
+      status: "completed",
+      finalAnswer: "task done"
+    });
+    expect(host.listRunEvents(run.id).map((event) => event.type)).toEqual([
+      "run.started",
+      "task.created",
+      "verification.completed",
+      "task.completed",
+      "run.completed"
+    ]);
+    expect(host.listSessionTasks(session.id)).toEqual([
+      expect.objectContaining({ id: "task-task-1", state: "completed" })
+    ]);
+  });
 });
 
 function deterministicIds(values: string[]): () => string {

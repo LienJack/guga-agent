@@ -79,6 +79,100 @@ function reduceKnownHostEvent(state: WorkbenchState, event: HostEvent): Workbenc
           message: event.reason ?? "Run was cancelled"
         }
       });
+    case "task.created":
+      return {
+        ...baseEventState(state, event),
+        statusText: `Task created: ${event.objective}`,
+        activeTask: {
+          sessionId: event.sessionId,
+          taskId: event.taskId,
+          objective: event.objective,
+          state: event.state,
+          phase: event.state,
+          attempt: 0,
+          firstSeq: event.seq,
+          lastSeq: event.seq,
+          occurredAt: event.occurredAt
+        }
+      };
+    case "task.phase_changed":
+      return {
+        ...baseEventState(state, event),
+        statusText: `Task ${event.to}`,
+        activeTask: {
+          ...(state.activeTask ?? {
+            sessionId: event.sessionId,
+            taskId: event.taskId,
+            objective: event.taskId,
+            firstSeq: event.seq
+          }),
+          sessionId: event.sessionId,
+          taskId: event.taskId,
+          state: event.to,
+          phase: event.to,
+          attempt: event.attempt,
+          ...(event.activeRunId ? { activeRunId: event.activeRunId } : {}),
+          lastSeq: event.seq,
+          occurredAt: event.occurredAt
+        }
+      };
+    case "verification.started":
+    case "verification.completed":
+      return {
+        ...baseEventState(state, event),
+        statusText: event.type === "verification.started"
+          ? `Verifying: ${event.attempt.command}`
+          : `Verification ${event.attempt.status}: ${event.attempt.command}`,
+        ...(state.activeTask
+          ? {
+              activeTask: {
+                ...state.activeTask,
+                lastVerification: event.attempt,
+                lastSeq: event.seq,
+                occurredAt: event.occurredAt
+              }
+            }
+          : {})
+      };
+    case "task.completed":
+      return {
+        ...baseEventState(state, event),
+        statusText: "Task completed",
+        ...(state.activeTask
+          ? {
+              activeTask: {
+                ...state.activeTask,
+                state: "completed",
+                phase: "completed",
+                completionEvidence: event.evidence,
+                lastSeq: event.seq,
+                occurredAt: event.occurredAt
+              }
+            }
+          : {})
+      };
+    case "task.blocked":
+    case "task.failed":
+    case "task.cancelled":
+      return {
+        ...baseEventState(state, event),
+        statusText: event.type === "task.blocked"
+          ? `Task blocked: ${event.reason.message}`
+          : event.type === "task.failed"
+            ? `Task failed: ${event.reason.message}`
+            : "Task cancelled",
+        ...(state.activeTask
+          ? {
+              activeTask: {
+                ...state.activeTask,
+                state: event.type === "task.blocked" ? "blocked" : event.type === "task.failed" ? "failed" : "cancelled",
+                phase: event.type === "task.blocked" ? "blocked" : event.type === "task.failed" ? "failed" : "cancelled",
+                lastSeq: event.seq,
+                occurredAt: event.occurredAt
+              }
+            }
+          : {})
+      };
     case "message.delta":
       return withAssistantDelta(baseEventState(state, event), event);
     case "message.reasoning_delta":
@@ -497,7 +591,7 @@ function baseEventState(state: WorkbenchState, event: HostEvent): WorkbenchState
   return {
     ...state,
     activeSessionId: event.sessionId,
-    activeRunId: event.runId,
+    ...("runId" in event ? { activeRunId: event.runId } : {}),
     lastSeq: Math.max(state.lastSeq, event.seq)
   };
 }

@@ -1,8 +1,8 @@
 import {
-  createMockProvider,
   type AgentRuntimeOptions,
   type LocalPlugin,
   type ModelMetadata,
+  type Provider,
   type ProviderRouterPolicy
 } from "@guga-agent/core";
 import { createAiSdkProvider } from "@guga-agent/core/builtins";
@@ -16,6 +16,7 @@ import { createOpsHealthPlugin } from "@guga-agent/plugin-ops-health";
 import { JsonlEventStore, JsonlSessionStore } from "@guga-agent/plugin-session-jsonl";
 import {
   CODE_AGENT_PROFILE_ID,
+  createCodeTaskHostRuntime,
   createCodeAgentRuntimeOptions
 } from "@guga-agent/profile-code-agent";
 import { DEEP_RESEARCH_PROFILE_ID } from "@guga-agent/profile-deep-research-agent";
@@ -97,8 +98,9 @@ export async function createCliHost(options: CliHostFactoryOptions = {}): Promis
   }
 
   const profileId = options.profileId ?? profileFromConfig(config.config.defaultProfile) ?? DEFAULT_CLI_PROFILE_ID;
+  const workspaceRoot = options.workspaceRoot ?? cwd;
   const runtimeOptions = createRuntimeOptions(profileId, {
-    workspaceRoot: options.workspaceRoot ?? cwd,
+    workspaceRoot,
     gugaHome,
     stores: options.stores
   });
@@ -121,14 +123,15 @@ export async function createCliHost(options: CliHostFactoryOptions = {}): Promis
   }
 
   if (options.mock) {
-    const hostRuntime = new HostRuntime({ runtimeOptions });
-    hostRuntime.registerProvider(createMockProvider([
-      ({ messages }) => ({
-        type: "final",
-        content: `mock: ${messages.at(-1)?.content ?? ""}`,
-        usage: { totalTokens: 3 }
-      })
-    ]));
+    const hostRuntime = new HostRuntime({
+      runtimeOptions,
+      profileId,
+      cwd: workspaceRoot,
+      ...(profileId === CODE_AGENT_PROFILE_ID
+        ? { codeTasks: createCodeTaskHostRuntime({ profileId, cwd: workspaceRoot }) }
+        : {})
+    });
+    hostRuntime.registerProvider(createRepeatingMockProvider());
     const mockModelId = selectedModel?.modelId ?? options.modelSelector;
     return {
       local: await createLocalGugaHost({ hostRuntime }),
@@ -155,6 +158,11 @@ export async function createCliHost(options: CliHostFactoryOptions = {}): Promis
   const providerPlugins = createProviderPlugins(modelView, config, env, gugaHome.home);
   const routerPolicy = createRouterPolicy(selectedModel.availability, modelView, config.config.fallbackModels);
   const hostRuntime = new HostRuntime({
+    profileId,
+    cwd: workspaceRoot,
+    ...(profileId === CODE_AGENT_PROFILE_ID
+      ? { codeTasks: createCodeTaskHostRuntime({ profileId, cwd: workspaceRoot }) }
+      : {}),
     runtimeOptions: {
       ...runtimeOptions,
       plugins: [...(runtimeOptions.plugins ?? []), ...providerPlugins],
@@ -171,6 +179,19 @@ export async function createCliHost(options: CliHostFactoryOptions = {}): Promis
     ...(providerId ? { providerId } : {}),
     modelId: selectedModel.modelId ?? selectedModel.id
   };
+}
+
+function createRepeatingMockProvider(): Provider {
+  return {
+    id: "mock",
+    generate({ messages }) {
+      return {
+        type: "final",
+        content: `mock: ${messages.at(-1)?.content ?? ""}`,
+        usage: { totalTokens: 3 }
+      };
+    }
+  }
 }
 
 function createProviderPlugins(

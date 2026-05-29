@@ -11,7 +11,9 @@ import {
   type SessionLeaf,
   type SessionRecord,
   type SessionStore,
-  type ToolDefinition
+  type ToolDefinition,
+  type RuntimeToolInvokeOptions,
+  type ToolRuntimeResult
 } from "@guga-agent/core";
 import {
   HOST_PROTOCOL_FEATURES,
@@ -19,9 +21,12 @@ import {
   createHostEventSequencer,
   type AuditSummaryResource,
   type CapabilityResource,
+  type CodeTaskPlanResource,
+  type CodeTaskResource,
   type HostErrorPayload,
   type HostEventSequencer,
   type HostEvent,
+  type HostEventInput,
   type HostProtocolInfoResource,
   type InteractionRequest,
   type InteractionResource,
@@ -48,6 +53,9 @@ export type HostRuntimeOptions = {
   runtimeOptions?: AgentRuntimeOptions;
   now?: () => Date;
   idFactory?: () => string;
+  profileId?: string;
+  cwd?: string;
+  codeTasks?: HostCodeTaskRuntime;
 };
 
 export type StartRunOptions = {
@@ -56,6 +64,51 @@ export type StartRunOptions = {
   providerId?: string;
   modelId?: string;
   maxTurns?: number;
+};
+
+export type HostCodeTaskClassification = {
+  shouldCreateTask: boolean;
+  reason: string;
+  confidence?: "high" | "medium" | "low";
+};
+
+export type HostCodeTaskStageRunRequest = {
+  taskId: string;
+  role: "scout" | "planner" | "executor" | "verifier" | "repairer";
+  prompt: string;
+};
+
+export type HostCodeTaskStageRunResult = {
+  runId: string;
+  finalAnswer?: string;
+  plan?: CodeTaskPlanResource;
+};
+
+export type HostCodeTaskEventInput = {
+  type: string;
+  [key: string]: unknown;
+};
+
+export type HostCodeTaskStartOptions = {
+  taskId: string;
+  sessionId: string;
+  rootRunId: string;
+  cwd: string;
+  objective: string;
+  prompt: string;
+  signal?: AbortSignal;
+  emit(event: HostCodeTaskEventInput): HostEvent | undefined;
+  runStage(request: HostCodeTaskStageRunRequest): Promise<HostCodeTaskStageRunResult>;
+  invokeTool(options: RuntimeToolInvokeOptions): Promise<ToolRuntimeResult>;
+};
+
+export type HostCodeTaskRunResult = {
+  finalAnswer: string;
+};
+
+export type HostCodeTaskRuntime = {
+  classify(options: { prompt: string; profileId?: string; cwd: string }): HostCodeTaskClassification;
+  start(options: HostCodeTaskStartOptions): Promise<HostCodeTaskRunResult>;
 };
 
 export type EnqueueRunInputOptions = {
@@ -92,6 +145,9 @@ export class HostRuntime {
   private readonly ownsRuntime: boolean;
   private readonly now: () => Date;
   private readonly idFactory: () => string;
+  private readonly profileId: string | undefined;
+  private readonly cwd: string;
+  private readonly codeTasks: HostCodeTaskRuntime | undefined;
   private readonly store = new InMemoryRunStore();
   private readonly activeRunControllers = new Map<string, AbortController>();
   private readonly activeRunCompletions = new Map<string, Promise<RunResource>>();
@@ -108,6 +164,9 @@ export class HostRuntime {
     this.ownsRuntime = !options.runtime;
     this.now = options.now ?? (() => new Date());
     this.idFactory = options.idFactory ?? (() => crypto.randomUUID());
+    this.profileId = options.profileId;
+    this.cwd = options.cwd ?? process.cwd();
+    this.codeTasks = options.codeTasks;
   }
 
   getProtocolInfo(): HostProtocolInfoResource {
@@ -360,6 +419,15 @@ export class HostRuntime {
       unsubscribe: () => void;
     }
   ): Promise<RunResource> {
+    const codeTaskClassification = this.codeTasks?.classify({
+      prompt: options.input,
+      ...(this.profileId ? { profileId: this.profileId } : {}),
+      cwd: this.cwd
+    });
+    if (this.codeTasks && codeTaskClassification?.shouldCreateTask === true) {
+      return this.executeCodeTaskRun(options, state);
+    }
+
     const result = await this.runtime.run({
       input: options.input,
       runId: state.runId,
@@ -442,6 +510,160 @@ export class HostRuntime {
       updatedAt: terminalEvent.occurredAt,
       lastSeq: terminalEvent.seq
     };
+  }
+
+  private async executeCodeTaskRun(
+    options: StartRunOptions,
+    state: {
+      sessionId: string;
+      branchId: string;
+      runId: string;
+      controller: AbortController;
+      sequencer: HostEventSequencer;
+    }
+  ): Promise<RunResource> {
+    const taskId = `task-${this.idFactory()}`;
+    this.emitHostEvent(state.runId, state.sequencer, {
+      type: "run.started",
+      sessionId: state.sessionId,
+      runId: state.runId,
+      input: options.input
+    });
+
+    const result = await this.codeTasks?.start({
+      taskId,
+      sessionId: state.sessionId,
+      rootRunId: state.runId,
+      cwd: this.cwd,
+      objective: options.input,
+      prompt: options.input,
+      signal: state.controller.signal,
+      emit: (event) => this.emitHostEvent(state.runId, state.sequencer, event as HostEventInput),
+      runStage: (request) => this.runCodeTaskStage(options, state, request),
+      invokeTool: (toolOptions) => this.runtime.invokeTool({
+        ...toolOptions,
+        signal: toolOptions.signal ?? state.controller.signal
+      })
+    }).catch((error: unknown) => ({
+      error: {
+        code: "CODE_TASK_EXECUTION_ERROR",
+        message: error instanceof Error ? error.message : "Code task execution failed",
+        details: error
+      }
+    }));
+
+    const wasCancelled = state.controller.signal.aborted;
+    if (wasCancelled && !this.store.listEvents(state.runId).some((event) => event.type === "task.cancelled")) {
+      this.emitHostEvent(state.runId, state.sequencer, {
+        type: "task.cancelled",
+        sessionId: state.sessionId,
+        taskId,
+        actor: "user",
+        reason: "Run was cancelled"
+      });
+    }
+    if (wasCancelled && this.store.listEvents(state.runId).some((event) => event.type === "run.cancelled")) {
+      return this.store.getRun(state.runId) ?? {
+        id: state.runId,
+        sessionId: state.sessionId,
+        status: "cancelled",
+        input: options.input,
+        createdAt: this.now().toISOString(),
+        updatedAt: this.now().toISOString(),
+        lastSeq: 0
+      };
+    }
+
+    const terminalEvent = wasCancelled
+      ? state.sequencer.next({
+          type: "run.cancelled",
+          sessionId: state.sessionId,
+          runId: state.runId,
+          reason: "Run was cancelled"
+        })
+      : result && "error" in result
+        ? state.sequencer.next({
+            type: "run.failed",
+            sessionId: state.sessionId,
+            runId: state.runId,
+            error: result.error
+          })
+        : state.sequencer.next({
+            type: "run.completed",
+            sessionId: state.sessionId,
+            runId: state.runId,
+            finalAnswer: result?.finalAnswer ?? "Code task finished"
+          });
+    this.store.appendEvents(state.runId, [terminalEvent]);
+    this.applyEventEffects(state.runId, [terminalEvent]);
+
+    const followUp = wasCancelled ? undefined : this.consumeNextFollowUpInput(state.runId, state.sequencer);
+    if (followUp) {
+      this.startRunDetached({
+        sessionId: state.sessionId,
+        input: followUp.text,
+        ...(options.providerId ? { providerId: options.providerId } : {}),
+        ...(options.modelId ? { modelId: options.modelId } : {}),
+        ...(options.maxTurns !== undefined ? { maxTurns: options.maxTurns } : {})
+      });
+    }
+
+    return this.store.getRun(state.runId) ?? {
+      id: state.runId,
+      sessionId: state.sessionId,
+      status: wasCancelled ? "cancelled" : result && "error" in result ? "failed" : "completed",
+      input: options.input,
+      createdAt: terminalEvent.occurredAt,
+      updatedAt: terminalEvent.occurredAt,
+      lastSeq: terminalEvent.seq
+    };
+  }
+
+  private async runCodeTaskStage(
+    options: StartRunOptions,
+    state: {
+      sessionId: string;
+      branchId: string;
+      runId: string;
+      controller: AbortController;
+      sequencer: HostEventSequencer;
+    },
+    request: HostCodeTaskStageRunRequest
+  ): Promise<HostCodeTaskStageRunResult> {
+    const stageRunId = `${state.runId}:${request.role}-${this.idFactory()}`;
+    const unsubscribe = this.runtime.onEvent((event) => {
+      if (isTerminalRunStatus(this.store.getRun(state.runId)?.status ?? "running")) {
+        return;
+      }
+      const hostEvents = projectAgentEvent(event, {
+        sessionId: state.sessionId,
+        runId: state.runId,
+        sourceRunId: stageRunId,
+        sequencer: state.sequencer
+      });
+      this.store.appendEvents(state.runId, hostEvents);
+      this.applyEventEffects(state.runId, hostEvents);
+    });
+    try {
+      const result = await this.runtime.run({
+        input: request.prompt,
+        runId: stageRunId,
+        session: { sessionId: state.sessionId, branchId: state.branchId },
+        signal: state.controller.signal,
+        ...(options.providerId ? { providerId: options.providerId } : {}),
+        ...(options.modelId ? { modelId: options.modelId } : {}),
+        ...(options.maxTurns !== undefined ? { maxTurns: options.maxTurns } : {})
+      });
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+      return {
+        runId: stageRunId,
+        finalAnswer: result.finalAnswer
+      };
+    } finally {
+      unsubscribe();
+    }
   }
 
   cancelRun(runId: string): RunResource | undefined {
@@ -628,6 +850,37 @@ export class HostRuntime {
     return this.store.listEvents(runId);
   }
 
+  recordHostEvent(runId: string, input: HostEventInput): HostEvent | undefined {
+    const run = this.store.getRun(runId);
+    if (!run) {
+      return undefined;
+    }
+    const sequencer = this.activeRunSequencers.get(runId)
+      ?? createHostEventSequencer({ startSeq: run.lastSeq, now: this.now });
+    const event = sequencer.next(input);
+    this.store.appendEvents(runId, [event]);
+    this.applyEventEffects(runId, [event]);
+    return event;
+  }
+
+  private emitHostEvent(runId: string, sequencer: HostEventSequencer, input: HostEventInput): HostEvent | undefined {
+    if (!this.store.getRun(runId)) {
+      return undefined;
+    }
+    const event = sequencer.next(input);
+    this.store.appendEvents(runId, [event]);
+    this.applyEventEffects(runId, [event]);
+    return event;
+  }
+
+  getTask(taskId: string): CodeTaskResource | undefined {
+    return this.store.getTask(taskId);
+  }
+
+  listSessionTasks(sessionId: string): CodeTaskResource[] {
+    return this.store.listTasksBySession(sessionId);
+  }
+
   listCapabilities(): CapabilityResource[] {
     return (this.runtime.listCapabilityDescriptors?.() ?? []).map(capabilityResourceFromDescriptor);
   }
@@ -773,6 +1026,61 @@ export class HostRuntime {
         this.store.updateInteraction(event.requestId, {
           status: "cancelled",
           resolvedAt: event.occurredAt
+        });
+      } else if (event.type === "task.created") {
+        this.store.putTask({
+          id: event.taskId,
+          sessionId: event.sessionId,
+          rootRunId: event.rootRunId,
+          cwd: event.cwd,
+          objective: event.objective,
+          state: event.state,
+          phase: event.state,
+          attempt: 0,
+          maxRepairAttempts: 2,
+          createdAt: event.occurredAt,
+          updatedAt: event.occurredAt,
+          ...(event.plan ? { plan: event.plan } : {}),
+          verificationAttempts: []
+        });
+      } else if (event.type === "task.phase_changed") {
+        this.store.updateTask(event.taskId, {
+          state: event.to,
+          phase: event.to,
+          ...(event.activeRunId ? { activeRunId: event.activeRunId } : {}),
+          ...(event.plan ? { plan: event.plan } : {}),
+          attempt: event.attempt,
+          updatedAt: event.occurredAt
+        });
+      } else if (event.type === "verification.started" || event.type === "verification.completed") {
+        this.store.upsertVerificationAttempt(event.attempt);
+      } else if (event.type === "task.completed") {
+        this.store.updateTask(event.taskId, {
+          state: "completed",
+          phase: "completed",
+          completionEvidence: event.evidence,
+          updatedAt: event.occurredAt
+        });
+      } else if (event.type === "task.blocked") {
+        this.store.updateTask(event.taskId, {
+          state: "blocked",
+          phase: "blocked",
+          terminalReason: event.reason,
+          updatedAt: event.occurredAt
+        });
+      } else if (event.type === "task.failed") {
+        this.store.updateTask(event.taskId, {
+          state: "failed",
+          phase: "failed",
+          terminalReason: event.reason,
+          updatedAt: event.occurredAt
+        });
+      } else if (event.type === "task.cancelled") {
+        this.store.updateTask(event.taskId, {
+          state: "cancelled",
+          phase: "cancelled",
+          ...(event.reason ? { terminalReason: { code: "TASK_CANCELLED", message: event.reason } } : {}),
+          updatedAt: event.occurredAt
         });
       }
     }

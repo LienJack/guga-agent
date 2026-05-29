@@ -75,6 +75,40 @@ describe("Ink workbench app", () => {
     expect(lastFrame()).not.toContain("Slash commands");
   });
 
+  it("submits a Tab-completed selector slash command with one Enter", async () => {
+    const { stdin, lastFrame } = render(<InkWorkbenchApp controller={controllerFor(fakeClient())} />);
+
+    stdin.write("/log");
+    await tick();
+    stdin.write("\t");
+    await tick();
+
+    expect(lastFrame()).toContain("/login");
+    expect(lastFrame()).not.toContain("Slash commands");
+
+    stdin.write("\r");
+    await tick();
+
+    expect(lastFrame()).toContain("Login provider");
+    expect(lastFrame()).not.toContain("Slash commands");
+  });
+
+  it("submits arguments added after Tab completion without reopening the slash palette", async () => {
+    const { stdin, lastFrame } = render(<InkWorkbenchApp controller={controllerFor(fakeClient())} />);
+
+    stdin.write("/log");
+    await tick();
+    stdin.write("\t");
+    await tick();
+    stdin.write("openai");
+    await tick();
+    stdin.write("\r");
+    await tick();
+
+    expect(lastFrame()).toContain("login target: openai");
+    expect(lastFrame()).not.toContain("Slash commands");
+  });
+
   it("submits slash commands with arguments from the prompt buffer", async () => {
     const { stdin, lastFrame } = render(<InkWorkbenchApp controller={controllerFor(fakeClient())} />);
 
@@ -239,6 +273,30 @@ describe("Ink workbench app", () => {
 
     expect(client.abortRun).not.toHaveBeenCalled();
     expect(lastFrame()).toContain("permission-response");
+  });
+
+  it("exits terminal mode on Ctrl+C without aborting the active run", async () => {
+    const client = fakeClient();
+    const controller = controllerFor(client);
+    const { stdin, lastFrame } = render(<InkWorkbenchApp controller={controller} />);
+
+    controller.applyEvent({
+      type: "run.started",
+      seq: 1,
+      occurredAt: "2026-05-28T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      input: "hello"
+    });
+    await tick();
+
+    stdin.write("\u0003");
+    await tick();
+    stdin.write("still here");
+    await tick();
+
+    expect(client.abortRun).not.toHaveBeenCalled();
+    expect(lastFrame()).not.toContain("still here");
   });
 });
 

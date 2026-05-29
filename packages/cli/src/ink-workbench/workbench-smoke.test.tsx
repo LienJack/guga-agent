@@ -14,6 +14,15 @@ describe("Ink workbench smoke route", () => {
     expect(io.stderr()).toBe("");
   });
 
+  it("exits terminal mode on Ctrl+C through the CLI route", async () => {
+    const io = captureIo({ stdin: ttyReadable("\u0003"), tty: true });
+
+    await expect(runCli(["--mock"], io)).resolves.toBe(0);
+
+    expect(io.stdout()).toContain("Guga Ink workbench");
+    expect(io.stderr()).toBe("");
+  });
+
   it("keeps non-TTY interactive smoke on friendly guidance", async () => {
     const io = captureIo({ stdin: Readable.from(["/exit\n"]) });
 

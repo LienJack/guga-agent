@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/directory-structure.md","reason":"CLI install script is backend/runtime tooling; preserve repo layout and package boundaries."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Install script failures should be explicit and observable without raw crashes where practical."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Add focused behavior tests for feature-bearing tooling and avoid generated dist edits."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Search existing install and command patterns before adding new shell integration logic."}
+{"file":".trellis/spec/guides/agent-reference-projects-guide.md","reason":"Use existing research materials before raw reference repo reads."}
+{"file":"docs/research/repomix/pi-token-tree.txt","reason":"Locate Pi command/install/shell-related files at low token cost."}
+{"file":"docs/research/repomix/pi-focused-context.xml","reason":"Confirm Pi package command and shell behavior from packed context snippets only."}

@@ -144,21 +144,35 @@ export class WorkbenchController {
   }
 
   async startPromptRun(text: string): Promise<WorkbenchControllerCommandResult> {
-    const run = await this.client.startRun(this.#session.id, {
-      input: text,
-      ...(this.#providerId ? { providerId: this.#providerId } : {}),
-      ...(this.#modelId ? { modelId: this.#modelId } : {})
-    });
-    this.attachRunStream(run.id);
-    return { ok: true, message: `started ${run.id}` };
+    if (text.trim().length === 0) {
+      return { ok: true };
+    }
+    try {
+      const run = await this.client.startRun(this.#session.id, {
+        input: text,
+        ...(this.#providerId ? { providerId: this.#providerId } : {}),
+        ...(this.#modelId ? { modelId: this.#modelId } : {})
+      });
+      this.attachRunStream(run.id);
+      return { ok: true, message: `started ${run.id}` };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
   }
 
   async submitRunInput(mode: "steer" | "follow_up", text: string): Promise<WorkbenchControllerCommandResult> {
     if (!this.#state.activeRunId || this.#state.runStatus !== "running") {
       return { ok: false, error: "No active run for queued input." };
     }
-    await this.client.sendRunInput(this.#state.activeRunId, { mode, text });
-    return { ok: true, message: `queued ${mode}` };
+    if (text.trim().length === 0) {
+      return { ok: true };
+    }
+    try {
+      await this.client.sendRunInput(this.#state.activeRunId, { mode, text });
+      return { ok: true, message: `queued ${mode}` };
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) };
+    }
   }
 
   async abortActiveRun(): Promise<WorkbenchControllerCommandResult> {

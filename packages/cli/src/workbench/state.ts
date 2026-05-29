@@ -1,4 +1,11 @@
-import type { HostErrorPayload, InteractionRequest, QueuedRunInputSummaryResource } from "@guga-agent/host-protocol";
+import type {
+  CodeTaskCompletionEvidenceResource,
+  CodeTaskStateResource,
+  HostErrorPayload,
+  InteractionRequest,
+  QueuedRunInputSummaryResource,
+  VerificationAttemptResource
+} from "@guga-agent/host-protocol";
 
 export type WorkbenchStartupMetadata = {
   projectPath: string;
@@ -63,6 +70,21 @@ export type PendingInteractionProjection = {
   runId: string;
   requestId: string;
   request: InteractionRequest;
+  firstSeq: number;
+  lastSeq: number;
+  occurredAt: string;
+};
+
+export type ActiveTaskProjection = {
+  sessionId: string;
+  taskId: string;
+  objective: string;
+  state: CodeTaskStateResource;
+  phase: CodeTaskStateResource;
+  attempt: number;
+  activeRunId?: string;
+  lastVerification?: VerificationAttemptResource;
+  completionEvidence?: CodeTaskCompletionEvidenceResource;
   firstSeq: number;
   lastSeq: number;
   occurredAt: string;
@@ -177,6 +199,7 @@ export type WorkbenchState = {
   disconnected?: WorkbenchDisconnectedState;
   pendingPermission?: PendingPermissionProjection;
   pendingInteraction?: PendingInteractionProjection;
+  activeTask?: ActiveTaskProjection;
   queue: QueueSummary;
   usage: WorkbenchUsage;
   lastSeq: number;

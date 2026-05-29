@@ -7,7 +7,9 @@ import type {
   RunResource,
   RunStatus,
   SessionBranchResource,
-  SessionResource
+  SessionResource,
+  CodeTaskResource,
+  VerificationAttemptResource
 } from "@guga-agent/host-protocol";
 
 export class InMemoryRunStore {
@@ -17,6 +19,7 @@ export class InMemoryRunStore {
   private readonly events = new Map<string, HostEvent[]>();
   private readonly interactions = new Map<string, InteractionResource>();
   private readonly permissions = new Map<string, PermissionRequestResource>();
+  private readonly tasks = new Map<string, CodeTaskResource>();
 
   putSession(session: SessionResource): void {
     this.sessions.set(session.id, session);
@@ -216,6 +219,46 @@ export class InMemoryRunStore {
       ...(patch.status ? { status: patch.status } : {}),
       ...(patch.reason !== undefined ? { reason: patch.reason } : {}),
       ...(patch.resolvedAt ? { resolvedAt: patch.resolvedAt } : {})
+    });
+  }
+
+  putTask(task: CodeTaskResource): void {
+    this.tasks.set(task.id, task);
+  }
+
+  getTask(taskId: string): CodeTaskResource | undefined {
+    return this.tasks.get(taskId);
+  }
+
+  listTasksBySession(sessionId: string): CodeTaskResource[] {
+    return [...this.tasks.values()].filter((task) => task.sessionId === sessionId);
+  }
+
+  updateTask(taskId: string, patch: Partial<CodeTaskResource> & { updatedAt: string }): void {
+    const task = this.tasks.get(taskId);
+    if (!task) {
+      return;
+    }
+    this.tasks.set(taskId, {
+      ...task,
+      ...patch,
+      verificationAttempts: patch.verificationAttempts ?? task.verificationAttempts
+    });
+  }
+
+  upsertVerificationAttempt(attempt: VerificationAttemptResource): void {
+    const task = this.tasks.get(attempt.taskId);
+    if (!task) {
+      return;
+    }
+    const existing = task.verificationAttempts.findIndex((candidate) => candidate.id === attempt.id);
+    const verificationAttempts = existing === -1
+      ? [...task.verificationAttempts, attempt]
+      : task.verificationAttempts.map((candidate, index) => index === existing ? attempt : candidate);
+    this.tasks.set(task.id, {
+      ...task,
+      verificationAttempts,
+      updatedAt: attempt.completedAt ?? attempt.startedAt ?? task.updatedAt
     });
   }
 }

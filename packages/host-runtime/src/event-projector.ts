@@ -8,6 +8,7 @@ import {
 export type AgentEventProjectionContext = {
   sessionId: string;
   runId: string;
+  sourceRunId?: string;
   sequencer: HostEventSequencer;
 };
 
@@ -28,7 +29,7 @@ export function createProjectionContext(options: {
 }
 
 export function projectAgentEvent(event: AgentEvent, context: AgentEventProjectionContext): HostEvent[] {
-  if (event.runId !== context.runId) {
+  if (event.runId !== (context.sourceRunId ?? context.runId)) {
     return [];
   }
 

@@ -1,0 +1,6 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend pre-development checklist for core runtime changes."}
+{"file":".trellis/spec/backend/directory-structure.md","reason":"Core built-ins ownership and module boundary guidance."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Testing and runtime capability quality requirements."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Tool failures should remain structured and model-visible."}
+{"file":".trellis/spec/guides/agent-reference-projects-guide.md","reason":"Reference project research funnel and evidence rules."}
+{"file":"docs/research/context-packs/tool-registry.md","reason":"Cross-project tool execution and registry patterns."}

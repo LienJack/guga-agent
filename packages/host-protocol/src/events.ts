@@ -1,4 +1,12 @@
-import type { InteractionRequest, QueuedRunInputSummaryResource } from "./resources";
+import type {
+  CodeTaskCompletionEvidenceResource,
+  CodeTaskPlanResource,
+  CodeTaskStateResource,
+  CodeTaskTerminalReasonResource,
+  InteractionRequest,
+  QueuedRunInputSummaryResource,
+  VerificationAttemptResource
+} from "./resources";
 
 export const HOST_EVENT_SSE_NAME = "guga.host-event";
 
@@ -7,6 +15,14 @@ export type HostEventType =
   | "run.completed"
   | "run.failed"
   | "run.cancelled"
+  | "task.created"
+  | "task.phase_changed"
+  | "task.completed"
+  | "task.blocked"
+  | "task.failed"
+  | "task.cancelled"
+  | "verification.started"
+  | "verification.completed"
   | "message.delta"
   | "message.reasoning_delta"
   | "message.completed"
@@ -38,6 +54,11 @@ type RunScopedEvent<Type extends HostEventType> = HostEventBase<Type> & {
   runId: string;
 };
 
+type TaskScopedEvent<Type extends HostEventType> = HostEventBase<Type> & {
+  sessionId: string;
+  taskId: string;
+};
+
 export type RunStartedHostEvent = RunScopedEvent<"run.started"> & {
   input: string;
 };
@@ -56,6 +77,49 @@ export type RunFailedHostEvent = RunScopedEvent<"run.failed"> & {
 
 export type RunCancelledHostEvent = RunScopedEvent<"run.cancelled"> & {
   reason?: string;
+};
+
+export type TaskCreatedHostEvent = TaskScopedEvent<"task.created"> & {
+  rootRunId: string;
+  cwd: string;
+  objective: string;
+  state: Extract<CodeTaskStateResource, "created">;
+  plan?: CodeTaskPlanResource;
+};
+
+export type TaskPhaseChangedHostEvent = TaskScopedEvent<"task.phase_changed"> & {
+  from: CodeTaskStateResource;
+  to: CodeTaskStateResource;
+  activeRunId?: string;
+  attempt: number;
+  plan?: CodeTaskPlanResource;
+};
+
+export type TaskCompletedHostEvent = TaskScopedEvent<"task.completed"> & {
+  evidence: CodeTaskCompletionEvidenceResource;
+};
+
+export type TaskBlockedHostEvent = TaskScopedEvent<"task.blocked"> & {
+  reason: CodeTaskTerminalReasonResource;
+};
+
+export type TaskFailedHostEvent = TaskScopedEvent<"task.failed"> & {
+  reason: CodeTaskTerminalReasonResource;
+};
+
+export type TaskCancelledHostEvent = TaskScopedEvent<"task.cancelled"> & {
+  actor: "user" | "host" | "runtime";
+  reason?: string;
+};
+
+export type VerificationStartedHostEvent = TaskScopedEvent<"verification.started"> & {
+  runId?: string;
+  attempt: VerificationAttemptResource;
+};
+
+export type VerificationCompletedHostEvent = TaskScopedEvent<"verification.completed"> & {
+  runId?: string;
+  attempt: VerificationAttemptResource;
 };
 
 export type MessageDeltaHostEvent = RunScopedEvent<"message.delta"> & {
@@ -188,6 +252,14 @@ export type HostEvent =
   | RunCompletedHostEvent
   | RunFailedHostEvent
   | RunCancelledHostEvent
+  | TaskCreatedHostEvent
+  | TaskPhaseChangedHostEvent
+  | TaskCompletedHostEvent
+  | TaskBlockedHostEvent
+  | TaskFailedHostEvent
+  | TaskCancelledHostEvent
+  | VerificationStartedHostEvent
+  | VerificationCompletedHostEvent
   | MessageDeltaHostEvent
   | MessageReasoningDeltaHostEvent
   | MessageCompletedHostEvent

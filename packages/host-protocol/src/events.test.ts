@@ -149,6 +149,70 @@ describe("host protocol events", () => {
     expect(retry).toMatchObject({ type: "retry.started", attempt: 2 });
   });
 
+  it("serializes code task lifecycle and verification events", () => {
+    const sequencer = createHostEventSequencer({
+      now: () => new Date("2026-05-29T00:00:00.000Z")
+    });
+    const created = sequencer.next({
+      type: "task.created",
+      sessionId: "session-1",
+      taskId: "task-1",
+      rootRunId: "run-1",
+      cwd: "/repo",
+      objective: "implement feature",
+      state: "created"
+    });
+    const phase = sequencer.next({
+      type: "task.phase_changed",
+      sessionId: "session-1",
+      taskId: "task-1",
+      from: "executing",
+      to: "verifying",
+      activeRunId: "run-2",
+      attempt: 1
+    });
+    const verification = sequencer.next({
+      type: "verification.completed",
+      sessionId: "session-1",
+      taskId: "task-1",
+      runId: "run-verify",
+      attempt: {
+        id: "verify-1",
+        taskId: "task-1",
+        sessionId: "session-1",
+        runId: "run-verify",
+        command: "pnpm test",
+        cwd: "/repo",
+        required: true,
+        status: "passed",
+        reason: "focused unit test",
+        exitCode: 0,
+        outputSummary: "ok"
+      }
+    });
+    const completed = sequencer.next({
+      type: "task.completed",
+      sessionId: "session-1",
+      taskId: "task-1",
+      evidence: {
+        completedAt: "2026-05-29T00:00:00.000Z",
+        passingVerificationAttemptIds: ["verify-1"],
+        summary: "focused tests passed"
+      }
+    });
+
+    expect(JSON.parse(JSON.stringify(created))).toEqual(created);
+    expect(phase).toMatchObject({ type: "task.phase_changed", from: "executing", to: "verifying" });
+    expect(verification).toMatchObject({
+      type: "verification.completed",
+      attempt: { status: "passed", required: true, exitCode: 0 }
+    });
+    expect(completed).toMatchObject({
+      type: "task.completed",
+      evidence: { passingVerificationAttemptIds: ["verify-1"] }
+    });
+  });
+
   it("serializes reasoning deltas for workbench display", () => {
     const event = createHostEventSequencer({
       now: () => new Date("2026-05-27T00:00:00.000Z")
@@ -171,6 +235,7 @@ describe("host protocol events", () => {
   it("exposes protocol discovery constants", () => {
     expect(HOST_PROTOCOL_VERSION).toBe("1");
     expect(HOST_PROTOCOL_FEATURES).toEqual(expect.arrayContaining([
+      "code-tasks",
       "run-input-queue",
       "tool-progress",
       "retry-events",

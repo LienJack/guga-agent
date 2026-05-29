@@ -549,10 +549,27 @@ function createDefaultOAuthLoginRunner(io: CliIO): ProviderOAuthLoginRunner {
       ok: false,
       error: {
         code: "codex_oauth_contract_pending",
-        message: "Codex OAuth browser/device endpoints are not enabled by default until the official third-party contract is confirmed."
+        message: codexOAuthContractPendingMessage()
       }
     };
   };
+}
+
+function codexOAuthContractPendingMessage(): string {
+  return [
+    "Codex OAuth is not enabled by default yet.",
+    "",
+    "Why: Guga will not call raw ChatGPT browser/device OAuth endpoints until OpenAI's third-party contract is confirmed.",
+    "",
+    "Works today:",
+    "  guga login openai --api-key-env OPENAI_API_KEY",
+    "  /login openai",
+    "",
+    "Implemented but not wired to a real process yet:",
+    "  Codex app-server account/login/start adapter for injected runners.",
+    "",
+    "So /login codex currently needs an injected app-server runner; otherwise use OpenAI API-key auth."
+  ].join("\n");
 }
 
 function createGitHubDeviceOAuthTransport() {

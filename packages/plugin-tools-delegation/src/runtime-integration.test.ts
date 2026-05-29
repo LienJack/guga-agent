@@ -63,12 +63,14 @@ describe("delegation plugin runtime integration", () => {
       "fs_read",
       "fs_list",
       "fs_search",
+      "fs_glob",
+      "fs_grep",
       "git_status",
       "git_diff",
       "git_commit_message"
     ]);
     expect(projectedTools[0]).not.toContain("delegate_task");
-    expect(result).toMatchObject({ ok: true, finalAnswer: "fs_read,fs_list,fs_search,git_status,git_diff,git_commit_message" });
+    expect(result).toMatchObject({ ok: true, finalAnswer: "fs_read,fs_list,fs_search,fs_glob,fs_grep,git_status,git_diff,git_commit_message" });
     await runtime.dispose();
   });
 

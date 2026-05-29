@@ -142,6 +142,33 @@ describe("provider credential store", () => {
       tokenType: "bearer"
     }).redacted.accessToken).toBe("tok...6789");
   });
+
+  it("treats Codex app-server OAuth sessions as configured without storing bearer tokens", async () => {
+    const root = await tempRoot();
+    const store = createProviderCredentialStore({ credentialsRoot: root });
+
+    const saved = store.saveCredential({
+      providerId: "codex",
+      kind: "oauth",
+      status: "configured",
+      sessionKind: "codex-app-server",
+      authMode: "chatgpt",
+      planType: "plus",
+      account: { email: "user@example.com" }
+    });
+
+    expect(saved).toMatchObject({
+      status: "configured",
+      redacted: {
+        session: "codex-app-server",
+        authMode: "chatgpt",
+        plan: "plus",
+        account: "user@example.com"
+      }
+    });
+    expect(store.readCredential("codex").status).toBe("configured");
+    expect(store.readCredential("codex").credential?.accessToken).toBeUndefined();
+  });
 });
 
 async function tempRoot(): Promise<string> {

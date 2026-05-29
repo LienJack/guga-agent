@@ -33,6 +33,9 @@ export type StoredProviderCredential = {
   providerId: string;
   kind: StoredProviderCredentialKind;
   status?: StoredProviderCredentialStatus;
+  sessionKind?: "bearer" | "codex-app-server";
+  authMode?: "chatgpt" | "apiKey";
+  planType?: string;
   apiKey?: string;
   accessToken?: string;
   refreshToken?: string;
@@ -196,6 +199,15 @@ export function redactedCredentialView(
   if (credential.refreshToken) {
     redacted.refreshToken = redactCredentialSecret(credential.refreshToken);
   }
+  if (credential.sessionKind) {
+    redacted.session = credential.sessionKind;
+  }
+  if (credential.authMode) {
+    redacted.authMode = credential.authMode;
+  }
+  if (credential.planType) {
+    redacted.plan = credential.planType;
+  }
   const accountHint = accountHintFor(credential.account);
   if (accountHint) {
     redacted.account = accountHint;
@@ -228,6 +240,14 @@ function credentialStatus(credential: StoredProviderCredential, now: Date): Prov
     return "configured";
   }
   if (credential.kind === "oauth" && credential.accessToken) {
+    return "configured";
+  }
+  if (
+    credential.kind === "oauth"
+    && credential.status === "configured"
+    && credential.sessionKind === "codex-app-server"
+    && credential.authMode === "chatgpt"
+  ) {
     return "configured";
   }
   return "invalid";

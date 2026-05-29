@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Review keyboard reachability and component-state boundaries for the Ink workbench."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify the new terminal shortcut has focused tests and does not regress existing UI behavior."}

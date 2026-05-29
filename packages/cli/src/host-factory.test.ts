@@ -90,6 +90,56 @@ describe("CLI host factory", () => {
     }
   });
 
+  it("wires natural code prompts into the autonomous task loop for the code profile", async () => {
+    const root = await mkdtemp(join(tmpdir(), "guga-code-task-"));
+    const cwd = join(root, "project");
+    mkdirSync(cwd, { recursive: true });
+    writeFileSync(join(cwd, "package.json"), JSON.stringify({
+      scripts: {
+        test: "node -e \"process.exit(0)\""
+      }
+    }));
+    const host = await createCliHost({
+      mock: true,
+      env: {},
+      cwd,
+      workspaceRoot: cwd
+    });
+    try {
+      const session = await host.local.client.createSession({});
+      const run = await host.local.client.startRun(session.id, {
+        input: "implement feature",
+        providerId: "mock"
+      });
+      const events = await drainRun(host, run.id);
+      const finalRun = await host.local.client.getRun(run.id);
+
+      expect(events).toEqual(expect.arrayContaining([
+        "task.created",
+        "task.phase_changed",
+        "verification.started",
+        "verification.completed",
+        "task.completed",
+        "run.completed"
+      ]));
+      expect(finalRun).toMatchObject({
+        status: "completed",
+        finalAnswer: expect.stringContaining("Required verification passed")
+      });
+      await expect(host.local.client.listSessionTasks(session.id)).resolves.toEqual([
+        expect.objectContaining({
+          objective: "implement feature",
+          state: "completed",
+          verificationAttempts: [
+            expect.objectContaining({ command: "pnpm test", status: "passed" })
+          ]
+        })
+      ]);
+    } finally {
+      await host.local.close();
+    }
+  });
+
   it("resolves default stores under Guga Home project partitions", async () => {
     const root = await mkdtemp(join(tmpdir(), "guga-host-home-"));
     const cwd = join(root, "project");

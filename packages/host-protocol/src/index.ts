@@ -19,10 +19,18 @@ export type {
   RunCompletedHostEvent,
   RunFailedHostEvent,
   RunStartedHostEvent,
+  TaskBlockedHostEvent,
+  TaskCancelledHostEvent,
+  TaskCompletedHostEvent,
+  TaskCreatedHostEvent,
+  TaskFailedHostEvent,
+  TaskPhaseChangedHostEvent,
   ToolCompletedHostEvent,
   ToolFailedHostEvent,
   ToolStartedHostEvent,
-  UsageRecordedHostEvent
+  UsageRecordedHostEvent,
+  VerificationCompletedHostEvent,
+  VerificationStartedHostEvent
 } from "./events";
 export {
   createHostEventSequencer,
@@ -35,6 +43,13 @@ export type {
   AuditSummaryResource,
   CapabilityResource,
   CapabilityScopeResource,
+  CodeTaskCompletionEvidenceResource,
+  CodeTaskPlannedCheckResource,
+  CodeTaskPlanFileResource,
+  CodeTaskPlanResource,
+  CodeTaskResource,
+  CodeTaskStateResource,
+  CodeTaskTerminalReasonResource,
   HostProtocolFeature,
   HostProtocolInfoResource,
   HostErrorPayload,
@@ -59,7 +74,9 @@ export type {
   SessionTreeResource,
   TrustDescriptorResource,
   UsageCostResource,
-  UsageResource
+  UsageResource,
+  VerificationAttemptResource,
+  VerificationAttemptStatusResource
 } from "./resources";
 export {
   HOST_PROTOCOL_FEATURES,

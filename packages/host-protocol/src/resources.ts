@@ -9,6 +9,7 @@ export type HostProtocolInfoResource = {
 
 export type HostProtocolFeature =
   | "runs"
+  | "code-tasks"
   | "run-input-queue"
   | "run-abort"
   | "follow-up-consumption"
@@ -25,6 +26,7 @@ export const HOST_PROTOCOL_VERSION = "1";
 
 export const HOST_PROTOCOL_FEATURES: HostProtocolFeature[] = [
   "runs",
+  "code-tasks",
   "run-input-queue",
   "run-abort",
   "follow-up-consumption",
@@ -79,6 +81,97 @@ export type RunStatus =
   | "completed"
   | "failed"
   | "cancelled";
+
+export type CodeTaskStateResource =
+  | "created"
+  | "scouting"
+  | "planning"
+  | "executing"
+  | "verifying"
+  | "repairing"
+  | "completed"
+  | "blocked"
+  | "failed"
+  | "cancelled";
+
+export type CodeTaskPlanFileResource = {
+  path: string;
+  action: "inspect" | "create" | "modify" | "delete" | "test";
+  reason?: string;
+};
+
+export type CodeTaskPlannedCheckResource = {
+  command: string;
+  cwd?: string;
+  required: boolean;
+  reason: string;
+};
+
+export type CodeTaskPlanResource = {
+  summary: string;
+  files: CodeTaskPlanFileResource[];
+  checks: CodeTaskPlannedCheckResource[];
+  assumptions: string[];
+  risks: string[];
+  userVisibleSummary?: string;
+};
+
+export type VerificationAttemptStatusResource =
+  | "planned"
+  | "running"
+  | "passed"
+  | "failed"
+  | "cancelled"
+  | "skipped";
+
+export type VerificationAttemptResource = {
+  id: string;
+  taskId: string;
+  sessionId: string;
+  runId?: string;
+  command: string;
+  cwd: string;
+  required: boolean;
+  status: VerificationAttemptStatusResource;
+  reason: string;
+  startedAt?: string;
+  completedAt?: string;
+  exitCode?: number;
+  outputSummary?: string;
+  artifactRef?: string;
+};
+
+export type CodeTaskTerminalReasonResource = {
+  code: string;
+  message: string;
+  recoverable?: boolean;
+  details?: unknown;
+};
+
+export type CodeTaskCompletionEvidenceResource = {
+  completedAt: string;
+  passingVerificationAttemptIds: string[];
+  summary?: string;
+};
+
+export type CodeTaskResource = {
+  id: string;
+  sessionId: string;
+  rootRunId: string;
+  activeRunId?: string;
+  cwd: string;
+  objective: string;
+  state: CodeTaskStateResource;
+  phase: CodeTaskStateResource;
+  attempt: number;
+  maxRepairAttempts: number;
+  createdAt: string;
+  updatedAt: string;
+  plan?: CodeTaskPlanResource;
+  verificationAttempts: VerificationAttemptResource[];
+  completionEvidence?: CodeTaskCompletionEvidenceResource;
+  terminalReason?: CodeTaskTerminalReasonResource;
+};
 
 export type RunResource = {
   id: string;

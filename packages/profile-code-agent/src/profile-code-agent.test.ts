@@ -74,6 +74,19 @@ describe("profile-code-agent", () => {
     });
   });
 
+  it("allows safe code-task verification commands without a host prompt", async () => {
+    const resolver = createCodeAgentPermissionResolver();
+
+    await expect(resolver({
+      ...shellRequest("pnpm test"),
+      metadata: { source: "verification", taskId: "task-1" }
+    })).resolves.toMatchObject({
+      action: "allow",
+      source: "profile",
+      reason: expect.stringContaining("Safe verification")
+    });
+  });
+
   it("fails closed for ask-required actions when no host delegate is configured", async () => {
     const resolver = createCodeAgentPermissionResolver();
 

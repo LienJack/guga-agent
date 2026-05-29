@@ -1,0 +1,20 @@
+docs/research/context-packs/gemini-cli-reference.md
+docs/research/repomix/gemini-cli-token-tree.txt
+docs/research/repomix/gemini-cli-focused-context.xml
+docs/research/repomix/gemini-cli-generation-notes.md
+docs/research/graphs/gemini-cli/GRAPH_REPORT.md
+docs/research/graphs/gemini-cli/graph.json
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/core/src/core/turn.ts">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/core/src/core/client.ts">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/core/src/core/geminiChat.ts">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/core/src/scheduler/scheduler.ts">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/core/src/scheduler/tool-executor.ts">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/core/src/tools/tool-registry.ts">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/core/src/tools/mcp-client.ts">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/core/src/context/contextManager.ts">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/core/src/context/contextCompressionService.ts">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/cli/src/gemini.tsx">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/cli/src/nonInteractiveCliAgentSession.ts">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/cli/src/acp/acpSession.ts">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/sdk/src/agent.ts">
+docs/research/repomix/gemini-cli-focused-context.xml::<file path="packages/a2a-server/src/agent/task.ts">

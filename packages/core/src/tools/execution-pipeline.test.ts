@@ -343,10 +343,16 @@ describe("ExecutionPipeline", () => {
     await pipeline.execute({
       runId: "run-scope",
       turn: 0,
-      call: { id: "call-scope", name: "shell_exec", input: { command: "echo one" } }
+      call: { id: "call-scope", name: "shell_exec", input: { command: "echo one" } },
+      source: "verification",
+      taskId: "task-1"
     });
 
     expect(resolver).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: {
+        source: "verification",
+        taskId: "task-1"
+      },
       subject: expect.objectContaining({
         commandSummary: "echo one",
         resourceSummary: "shell:execute:echo one"

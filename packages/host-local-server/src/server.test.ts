@@ -276,6 +276,56 @@ describe("HostLocalServer", () => {
 
     await postJson(`${server.url}/runs/${run.id}/abort`, {});
   });
+
+  it("exposes code task status and verification evidence over HTTP", async () => {
+    const server = await startTestServer();
+    const session = await postJson<{ id: string }>(`${server.url}/sessions`, {});
+    const run = await postJson<{ id: string }>(`${server.url}/sessions/${session.id}/runs`, {
+      input: "implement",
+      providerId: "mock"
+    });
+    await drainRunEvents(server.url, run.id);
+
+    server.hostRuntime.recordHostEvent(run.id, {
+      type: "task.created",
+      sessionId: session.id,
+      taskId: "task-1",
+      rootRunId: run.id,
+      cwd: "/repo",
+      objective: "implement feature",
+      state: "created"
+    });
+    server.hostRuntime.recordHostEvent(run.id, {
+      type: "verification.completed",
+      sessionId: session.id,
+      taskId: "task-1",
+      runId: run.id,
+      attempt: {
+        id: "verify-1",
+        taskId: "task-1",
+        sessionId: session.id,
+        runId: run.id,
+        command: "pnpm test",
+        cwd: "/repo",
+        required: true,
+        status: "passed",
+        reason: "focused test",
+        exitCode: 0,
+        outputSummary: "ok"
+      }
+    });
+
+    await expect(fetchJson(`${server.url}/sessions/${session.id}/tasks`)).resolves.toMatchObject({
+      tasks: [expect.objectContaining({ id: "task-1", objective: "implement feature" })]
+    });
+    await expect(fetchJson(`${server.url}/tasks/task-1`)).resolves.toMatchObject({
+      id: "task-1",
+      verificationAttempts: [expect.objectContaining({ id: "verify-1", status: "passed" })]
+    });
+    await expect(fetchJson(`${server.url}/tasks/task-1/verifications`)).resolves.toMatchObject({
+      attempts: [expect.objectContaining({ id: "verify-1", command: "pnpm test" })]
+    });
+  });
 });
 
 async function drainRunEvents(baseUrl: string, runId: string): Promise<void> {

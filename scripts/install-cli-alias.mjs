@@ -6,31 +6,48 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const cliEntry = resolve(root, "packages/cli/dist/index.js");
-const shellRc = resolveShellRc(process.argv.slice(2), process.env);
-const aliasLine = `alias guga="node ${shellQuote(cliEntry)}"`;
+const shellRcs = resolveShellRcs(process.argv.slice(2), process.env);
+const commandBlock = [
+  "guga() {",
+  `  (cd ${shellQuote(root)} && pnpm run dev:cli "$@")`,
+  "}"
+].join("\n");
 const startMarker = "# >>> guga-agent cli alias >>>";
 const endMarker = "# <<< guga-agent cli alias <<<";
-const block = `${startMarker}\n${aliasLine}\n${endMarker}`;
+const block = `${startMarker}\n${commandBlock}\n${endMarker}`;
 
 if (!existsSync(cliEntry)) {
   console.error(`CLI entry does not exist: ${cliEntry}`);
   console.error("Run `pnpm --filter @guga-agent/cli build` first.");
   process.exitCode = 1;
 } else {
-  mkdirSync(dirname(shellRc), { recursive: true });
-  const existing = existsSync(shellRc) ? readFileSync(shellRc, "utf8") : "";
-  const updated = upsertManagedBlock(existing, block, startMarker, endMarker);
-  writeFileSync(shellRc, updated);
-  console.log(`Installed guga alias in ${shellRc}`);
-  console.log(aliasLine);
-  console.log(`Run \`source ${shellQuote(shellRc)}\` or open a new terminal, then type \`guga\`.`);
+  for (const shellRc of shellRcs) {
+    mkdirSync(dirname(shellRc), { recursive: true });
+    const existing = existsSync(shellRc) ? readFileSync(shellRc, "utf8") : "";
+    const updated = upsertManagedBlock(existing, block, startMarker, endMarker);
+    writeFileSync(shellRc, updated);
+    console.log(`Installed guga shell function in ${shellRc}`);
+  }
+  console.log(commandBlock);
+  console.log(`Run \`source ${shellQuote(shellRcs[0])}\` or open a new terminal, then type \`guga\`.`);
 }
 
-function resolveShellRc(args, env) {
-  const explicit = readFlag(args, "--shell-rc");
-  if (explicit) {
-    return resolve(expandHome(explicit));
+function resolveShellRcs(args, env) {
+  const explicit = readFlags(args, "--shell-rc");
+  if (explicit.length > 0) {
+    return uniquePaths(explicit.map((path) => resolve(expandHome(path))));
   }
+  if (args.includes("--current-shell")) {
+    return [resolveCurrentShellRc(env)];
+  }
+  return uniquePaths([
+    resolve(homedir(), ".zshrc"),
+    resolve(homedir(), ".bashrc"),
+    resolve(homedir(), ".profile")
+  ]);
+}
+
+function resolveCurrentShellRc(env) {
   const shell = env.SHELL ?? "";
   if (shell.endsWith("/zsh")) {
     return resolve(homedir(), ".zshrc");
@@ -41,12 +58,15 @@ function resolveShellRc(args, env) {
   return resolve(homedir(), ".profile");
 }
 
-function readFlag(args, flag) {
-  const index = args.indexOf(flag);
-  if (index === -1) {
-    return undefined;
+function readFlags(args, flag) {
+  const values = [];
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === flag && args[index + 1]) {
+      values.push(args[index + 1]);
+      index += 1;
+    }
   }
-  return args[index + 1];
+  return values;
 }
 
 function expandHome(path) {
@@ -65,6 +85,10 @@ function upsertManagedBlock(existing, block, startMarker, endMarker) {
     ? existing.replace(pattern, block)
     : `${existing.trimEnd()}${existing.trim().length > 0 ? "\n\n" : ""}${block}`;
   return `${next.trimEnd()}\n`;
+}
+
+function uniquePaths(paths) {
+  return [...new Set(paths)];
 }
 
 function escapeRegExp(value) {

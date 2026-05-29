@@ -14,6 +14,7 @@
 | Multi-agent / delegation | `multi-agent.md` | 比较 subagent、worker、coordinator、trace 隔离 |
 | Memory systems | `memory-systems.md` | 比较 graph memory、vector memory、user graph、thread context、SDK/tool integration |
 | CLI 管理 / 本地配置中枢 | `cc-switch-core-management.md` | 研究 provider 切换、MCP/Skills/Prompts SSOT、proxy、会话管理和多 CLI 配置投影 |
+| Gemini CLI 参考对象 | `gemini-cli-reference.md` | 研究 Gemini CLI 的 TypeScript agent core、tool scheduler、MCP/skills/extensions、context pipeline、ACP/A2A/SDK |
 
 ## Pack 模板
 

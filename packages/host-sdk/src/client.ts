@@ -1,5 +1,6 @@
 import type {
   CapabilityResource,
+  CodeTaskResource,
   HostEvent,
   HostProtocolInfoResource,
   AuditSummaryResource,
@@ -13,7 +14,8 @@ import type {
   RunInputMode,
   RunResource,
   SessionResource,
-  SessionTreeResource
+  SessionTreeResource,
+  VerificationAttemptResource
 } from "@guga-agent/host-protocol";
 import { streamHostEvents } from "./sse-client";
 
@@ -61,6 +63,7 @@ export type HostClient = {
   resumeSession(sessionId: string, request?: { branchId?: string }): Promise<SessionResource>;
   forkSession(sessionId: string, request?: ForkSessionRequest): Promise<SessionResource>;
   getSessionTree(sessionId: string): Promise<SessionTreeResource>;
+  listSessionTasks(sessionId: string): Promise<CodeTaskResource[]>;
   startRun(sessionId: string, request: StartRunRequest): Promise<RunResource>;
   getRun(runId: string): Promise<RunResource>;
   listRunEvents(runId: string): Promise<HostEvent[]>;
@@ -71,6 +74,8 @@ export type HostClient = {
   requestInteraction(sessionId: string, request: RequestInteractionRequest): Promise<InteractionResource>;
   getInteraction(interactionId: string): Promise<InteractionResource>;
   respondInteraction(interactionId: string, response: unknown): Promise<InteractionResource>;
+  getTask(taskId: string): Promise<CodeTaskResource>;
+  listTaskVerificationAttempts(taskId: string): Promise<VerificationAttemptResource[]>;
   getPermission(permissionId: string): Promise<PermissionRequestResource>;
   respondPermission(permissionId: string, resolution: PermissionResolution): Promise<PermissionRequestResource>;
   listCapabilities(): Promise<CapabilityResource[]>;
@@ -145,6 +150,14 @@ export function connectHost(options: ConnectHostOptions): HostClient {
     getSessionTree(sessionId) {
       return requestJson(fetchImpl, `${baseUrl}/sessions/${encodeURIComponent(sessionId)}/tree`, { bridgeToken });
     },
+    async listSessionTasks(sessionId) {
+      const response = await requestJson<{ tasks: CodeTaskResource[] }>(
+        fetchImpl,
+        `${baseUrl}/sessions/${encodeURIComponent(sessionId)}/tasks`,
+        { bridgeToken }
+      );
+      return response.tasks;
+    },
     startRun(sessionId, request) {
       return requestJson(fetchImpl, `${baseUrl}/sessions/${encodeURIComponent(sessionId)}/runs`, {
         bridgeToken,
@@ -212,6 +225,17 @@ export function connectHost(options: ConnectHostOptions): HostClient {
         method: "POST",
         body: { response }
       });
+    },
+    getTask(taskId) {
+      return requestJson(fetchImpl, `${baseUrl}/tasks/${encodeURIComponent(taskId)}`, { bridgeToken });
+    },
+    async listTaskVerificationAttempts(taskId) {
+      const response = await requestJson<{ attempts: VerificationAttemptResource[] }>(
+        fetchImpl,
+        `${baseUrl}/tasks/${encodeURIComponent(taskId)}/verifications`,
+        { bridgeToken }
+      );
+      return response.attempts;
     },
     getPermission(permissionId) {
       return requestJson(fetchImpl, `${baseUrl}/permissions/${encodeURIComponent(permissionId)}`, { bridgeToken });

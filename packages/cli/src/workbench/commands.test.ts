@@ -45,6 +45,7 @@ describe("workbench slash commands", () => {
       selector: "provider"
     });
     expect(formatCommandHelp()).toContain("/abort - Abort the active run. (built-in)");
+    expect(formatCommandHelp()).toContain("/tasks - Show code task status. (built-in)");
     expect(formatCommandHelp()).toContain("/compact - Reserved compaction command. (built-in) [reserved:");
   });
 
@@ -150,6 +151,11 @@ describe("workbench slash commands", () => {
       action: "session-tree",
       message: expect.stringContaining("* branch-2")
     });
+    await expect(executeWorkbenchCommand(parseWorkbenchInput("/tasks"), ctx)).resolves.toMatchObject({
+      ok: true,
+      action: "tasks",
+      message: expect.stringContaining("task-1 completed attempt=1/2")
+    });
 
     expect(client.createSession).toHaveBeenCalledWith({ title: "New work" });
     expect(client.resumeSession).toHaveBeenCalledWith("session-1", { branchId: "branch-1" });
@@ -159,6 +165,7 @@ describe("workbench slash commands", () => {
       summary: "alternate"
     });
     expect(client.getSessionTree).toHaveBeenCalledWith("session-1");
+    expect(client.listSessionTasks).toHaveBeenCalledWith("session-1");
   });
 
   it("reads permission and MCP status from capabilities", async () => {
@@ -291,6 +298,34 @@ function fakeClient(): HostClient {
         }
       ]
     })),
+    listSessionTasks: vi.fn(async (sessionId) => [
+      {
+        id: "task-1",
+        sessionId,
+        rootRunId: "run-1",
+        cwd: "/repo",
+        objective: "implement feature",
+        state: "completed",
+        phase: "completed",
+        attempt: 1,
+        maxRepairAttempts: 2,
+        createdAt: "2026-05-28T00:00:00.000Z",
+        updatedAt: "2026-05-28T00:00:01.000Z",
+        verificationAttempts: [
+          {
+            id: "verify-1",
+            taskId: "task-1",
+            sessionId,
+            runId: "run-1",
+            command: "pnpm test",
+            cwd: "/repo",
+            required: true,
+            status: "passed",
+            reason: "focused test"
+          }
+        ]
+      }
+    ]),
     startRun: vi.fn(async () => runResource()),
     getRun: vi.fn(async () => runResource()),
     listRunEvents: vi.fn(async () => []),
@@ -320,6 +355,21 @@ function fakeClient(): HostClient {
       createdAt: "2026-05-28T00:00:00.000Z",
       resolvedAt: "2026-05-28T00:00:01.000Z"
     })),
+    getTask: vi.fn(async (taskId) => ({
+      id: taskId,
+      sessionId: "session-1",
+      rootRunId: "run-1",
+      cwd: "/repo",
+      objective: "implement feature",
+      state: "completed",
+      phase: "completed",
+      attempt: 1,
+      maxRepairAttempts: 2,
+      createdAt: "2026-05-28T00:00:00.000Z",
+      updatedAt: "2026-05-28T00:00:01.000Z",
+      verificationAttempts: []
+    })),
+    listTaskVerificationAttempts: vi.fn(async () => []),
     listCapabilities: vi.fn(async () => [
       { type: "tool", name: "fs_write", source: "plugin", status: "registered", trust: { level: "first-party" } },
       { type: "tool", name: "mcp_tool", source: "mcp", status: "skipped-conflict", ownerPluginId: "code-agent-mcp", reason: "name already registered" },

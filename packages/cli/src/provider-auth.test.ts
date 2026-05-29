@@ -147,4 +147,43 @@ describe("provider auth resolver", () => {
     expect(expired.material.accessToken).toBeUndefined();
     expect(JSON.stringify(expired.view)).not.toContain("expired-secret-token");
   });
+
+  it("resolves Codex app-server OAuth sessions as configured without bearer material", async () => {
+    const root = await mkdtemp(join(tmpdir(), "guga-provider-auth-"));
+    const store = createProviderCredentialStore({ credentialsRoot: join(root, "credentials") });
+    store.saveCredential({
+      providerId: "codex",
+      kind: "oauth",
+      status: "configured",
+      sessionKind: "codex-app-server",
+      authMode: "chatgpt",
+      planType: "plus",
+      account: { email: "user@example.com" }
+    });
+
+    const resolved = resolveProviderAuth({
+      provider: { id: "codex", metadata: { authType: "oauth" } },
+      credentialRoot: root,
+      env: {}
+    });
+
+    expect(resolved.view).toMatchObject({
+      providerId: "codex",
+      status: "configured",
+      source: "oauth",
+      redacted: {
+        session: "codex-app-server",
+        authMode: "chatgpt",
+        plan: "plus",
+        account: "user@example.com"
+      }
+    });
+    expect(resolved.material).toMatchObject({
+      providerId: "codex",
+      sessionKind: "codex-app-server",
+      authMode: "chatgpt",
+      planType: "plus"
+    });
+    expect(resolved.material.accessToken).toBeUndefined();
+  });
 });

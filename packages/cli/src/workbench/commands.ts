@@ -1,4 +1,4 @@
-import type { CapabilityResource } from "@guga-agent/host-protocol";
+import type { CapabilityResource, CodeTaskResource } from "@guga-agent/host-protocol";
 import type { HostClient } from "@guga-agent/host-sdk";
 import type { CliConfig } from "../config";
 import type { CliHostStorageDiagnostics } from "../host-factory";
@@ -36,6 +36,7 @@ export const WORKBENCH_SLASH_COMMAND_METADATA = [
   slashCommand({ command: "/resume", label: "Resume session", usage: "/resume <session> [branch]", help: "Resume a session branch.", selector: "resume" }),
   slashCommand({ command: "/fork", label: "Fork session", usage: "/fork [summary]", help: "Fork the active session." }),
   slashCommand({ command: "/tree", label: "Session tree", usage: "/tree", help: "Show session branches." }),
+  slashCommand({ command: "/tasks", label: "Tasks", usage: "/tasks", help: "Show code task status." }),
   slashCommand({ command: "/status", label: "Status", usage: "/status", help: "Show operational status." }),
   slashCommand({ command: "/clear", label: "Clear", usage: "/clear", help: "Clear the visible transcript." }),
   slashCommand({ command: "/models", label: "Models", usage: "/models", help: "List configured models." }),
@@ -88,6 +89,7 @@ export type WorkbenchCommandAction =
   | "resume-session"
   | "fork-session"
   | "session-tree"
+  | "tasks"
   | "status"
   | "permissions"
   | "mcp"
@@ -253,6 +255,15 @@ export async function executeWorkbenchCommand(
         return commandOk("session-tree", formatSessionTree(tree), tree);
       });
     }
+    case "/tasks": {
+      if (!context.activeSessionId) {
+        return commandError("/tasks requires an active session.", []);
+      }
+      return executeHostCommand(async () => {
+        const tasks = await context.client.listSessionTasks(context.activeSessionId ?? "");
+        return commandOk("tasks", formatCodeTasks(tasks), tasks);
+      });
+    }
     case "/status": {
       return executeHostCommand(async () => {
         const status = await context.client.getOperationalStatus();
@@ -388,6 +399,19 @@ function formatSessionTree(tree: { activeBranchId: string; branches: Array<{ id:
   return tree.branches
     .map((branch) => `${branch.id === tree.activeBranchId ? "*" : " "} ${branch.id}${branch.parentBranchId ? ` <- ${branch.parentBranchId}` : ""}${branch.summary ? ` ${branch.summary}` : ""}${branch.lastRunId ? ` (${branch.lastRunId} ${branch.lastRunStatus ?? "unknown"})` : ""}`)
     .join("\n");
+}
+
+function formatCodeTasks(tasks: CodeTaskResource[]): string {
+  if (tasks.length === 0) {
+    return "No code tasks in this session.";
+  }
+  return tasks.map((task) => {
+    const verification = task.verificationAttempts.at(-1);
+    const verificationText = verification
+      ? ` verify=${verification.status}:${verification.command}`
+      : "";
+    return `${task.id} ${task.state} attempt=${task.attempt}/${task.maxRepairAttempts} ${task.objective}${verificationText}`;
+  }).join("\n");
 }
 
 export function formatCommandHelp(): string {

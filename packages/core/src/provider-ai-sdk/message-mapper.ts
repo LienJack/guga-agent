@@ -7,7 +7,7 @@ export type AiSdkModelMessage = {
 
 export function mapCoreMessagesToAiSdk(messages: readonly CoreMessage[]): AiSdkModelMessage[] {
   return messages.map((message) => {
-    if (message.role === "assistant" && "toolCalls" in message) {
+    if (message.role === "assistant" && Array.isArray(message.toolCalls)) {
       return {
         role: "assistant",
         content: [

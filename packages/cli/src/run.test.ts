@@ -191,13 +191,16 @@ describe("CLI run command", () => {
     expect(io.stderr()).not.toContain("token");
   });
 
-  it("keeps Codex OAuth disabled by default until official third-party contract is confirmed", async () => {
+  it("explains the Codex OAuth default gate with actionable fallback guidance", async () => {
     const gugaHome = await mkdtemp(join(tmpdir(), "guga-cli-home-"));
     const io = captureIo({ env: { GUGA_HOME: gugaHome } });
 
     await expect(runCli(["login", "codex"], io)).resolves.toBe(2);
 
-    expect(io.stderr()).toContain("Codex OAuth browser/device endpoints are not enabled by default");
+    expect(io.stderr()).toContain("Codex OAuth is not enabled by default yet.");
+    expect(io.stderr()).toContain("guga login openai --api-key-env OPENAI_API_KEY");
+    expect(io.stderr()).toContain("/login openai");
+    expect(io.stderr()).toContain("Codex app-server account/login/start adapter");
   });
 
   it("logs out an OAuth provider and status becomes missing", async () => {

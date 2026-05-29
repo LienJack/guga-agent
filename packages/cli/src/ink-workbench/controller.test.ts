@@ -182,6 +182,43 @@ describe("workbench controller", () => {
     });
   });
 
+  it("ignores blank prompt submissions before they reach the host", async () => {
+    const client = fakeClient();
+    const controller = controllerFor(client);
+
+    await expect(controller.startPromptRun("   ")).resolves.toEqual({ ok: true });
+
+    expect(client.startRun).not.toHaveBeenCalled();
+  });
+
+  it("returns host start-run errors instead of throwing out of the workbench", async () => {
+    const client = fakeClient();
+    vi.mocked(client.startRun).mockRejectedValueOnce(new Error("Run input is required"));
+    const controller = controllerFor(client);
+
+    await expect(controller.startPromptRun("hello")).resolves.toEqual({
+      ok: false,
+      error: "Run input is required"
+    });
+  });
+
+  it("ignores blank active-run input before it reaches the host", async () => {
+    const client = fakeClient();
+    const controller = controllerFor(client);
+    controller.applyEvent({
+      type: "run.started",
+      seq: 1,
+      occurredAt: "2026-05-28T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      input: "hello"
+    });
+
+    await expect(controller.submitRunInput("steer", "  ")).resolves.toEqual({ ok: true });
+
+    expect(client.sendRunInput).not.toHaveBeenCalled();
+  });
+
   it("opens a provider selector for login commands", async () => {
     const controller = controllerFor(fakeClient());
 
@@ -219,6 +256,27 @@ describe("workbench controller", () => {
     await expect(controller.submitText("/login codex")).resolves.toMatchObject({
       ok: true,
       message: "logged in provider codex"
+    });
+  });
+
+  it("surfaces actionable Codex OAuth guidance from the default runner path", async () => {
+    const controller = controllerFor(fakeClient(), {
+      oauthLoginRunner: async () => ({
+        ok: false,
+        error: {
+          code: "codex_oauth_contract_pending",
+          message: [
+            "Codex OAuth is not enabled by default yet.",
+            "guga login openai --api-key-env OPENAI_API_KEY",
+            "Codex app-server account/login/start adapter"
+          ].join("\n")
+        }
+      })
+    });
+
+    await expect(controller.submitText("/login codex")).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining("guga login openai --api-key-env OPENAI_API_KEY")
     });
   });
 
