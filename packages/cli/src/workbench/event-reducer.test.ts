@@ -523,7 +523,23 @@ describe("workbench event reducer", () => {
         rootRunId: "run-1",
         cwd: "/repo",
         objective: "implement feature",
-        state: "created"
+        state: "created",
+        plan: {
+          summary: "implement feature",
+          files: [],
+          checks: [],
+          assumptions: [],
+          risks: [],
+          ledgerItems: [{
+            id: "item-1",
+            title: "implement feature",
+            status: "pending",
+            evidence: [],
+            changedFiles: [],
+            verificationAttemptIds: [],
+            risks: []
+          }]
+        }
       }),
       event({
         type: "task.phase_changed",
@@ -570,7 +586,12 @@ describe("workbench event reducer", () => {
       lastVerification: { id: "verify-1", status: "passed" },
       completionEvidence: { passingVerificationAttemptIds: ["verify-1"] }
     });
-    expect(view.statusBar.taskLabel).toBe("task completed attempt 1");
+    expect(state.activeTask?.ledgerSummary).toMatchObject({
+      total: 1,
+      pending: 1,
+      currentItemId: "item-1"
+    });
+    expect(view.statusBar.taskLabel).toBe("task completed 0/1 attempt 1");
   });
 });
 

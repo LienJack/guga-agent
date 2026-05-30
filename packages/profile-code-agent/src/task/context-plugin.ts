@@ -49,6 +49,16 @@ export function renderCodeTaskContext(task: CodeTask): string {
     if (task.plan.checks.length > 0) {
       lines.push(`Checks: ${task.plan.checks.map((check) => `${check.required ? "required" : "optional"}:${check.command}`).join(", ")}`);
     }
+    if (task.plan.ledgerItems && task.plan.ledgerItems.length > 0) {
+      const done = task.plan.ledgerItems.filter((item) => item.status === "done" || item.status === "verified").length;
+      lines.push(`Ledger: ${done}/${task.plan.ledgerItems.length} verified or done`);
+      for (const item of task.plan.ledgerItems.slice(0, 6)) {
+        const changedFiles = item.changedFiles.length > 0 ? ` files=${item.changedFiles.join(",")}` : "";
+        const evidence = item.evidence.length > 0 ? ` evidence=${item.evidence.map((ref) => `${ref.kind}:${ref.id}`).join(",")}` : "";
+        const blocker = item.blocker ? ` blocker=${item.blocker.message}` : "";
+        lines.push(`- ${item.id} [${item.status}] ${item.title}${changedFiles}${evidence}${blocker}`);
+      }
+    }
   }
 
   const failed = task.verificationAttempts.filter((attempt) => attempt.required && attempt.status === "failed");

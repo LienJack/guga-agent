@@ -5,6 +5,8 @@ import type {
   CodeTaskCompletionEvidence,
   CodeTaskFailureReason,
   CodeTaskPlan,
+  CodeTaskPlanEvidenceRef,
+  CodeTaskPlanItemStatus,
   CodeTaskStageRole,
   CodeTaskStageRun,
   CodeTaskState,
@@ -23,6 +25,17 @@ export type CodeTaskTransition =
       type: "set_plan";
       at: string;
       plan: CodeTaskPlan;
+    }
+  | {
+      type: "update_plan_item";
+      at: string;
+      itemId: string;
+      status: CodeTaskPlanItemStatus;
+      evidence?: CodeTaskPlanEvidenceRef[];
+      changedFiles?: string[];
+      verificationAttemptIds?: string[];
+      risks?: string[];
+      blocker?: CodeTaskBlockedReason;
     }
   | {
       type: "start_stage_run";
@@ -122,6 +135,8 @@ function applyTransition(task: CodeTask, transition: CodeTaskTransition): CodeTa
         plan: transition.plan,
         updatedAt: transition.at
       });
+    case "update_plan_item":
+      return updatePlanItem(task, transition);
     case "start_stage_run":
       return ok({
         ...task,
@@ -176,6 +191,68 @@ function applyTransition(task: CodeTask, transition: CodeTaskTransition): CodeTa
         cancelledBy: transition.actor
       }, "cancelled", transition.at);
   }
+}
+
+function updatePlanItem(
+  task: CodeTask,
+  transition: Extract<CodeTaskTransition, { type: "update_plan_item" }>
+): CodeTaskTransitionResult {
+  const items = task.plan?.ledgerItems ?? [];
+  const item = items.find((candidate) => candidate.id === transition.itemId);
+  if (!task.plan || !item) {
+    return {
+      ok: false,
+      error: {
+        code: "PLAN_LEDGER_ITEM_NOT_FOUND",
+        message: `Plan ledger item not found: ${transition.itemId}`
+      }
+    };
+  }
+  if (!canTransitionPlanItem(item.status, transition.status)) {
+    return {
+      ok: false,
+      error: {
+        code: "INVALID_PLAN_LEDGER_ITEM_TRANSITION",
+        message: `Cannot transition plan ledger item ${item.id} from ${item.status} to ${transition.status}`,
+        details: { itemId: item.id, from: item.status, to: transition.status }
+      }
+    };
+  }
+
+  return ok({
+    ...task,
+    updatedAt: transition.at,
+    plan: {
+      ...task.plan,
+      ledgerItems: items.map((candidate) => candidate.id === item.id
+        ? {
+            ...candidate,
+            status: transition.status,
+            evidence: transition.evidence ?? candidate.evidence,
+            changedFiles: transition.changedFiles ?? candidate.changedFiles,
+            verificationAttemptIds: transition.verificationAttemptIds ?? candidate.verificationAttemptIds,
+            risks: transition.risks ?? candidate.risks,
+            ...(transition.blocker !== undefined ? { blocker: transition.blocker } : {}),
+            ...((transition.status === "verified" || transition.status === "done") ? { settledAt: transition.at } : {})
+          }
+        : candidate)
+    }
+  });
+}
+
+function canTransitionPlanItem(from: CodeTaskPlanItemStatus, to: CodeTaskPlanItemStatus): boolean {
+  if (from === to) {
+    return true;
+  }
+  const allowed: Record<CodeTaskPlanItemStatus, readonly CodeTaskPlanItemStatus[]> = {
+    pending: ["in-progress", "blocked"],
+    "in-progress": ["evidence-submitted", "blocked"],
+    "evidence-submitted": ["verified", "in-progress", "blocked"],
+    verified: ["done", "in-progress", "blocked"],
+    done: [],
+    blocked: ["in-progress"]
+  };
+  return allowed[from].includes(to);
 }
 
 function advance(

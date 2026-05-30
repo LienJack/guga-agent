@@ -1,0 +1,4 @@
+{"file":"docs/plans/2026-05-30-001-feat-super-long-code-task-runtime-plan.md","reason":"Primary implementation plan for the long-task runtime hardening work."}
+{"file":"docs/research/super-long-task-agent-design-pi-claude-opencode.md","reason":"Research source for ledger, checkpoint, recovery, and projection design."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Runtime TypeScript quality and test requirements."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Structured error and recovery behavior guidance."}

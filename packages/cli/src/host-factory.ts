@@ -185,9 +185,19 @@ function createRepeatingMockProvider(): Provider {
   return {
     id: "mock",
     generate({ messages }) {
+      const last = messages.at(-1)?.content ?? "";
       return {
         type: "final",
-        content: `mock: ${messages.at(-1)?.content ?? ""}`,
+        content: last.includes("code_task_plan")
+          ? `mock: planner\n\n\`\`\`code_task_plan\n${JSON.stringify({
+            summary: "Mock implementation plan",
+            files: [],
+            checks: [{ command: "pnpm test", required: true, reason: "mock package test" }],
+            assumptions: [],
+            risks: [],
+            ledgerItems: [{ id: "item-1", title: "Complete mock code task", changedFiles: [], risks: [] }]
+          }, null, 2)}\n\`\`\``
+          : `mock: ${last}`,
         usage: { totalTokens: 3 }
       };
     }

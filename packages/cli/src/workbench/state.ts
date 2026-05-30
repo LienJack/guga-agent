@@ -1,5 +1,6 @@
 import type {
   CodeTaskCompletionEvidenceResource,
+  CodeTaskResource,
   CodeTaskStateResource,
   HostErrorPayload,
   InteractionRequest,
@@ -83,6 +84,7 @@ export type ActiveTaskProjection = {
   phase: CodeTaskStateResource;
   attempt: number;
   activeRunId?: string;
+  ledgerSummary?: CodeTaskResource["ledgerSummary"];
   lastVerification?: VerificationAttemptResource;
   completionEvidence?: CodeTaskCompletionEvidenceResource;
   firstSeq: number;

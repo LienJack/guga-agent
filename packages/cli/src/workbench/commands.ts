@@ -410,7 +410,10 @@ function formatCodeTasks(tasks: CodeTaskResource[]): string {
     const verificationText = verification
       ? ` verify=${verification.status}:${verification.command}`
       : "";
-    return `${task.id} ${task.state} attempt=${task.attempt}/${task.maxRepairAttempts} ${task.objective}${verificationText}`;
+    const ledgerText = task.ledgerSummary
+      ? ` ledger=${task.ledgerSummary.done + task.ledgerSummary.verified}/${task.ledgerSummary.total}${task.ledgerSummary.currentItemId ? ` current=${task.ledgerSummary.currentItemId}` : ""}${task.ledgerSummary.blockedItemId ? ` blocked=${task.ledgerSummary.blockedItemId}` : ""}`
+      : "";
+    return `${task.id} ${task.state} attempt=${task.attempt}/${task.maxRepairAttempts}${ledgerText} ${task.objective}${verificationText}`;
   }).join("\n");
 }
 

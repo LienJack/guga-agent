@@ -118,6 +118,7 @@ export class CodeTaskController {
       const passingIds = verification.attempts
         .filter((attempt) => attempt.required && attempt.status === "passed")
         .map((attempt) => attempt.id);
+      task = this.settleLedgerItems(task, passingIds);
       return this.mustTransition(task, {
         type: "complete",
         at: this.timestamp(),
@@ -156,6 +157,63 @@ export class CodeTaskController {
     task = this.mustTransition(task, { type: "finish_stage_run", at: this.timestamp(), runId: repaired.runId, status: "completed" });
     task = this.mustTransition(task, { type: "advance", state: "verifying", at: this.timestamp(), activeRunId: repaired.runId });
     return this.verifyOrRepair(task, checks, prompt);
+  }
+
+  private settleLedgerItems(task: CodeTask, passingVerificationAttemptIds: string[]): CodeTask {
+    for (const item of task.plan?.ledgerItems ?? []) {
+      if (item.status === "done") {
+        continue;
+      }
+      if (item.status === "blocked") {
+        task = this.mustTransition(task, {
+          type: "update_plan_item",
+          at: this.timestamp(),
+          itemId: item.id,
+          status: "in-progress"
+        });
+      }
+      const current = task.plan?.ledgerItems?.find((candidate) => candidate.id === item.id);
+      if (current?.status === "pending") {
+        task = this.mustTransition(task, {
+          type: "update_plan_item",
+          at: this.timestamp(),
+          itemId: item.id,
+          status: "in-progress"
+        });
+      }
+      const evidence = passingVerificationAttemptIds.map((verificationAttemptId) => ({
+        kind: "verification" as const,
+        id: verificationAttemptId,
+        verificationAttemptId,
+        summary: `Required verification passed: ${verificationAttemptId}`,
+        changedFiles: item.changedFiles
+      }));
+      task = this.mustTransition(task, {
+        type: "update_plan_item",
+        at: this.timestamp(),
+        itemId: item.id,
+        status: "evidence-submitted",
+        evidence,
+        verificationAttemptIds: passingVerificationAttemptIds
+      });
+      task = this.mustTransition(task, {
+        type: "update_plan_item",
+        at: this.timestamp(),
+        itemId: item.id,
+        status: "verified",
+        evidence,
+        verificationAttemptIds: passingVerificationAttemptIds
+      });
+      task = this.mustTransition(task, {
+        type: "update_plan_item",
+        at: this.timestamp(),
+        itemId: item.id,
+        status: "done",
+        evidence,
+        verificationAttemptIds: passingVerificationAttemptIds
+      });
+    }
+    return task;
   }
 
   private async runStageAndAdvance(

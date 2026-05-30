@@ -69,6 +69,8 @@ function stageContract(role: CodeTaskStageRole): string[] {
     case "planner":
       return [
         "- Produce a concise plan with files to edit and focused verification commands.",
+        "- Include one fenced ```code_task_plan JSON block with summary, files, checks, assumptions, risks, and ledgerItems.",
+        "- Each ledgerItems entry must include a stable id, title, changedFiles, and risks; execution cannot start from summary-only text.",
         "- Include assumptions and risks.",
         "- Do not edit files."
       ];

@@ -22,7 +22,16 @@ describe("code task context plugin", () => {
         files: [{ path: "packages/core/src/parser.ts", action: "modify" as const }],
         checks: [{ command: "pnpm test", cwd: "/repo", required: true, reason: "focused test" }],
         assumptions: [],
-        risks: []
+        risks: [],
+        ledgerItems: [{
+          id: "item-1",
+          title: "Update parser",
+          status: "evidence-submitted" as const,
+          evidence: [{ kind: "diff" as const, id: "diff-1", summary: "parser change", changedFiles: ["packages/core/src/parser.ts"] }],
+          changedFiles: ["packages/core/src/parser.ts"],
+          verificationAttemptIds: [],
+          risks: []
+        }]
       },
       verificationAttempts: [{
         id: "verify-1",
@@ -37,6 +46,8 @@ describe("code task context plugin", () => {
 
     expect(renderCodeTaskContext(task)).toContain("Active code task: implement feature");
     expect(renderCodeTaskContext(task)).toContain("Plan: Modify parser");
+    expect(renderCodeTaskContext(task)).toContain("Ledger: 0/1 verified or done");
+    expect(renderCodeTaskContext(task)).toContain("item-1 [evidence-submitted] Update parser");
     expect(renderCodeTaskContext(task)).toContain("parser rejects valid input");
     expect(renderCodeTaskContext(task)).toContain("Next step: repair");
   });

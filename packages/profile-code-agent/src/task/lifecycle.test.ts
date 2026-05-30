@@ -125,6 +125,68 @@ describe("code task lifecycle", () => {
     });
   });
 
+  it("settles ledger items only through allowed status transitions", () => {
+    const planned = transitionCodeTask(task(), {
+      type: "set_plan",
+      at: LATER,
+      plan: {
+        summary: "implement feature",
+        files: [],
+        checks: [],
+        assumptions: [],
+        risks: [],
+        ledgerItems: [{
+          id: "item-1",
+          title: "update feature",
+          status: "pending",
+          evidence: [],
+          changedFiles: [],
+          verificationAttemptIds: [],
+          risks: []
+        }]
+      }
+    });
+    expect(planned).toMatchObject({ ok: true });
+    if (!planned.ok) {
+      throw new Error("expected plan transition to succeed");
+    }
+
+    const invalid = transitionCodeTask(planned.task, {
+      type: "update_plan_item",
+      at: LATER,
+      itemId: "item-1",
+      status: "done",
+      evidence: [{ kind: "event", id: "event-1", summary: "done" }]
+    });
+    expect(invalid).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_PLAN_LEDGER_ITEM_TRANSITION" }
+    });
+
+    let result = transitionCodeTask(planned.task, {
+      type: "update_plan_item",
+      at: LATER,
+      itemId: "item-1",
+      status: "in-progress"
+    });
+    expect(result).toMatchObject({ ok: true, task: { plan: { ledgerItems: [expect.objectContaining({ status: "in-progress" })] } } });
+    if (!result.ok) {
+      throw new Error("expected item transition to succeed");
+    }
+
+    result = transitionCodeTask(result.task, {
+      type: "update_plan_item",
+      at: LATER,
+      itemId: "item-1",
+      status: "evidence-submitted",
+      evidence: [{ kind: "event", id: "event-1", summary: "implementation event" }]
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      task: { plan: { ledgerItems: [expect.objectContaining({ status: "evidence-submitted" })] } }
+    });
+  });
+
   it("blocks completion without passing required verification", () => {
     const verifying = {
       ...task(),

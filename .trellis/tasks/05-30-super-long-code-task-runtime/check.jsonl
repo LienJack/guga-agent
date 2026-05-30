@@ -1,0 +1,4 @@
+{"file":"docs/plans/2026-05-30-001-feat-super-long-code-task-runtime-plan.md","reason":"Use the plan requirements and verification criteria for review."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Check strict TypeScript, tests, and runtime boundaries."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Check structured failure and recovery semantics."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Review cross-layer consistency across core, host, profile, JSONL, and CLI."}

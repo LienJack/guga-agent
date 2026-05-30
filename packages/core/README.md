@@ -12,6 +12,7 @@ provider tool intent -> core pipeline -> hooks -> permission -> tool -> result p
 
 - Core message, provider, model metadata, tool runtime, permission, result budget, usage, runtime, model event, router, and hook contracts.
 - Durable session, event, artifact, resume, fork, and replay contracts. Concrete storage remains in plugin packages.
+- Canonical resume recovery outcomes for interrupted operations and store/replay diagnostics. Host and CLI surfaces should project these outcomes instead of inventing separate recovery hint fields.
 - In-memory `CapabilityRegistry` for registering providers, model metadata, and tools.
 - Serializable capability discovery descriptors for providers, models, tools, skills, hooks, context policies, stores, and replay capabilities.
 - In-memory `EventBus` for observing runtime facts during tests or host integration, plus an optional durable append/publish lane for recovery-sensitive facts.
@@ -33,7 +34,7 @@ provider tool intent -> core pipeline -> hooks -> permission -> tool -> result p
 - Marketplace, remote install, sandboxing, signing, or package search.
 - Full host UI permission dialogs, durable result stores, enterprise policy engines, or remote sandbox backends.
 - Concrete durable session store, replay plugin, artifact store implementation, or UI projection.
-- Context compaction, skills, long-term memory, multi-agent orchestration, or eval infrastructure.
+- Code-task plan semantics, skills, long-term memory, multi-agent orchestration, or eval infrastructure.
 
 ## Capability Discovery Boundary
 

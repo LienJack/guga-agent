@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { ProviderErrorCategory, createAgentRuntime, createMockProvider, createTestTool, type ToolDefinition } from "@guga-agent/core";
+import {
+  ProviderErrorCategory,
+  createAgentRuntime,
+  createMockProvider,
+  createTestTool,
+  type DurableEventEnvelope,
+  type EventAppendResult,
+  type EventStore,
+  type ToolDefinition
+} from "@guga-agent/core";
 import { HostRuntime } from "./host-runtime";
 
 describe("HostRuntime", () => {
@@ -514,7 +523,23 @@ describe("HostRuntime", () => {
       rootRunId: run.id,
       cwd: "/repo",
       objective: "implement feature",
-      state: "created"
+      state: "created",
+      plan: {
+        summary: "implement feature",
+        files: [],
+        checks: [],
+        assumptions: [],
+        risks: [],
+        ledgerItems: [{
+          id: "item-1",
+          title: "implement feature",
+          status: "pending",
+          evidence: [],
+          changedFiles: [],
+          verificationAttemptIds: [],
+          risks: []
+        }]
+      }
     });
     host.recordHostEvent(run.id, {
       type: "task.phase_changed",
@@ -558,6 +583,7 @@ describe("HostRuntime", () => {
       id: "task-1",
       state: "completed",
       phase: "completed",
+      ledgerSummary: { total: 1, pending: 1, currentItemId: "item-1" },
       verificationAttempts: [expect.objectContaining({ id: "verify-1", status: "passed" })],
       completionEvidence: { passingVerificationAttemptIds: ["verify-1"] }
     });
@@ -649,6 +675,71 @@ describe("HostRuntime", () => {
       expect.objectContaining({ id: "task-task-1", state: "completed" })
     ]);
   });
+
+  it("persists code task host facts to the durable event store", async () => {
+    const eventStore = new FakeEventStore();
+    const runtime = createAgentRuntime({ stores: { events: eventStore } });
+    runtime.registerProvider({
+      id: "unused",
+      async generate() {
+        throw new Error("plain runtime path should not run");
+      }
+    });
+    const host = new HostRuntime({
+      runtime,
+      profileId: "code",
+      cwd: "/repo",
+      codeTasks: {
+        classify: () => ({
+          shouldCreateTask: true,
+          confidence: "high",
+          reason: "test coding task"
+        }),
+        async start(options) {
+          options.emit({
+            type: "task.created",
+            sessionId: options.sessionId,
+            taskId: options.taskId,
+            rootRunId: options.rootRunId,
+            cwd: options.cwd,
+            objective: options.objective,
+            state: "created"
+          });
+          options.emit({
+            type: "verification.completed",
+            sessionId: options.sessionId,
+            taskId: options.taskId,
+            runId: options.rootRunId,
+            attempt: {
+              id: "verify-1",
+              taskId: options.taskId,
+              sessionId: options.sessionId,
+              runId: options.rootRunId,
+              command: "pnpm test",
+              cwd: options.cwd,
+              required: true,
+              status: "passed",
+              reason: "focused test"
+            }
+          });
+          return { finalAnswer: "task done" };
+        }
+      },
+      now: () => new Date("2026-05-29T00:00:00.000Z"),
+      idFactory: deterministicIds(["session-1", "run-1", "task-1"])
+    });
+    const session = await host.createSession();
+
+    await host.startRun({ sessionId: session.id, input: "implement feature", providerId: "unused" });
+
+    expect(eventStore.events.map((event) => event.eventType)).toEqual([
+      "host.task.created",
+      "host.verification.completed"
+    ]);
+    expect(host.getTask("task-task-1")).toMatchObject({
+      durability: { status: "durable", latestEventId: "host-event-session-session-1-run-run-1-3" }
+    });
+  });
 });
 
 function deterministicIds(values: string[]): () => string {
@@ -698,4 +789,17 @@ function writeTool(): ToolDefinition {
       return { ok: true, content: "write ok" };
     }
   };
+}
+
+class FakeEventStore implements EventStore {
+  readonly events: DurableEventEnvelope[] = [];
+
+  append(event: DurableEventEnvelope): EventAppendResult {
+    this.events.push(event);
+    return { ok: true, status: "appended", event, streamRevision: event.streamRevision };
+  }
+
+  readStream() {
+    return { ok: true as const, events: this.events, nextRevision: this.events.length };
+  }
 }

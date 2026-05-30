@@ -47,6 +47,48 @@ export type CodeTaskPlannedCheck = {
   reason: string;
 };
 
+export const CODE_TASK_PLAN_ITEM_STATUSES = [
+  "pending",
+  "in-progress",
+  "evidence-submitted",
+  "verified",
+  "done",
+  "blocked"
+] as const;
+
+export type CodeTaskPlanItemStatus = typeof CODE_TASK_PLAN_ITEM_STATUSES[number];
+
+export type CodeTaskPlanEvidenceKind =
+  | "event"
+  | "tool_result"
+  | "artifact"
+  | "diff"
+  | "verification"
+  | "user_confirmation";
+
+export type CodeTaskPlanEvidenceRef = {
+  kind: CodeTaskPlanEvidenceKind;
+  id: string;
+  summary: string;
+  sourceEventId?: string;
+  toolCallId?: string;
+  artifactId?: string;
+  verificationAttemptId?: string;
+  changedFiles?: string[];
+};
+
+export type CodeTaskPlanLedgerItem = {
+  id: string;
+  title: string;
+  status: CodeTaskPlanItemStatus;
+  evidence: CodeTaskPlanEvidenceRef[];
+  changedFiles: string[];
+  verificationAttemptIds: string[];
+  risks: string[];
+  blocker?: CodeTaskBlockedReason;
+  settledAt?: string;
+};
+
 export type CodeTaskPlan = {
   summary: string;
   files: CodeTaskPlanFile[];
@@ -54,6 +96,7 @@ export type CodeTaskPlan = {
   assumptions: string[];
   risks: string[];
   userVisibleSummary?: string;
+  ledgerItems?: CodeTaskPlanLedgerItem[];
 };
 
 export type VerificationAttemptStatus = "planned" | "running" | "passed" | "failed" | "cancelled" | "skipped";
@@ -152,6 +195,7 @@ export function createCodeTask(input: CreateCodeTaskInput): CodeTask {
 
 export function validateCodeTask(task: CodeTask): CodeTaskValidationResult {
   const issues: CodeTaskValidationIssue[] = [];
+  issues.push(...validatePlanLedger(task));
 
   if (task.state === "completed") {
     if (!task.completionEvidence) {
@@ -205,4 +249,74 @@ export function validateCodeTask(task: CodeTask): CodeTaskValidationResult {
   }
 
   return issues.length === 0 ? { ok: true } : { ok: false, issues };
+}
+
+function validatePlanLedger(task: CodeTask): CodeTaskValidationIssue[] {
+  const issues: CodeTaskValidationIssue[] = [];
+  const items = task.plan?.ledgerItems ?? [];
+  const seen = new Set<string>();
+  const passedVerificationIds = new Set(
+    task.verificationAttempts
+      .filter((attempt) => attempt.status === "passed")
+      .map((attempt) => attempt.id)
+  );
+
+  for (const item of items) {
+    if (seen.has(item.id)) {
+      issues.push({
+        code: "PLAN_LEDGER_ITEM_ID_DUPLICATE",
+        message: `Plan ledger item id is duplicated: ${item.id}`
+      });
+    }
+    seen.add(item.id);
+
+    if ((item.status === "done" || item.status === "verified") && item.evidence.length === 0) {
+      issues.push({
+        code: "PLAN_LEDGER_EVIDENCE_REQUIRED",
+        message: `Plan ledger item ${item.id} requires evidence before it can be ${item.status}`
+      });
+    }
+
+    if (item.status === "done" && item.changedFiles.length > 0 && !hasChangedFileProvenance(item)) {
+      issues.push({
+        code: "PLAN_LEDGER_CHANGED_FILE_PROVENANCE_REQUIRED",
+        message: `Plan ledger item ${item.id} lists changed files without durable event, tool, diff, artifact, or verification provenance`
+      });
+    }
+
+    for (const verificationAttemptId of item.verificationAttemptIds) {
+      if (!passedVerificationIds.has(verificationAttemptId)) {
+        issues.push({
+          code: "PLAN_LEDGER_VERIFICATION_MUST_PASS",
+          message: `Plan ledger item ${item.id} references verification attempt ${verificationAttemptId} that has not passed`
+        });
+      }
+    }
+
+    if (item.status === "blocked" && !item.blocker) {
+      issues.push({
+        code: "PLAN_LEDGER_BLOCKER_REQUIRED",
+        message: `Blocked plan ledger item ${item.id} requires a blocker reason`
+      });
+    }
+  }
+
+  if (task.state === "completed" && items.some((item) => item.status !== "done" && item.status !== "verified")) {
+    issues.push({
+      code: "PLAN_LEDGER_ITEMS_UNSETTLED",
+      message: "Completed code tasks require all plan ledger items to be verified or done"
+    });
+  }
+
+  return issues;
+}
+
+function hasChangedFileProvenance(item: CodeTaskPlanLedgerItem): boolean {
+  return item.evidence.some((evidence) =>
+    evidence.kind === "event"
+    || evidence.kind === "tool_result"
+    || evidence.kind === "artifact"
+    || evidence.kind === "diff"
+    || evidence.kind === "verification"
+  );
 }

@@ -141,6 +141,69 @@ describe("jsonl session runtime integration", () => {
     expect(providerSpy).not.toHaveBeenCalled();
     await reopened.dispose();
   });
+
+  it("persists host-sourced code task facts as durable envelopes", async () => {
+    const root = await tempRoot();
+    const runtime = createAgentRuntime({
+      plugins: [createJsonlSessionPlugin({ rootDir: root })]
+    });
+    await runtime.run({
+      input: "initialize plugins",
+      providerId: "missing",
+      runId: "run-init"
+    });
+    const { eventStore, sessionStore } = runtime.getPersistenceCapabilities();
+    await expect(sessionStore?.createSession({ sessionId: "session-1", branchId: "main" })).resolves.toMatchObject({
+      ok: true
+    });
+
+    const event = createDurableEventEnvelope({
+      schemaVersion: 1,
+      eventId: "host-task-event-1",
+      eventType: "host.task.created",
+      streamId: "session/session-1",
+      streamRevision: 0,
+      sessionId: "session-1",
+      branchId: "main",
+      runId: "run-task",
+      parentEventId: null,
+      previousEventHash: null,
+      createdAt: "2026-05-30T00:00:00.000Z",
+      actor: { type: "host", id: "host-runtime" },
+      source: { type: "host", id: "host-runtime", packageName: "@guga-agent/host-runtime" },
+      idempotency: { key: "host-task-fact/session-1/run-task/1/task.created", scope: "stream" },
+      payload: {
+        hostEvent: {
+          type: "task.created",
+          seq: 1,
+          occurredAt: "2026-05-30T00:00:00.000Z",
+          sessionId: "session-1",
+          taskId: "task-1",
+          rootRunId: "run-task",
+          cwd: "/repo",
+          objective: "implement feature",
+          state: "created"
+        }
+      }
+    });
+
+    await expect(eventStore?.append(event, {
+      expectedRevision: "no-stream",
+      idempotencyKey: "host-task-fact/session-1/run-task/1/task.created"
+    })).resolves.toMatchObject({ ok: true });
+    await expect(sessionStore?.setActiveLeaf({
+      sessionId: "session-1",
+      branchId: "main",
+      eventId: "host-task-event-1",
+      reason: "host-selected"
+    })).resolves.toMatchObject({ ok: true });
+    await expect(runtime.resumeSession({ sessionId: "session-1" })).resolves.toMatchObject({
+      ok: true,
+      activeLeaf: { eventId: "host-task-event-1" },
+      recoveryOutcomes: []
+    });
+    await runtime.dispose();
+  });
 });
 
 async function tempRoot(): Promise<string> {

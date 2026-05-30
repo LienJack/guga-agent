@@ -152,7 +152,10 @@ function createStatusBarViewModel(state: WorkbenchState): StatusBarViewModel {
     status.runId = state.activeRunId;
   }
   if (state.activeTask) {
-    status.taskLabel = `task ${state.activeTask.phase} attempt ${state.activeTask.attempt}`;
+    const ledger = state.activeTask.ledgerSummary
+      ? ` ${state.activeTask.ledgerSummary.done + state.activeTask.ledgerSummary.verified}/${state.activeTask.ledgerSummary.total}`
+      : "";
+    status.taskLabel = `task ${state.activeTask.phase}${ledger} attempt ${state.activeTask.attempt}`;
   }
   return status;
 }

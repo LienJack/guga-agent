@@ -107,6 +107,45 @@ export type CodeTaskPlannedCheckResource = {
   reason: string;
 };
 
+export type CodeTaskPlanItemStatusResource =
+  | "pending"
+  | "in-progress"
+  | "evidence-submitted"
+  | "verified"
+  | "done"
+  | "blocked";
+
+export type CodeTaskPlanEvidenceKindResource =
+  | "event"
+  | "tool_result"
+  | "artifact"
+  | "diff"
+  | "verification"
+  | "user_confirmation";
+
+export type CodeTaskPlanEvidenceRefResource = {
+  kind: CodeTaskPlanEvidenceKindResource;
+  id: string;
+  summary: string;
+  sourceEventId?: string;
+  toolCallId?: string;
+  artifactId?: string;
+  verificationAttemptId?: string;
+  changedFiles?: string[];
+};
+
+export type CodeTaskPlanLedgerItemResource = {
+  id: string;
+  title: string;
+  status: CodeTaskPlanItemStatusResource;
+  evidence: CodeTaskPlanEvidenceRefResource[];
+  changedFiles: string[];
+  verificationAttemptIds: string[];
+  risks: string[];
+  blocker?: CodeTaskTerminalReasonResource;
+  settledAt?: string;
+};
+
 export type CodeTaskPlanResource = {
   summary: string;
   files: CodeTaskPlanFileResource[];
@@ -114,6 +153,7 @@ export type CodeTaskPlanResource = {
   assumptions: string[];
   risks: string[];
   userVisibleSummary?: string;
+  ledgerItems?: CodeTaskPlanLedgerItemResource[];
 };
 
 export type VerificationAttemptStatusResource =
@@ -154,6 +194,30 @@ export type CodeTaskCompletionEvidenceResource = {
   summary?: string;
 };
 
+export type RecoveryPolicyOutcomeCategoryResource =
+  | "auto-retry"
+  | "compact-and-retry"
+  | "wait-for-user"
+  | "repair"
+  | "fork"
+  | "truncate"
+  | "blocked"
+  | "read-only-diagnostics";
+
+export type RecoveryPolicyOutcomeResource = {
+  category: RecoveryPolicyOutcomeCategoryResource;
+  message: string;
+  recoverable: boolean;
+  source: {
+    kind: "interrupted_operation" | "store_diagnostic" | "replay_diagnostic";
+    eventId?: string;
+    diagnosticKind?: string;
+    diagnosticCode?: string;
+  };
+  allowedActions: Array<"resume" | "fork" | "mark_abandoned" | "repair" | "truncate">;
+  metadata?: JsonObjectResource;
+};
+
 export type CodeTaskResource = {
   id: string;
   sessionId: string;
@@ -168,9 +232,26 @@ export type CodeTaskResource = {
   createdAt: string;
   updatedAt: string;
   plan?: CodeTaskPlanResource;
+  ledgerSummary?: {
+    total: number;
+    pending: number;
+    inProgress: number;
+    evidenceSubmitted: number;
+    verified: number;
+    done: number;
+    blocked: number;
+    currentItemId?: string;
+    blockedItemId?: string;
+  };
   verificationAttempts: VerificationAttemptResource[];
   completionEvidence?: CodeTaskCompletionEvidenceResource;
   terminalReason?: CodeTaskTerminalReasonResource;
+  recoveryOutcome?: RecoveryPolicyOutcomeResource;
+  durability?: {
+    status: "durable" | "memory_only" | "unavailable";
+    reason?: string;
+    latestEventId?: string;
+  };
 };
 
 export type RunResource = {

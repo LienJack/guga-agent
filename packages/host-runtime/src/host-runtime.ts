@@ -1,8 +1,11 @@
 import {
   createAgentRuntime,
+  computeDurableEventRecordHash,
   type AgentRuntime,
   type AgentRuntimeOptions,
   type CapabilityDescriptor,
+  createDurableEventEnvelope,
+  type JsonObject,
   type PermissionAllowDecision,
   type PermissionDenyDecision,
   type PermissionRequest,
@@ -152,6 +155,7 @@ export class HostRuntime {
   private readonly activeRunControllers = new Map<string, AbortController>();
   private readonly activeRunCompletions = new Map<string, Promise<RunResource>>();
   private readonly activeRunSequencers = new Map<string, HostEventSequencer>();
+  private readonly pendingDurableHostFacts = new Map<string, HostEvent[]>();
   private readonly pendingPermissionResolvers = new Map<
     string,
     (decision: PermissionAllowDecision | PermissionDenyDecision) => void
@@ -596,6 +600,7 @@ export class HostRuntime {
           });
     this.store.appendEvents(state.runId, [terminalEvent]);
     this.applyEventEffects(state.runId, [terminalEvent]);
+    await this.flushDurableHostFacts(state.runId);
 
     const followUp = wasCancelled ? undefined : this.consumeNextFollowUpInput(state.runId, state.sequencer);
     if (followUp) {
@@ -860,6 +865,7 @@ export class HostRuntime {
     const event = sequencer.next(input);
     this.store.appendEvents(runId, [event]);
     this.applyEventEffects(runId, [event]);
+    this.trackDurableHostFact(runId, event);
     return event;
   }
 
@@ -870,6 +876,7 @@ export class HostRuntime {
     const event = sequencer.next(input);
     this.store.appendEvents(runId, [event]);
     this.applyEventEffects(runId, [event]);
+    this.trackDurableHostFact(runId, event);
     return event;
   }
 
@@ -1041,7 +1048,11 @@ export class HostRuntime {
           createdAt: event.occurredAt,
           updatedAt: event.occurredAt,
           ...(event.plan ? { plan: event.plan } : {}),
-          verificationAttempts: []
+          ...(event.plan ? ledgerSummaryPatch(event.plan) : {}),
+          verificationAttempts: [],
+          durability: this.runtime.getPersistenceCapabilities().eventStore
+            ? { status: "durable" }
+            : { status: "memory_only", reason: "No EventStore is configured for HostRuntime task facts" }
         });
       } else if (event.type === "task.phase_changed") {
         this.store.updateTask(event.taskId, {
@@ -1049,6 +1060,7 @@ export class HostRuntime {
           phase: event.to,
           ...(event.activeRunId ? { activeRunId: event.activeRunId } : {}),
           ...(event.plan ? { plan: event.plan } : {}),
+          ...(event.plan ? ledgerSummaryPatch(event.plan) : {}),
           attempt: event.attempt,
           updatedAt: event.occurredAt
         });
@@ -1083,6 +1095,107 @@ export class HostRuntime {
           updatedAt: event.occurredAt
         });
       }
+    }
+  }
+
+  private trackDurableHostFact(runId: string, event: HostEvent): void {
+    if (!isDurableTaskHostEvent(event)) {
+      return;
+    }
+    const pending = this.pendingDurableHostFacts.get(runId) ?? [];
+    pending.push(event);
+    this.pendingDurableHostFacts.set(runId, pending);
+  }
+
+  private async flushDurableHostFacts(runId: string): Promise<void> {
+    const pending = this.pendingDurableHostFacts.get(runId) ?? [];
+    this.pendingDurableHostFacts.delete(runId);
+    for (const event of pending) {
+      await this.persistDurableHostFact(runId, event);
+    }
+  }
+
+  private async persistDurableHostFact(runId: string, event: HostEvent): Promise<void> {
+    const { eventStore, sessionStore } = this.runtime.getPersistenceCapabilities();
+    const taskId = "taskId" in event ? event.taskId : undefined;
+    if (!eventStore) {
+      if (taskId) {
+        this.store.updateTask(taskId, {
+          durability: { status: "memory_only", reason: "No EventStore is configured for HostRuntime task facts" },
+          updatedAt: event.occurredAt
+        });
+      }
+      return;
+    }
+
+    const streamId = `session/${event.sessionId}`;
+    const branchId = this.store.getSession(event.sessionId)?.activeBranchId ?? "main";
+    const read = await eventStore.readStream(streamId);
+    if (!read.ok && read.status !== "not_found") {
+      if (taskId) {
+        this.store.updateTask(taskId, {
+          durability: {
+            status: "unavailable",
+            reason: read.diagnostics[0]?.message ?? `Unable to read durable event stream ${streamId}`
+          },
+          updatedAt: event.occurredAt
+        });
+      }
+      return;
+    }
+
+    const existingEvents = read.ok ? read.events : [];
+    const previous = existingEvents.at(-1);
+    const payload = toJsonObject({ hostEvent: event });
+    const idempotencyKey = `host-task-fact/${event.sessionId}/${runId}/${event.seq}/${event.type}`;
+    const envelope = createDurableEventEnvelope({
+      schemaVersion: 1,
+      eventId: `host-event-${event.sessionId}-${runId}-${event.seq}`,
+      eventType: `host.${event.type}`,
+      streamId,
+      streamRevision: previous ? previous.streamRevision + 1 : 0,
+      sessionId: event.sessionId,
+      branchId,
+      runId,
+      parentEventId: previous?.eventId ?? null,
+      previousEventHash: previous
+        ? { algorithm: "sha256", value: computeDurableEventRecordHash(previous) }
+        : null,
+      createdAt: event.occurredAt,
+      actor: { type: "host", id: "host-runtime" },
+      source: { type: "host", id: "host-runtime", packageName: "@guga-agent/host-runtime" },
+      idempotency: { key: idempotencyKey, scope: "stream" },
+      payload
+    });
+    const append = await eventStore.append(envelope, {
+      expectedRevision: previous ? previous.streamRevision : "no-stream",
+      idempotencyKey
+    });
+
+    if (append.ok) {
+      if (taskId) {
+        this.store.updateTask(taskId, {
+          durability: { status: "durable", latestEventId: append.event.eventId },
+          updatedAt: event.occurredAt
+        });
+      }
+      await sessionStore?.setActiveLeaf({
+        sessionId: event.sessionId,
+        branchId,
+        eventId: append.event.eventId,
+        reason: "host-selected"
+      });
+      return;
+    }
+
+    if (taskId) {
+      this.store.updateTask(taskId, {
+        durability: {
+          status: "unavailable",
+          reason: append.status === "unavailable" ? append.reason : append.status
+        },
+        updatedAt: event.occurredAt
+      });
     }
   }
 
@@ -1232,6 +1345,48 @@ function queuedRunInputSummary(input: QueuedRunInputResource): QueuedRunInputSum
 
 function permissionRequestId(request: PermissionRequest): string {
   return `${request.runId}:${request.toolCallId}:${request.attempt}`;
+}
+
+function isDurableTaskHostEvent(event: HostEvent): boolean {
+  return event.type === "task.created"
+    || event.type === "task.phase_changed"
+    || event.type === "task.completed"
+    || event.type === "task.blocked"
+    || event.type === "task.failed"
+    || event.type === "task.cancelled"
+    || event.type === "verification.started"
+    || event.type === "verification.completed";
+}
+
+function toJsonObject(value: unknown): JsonObject {
+  return JSON.parse(JSON.stringify(value)) as JsonObject;
+}
+
+function ledgerSummaryPatch(plan: CodeTaskPlanResource): Pick<CodeTaskResource, "ledgerSummary"> | Record<string, never> {
+  const ledgerSummary = ledgerSummaryFromPlan(plan);
+  return ledgerSummary ? { ledgerSummary } : {};
+}
+
+function ledgerSummaryFromPlan(plan: CodeTaskPlanResource): CodeTaskResource["ledgerSummary"] {
+  const items = plan.ledgerItems ?? [];
+  if (items.length === 0) {
+    return undefined;
+  }
+  const current = items.find((item) =>
+    item.status === "in-progress" || item.status === "evidence-submitted" || item.status === "pending"
+  );
+  const blocked = items.find((item) => item.status === "blocked");
+  return {
+    total: items.length,
+    pending: items.filter((item) => item.status === "pending").length,
+    inProgress: items.filter((item) => item.status === "in-progress").length,
+    evidenceSubmitted: items.filter((item) => item.status === "evidence-submitted").length,
+    verified: items.filter((item) => item.status === "verified").length,
+    done: items.filter((item) => item.status === "done").length,
+    blocked: items.filter((item) => item.status === "blocked").length,
+    ...(current ? { currentItemId: current.id } : {}),
+    ...(blocked ? { blockedItemId: blocked.id } : {})
+  };
 }
 
 function sessionResourceFromDurable(

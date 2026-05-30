@@ -1,4 +1,4 @@
-import type { HostEvent, QueuedRunInputSummaryResource } from "@guga-agent/host-protocol";
+import type { CodeTaskPlanResource, HostEvent, QueuedRunInputSummaryResource } from "@guga-agent/host-protocol";
 import type {
   AssistantTranscriptBlock,
   ContextTranscriptBlock,
@@ -90,6 +90,7 @@ function reduceKnownHostEvent(state: WorkbenchState, event: HostEvent): Workbenc
           state: event.state,
           phase: event.state,
           attempt: 0,
+          ...(event.plan ? ledgerSummaryPatch(event.plan) : {}),
           firstSeq: event.seq,
           lastSeq: event.seq,
           occurredAt: event.occurredAt
@@ -112,6 +113,7 @@ function reduceKnownHostEvent(state: WorkbenchState, event: HostEvent): Workbenc
           phase: event.to,
           attempt: event.attempt,
           ...(event.activeRunId ? { activeRunId: event.activeRunId } : {}),
+          ...(event.plan ? ledgerSummaryPatch(event.plan) : {}),
           lastSeq: event.seq,
           occurredAt: event.occurredAt
         }
@@ -795,6 +797,33 @@ function usageCost(current: number | undefined, next: number | undefined): { cos
     return current === undefined ? {} : { costUsd: current };
   }
   return { costUsd: (current ?? 0) + next };
+}
+
+function ledgerSummaryPatch(plan: CodeTaskPlanResource): Pick<NonNullable<WorkbenchState["activeTask"]>, "ledgerSummary"> | Record<string, never> {
+  const ledgerSummary = ledgerSummaryFromPlan(plan);
+  return ledgerSummary ? { ledgerSummary } : {};
+}
+
+function ledgerSummaryFromPlan(plan: CodeTaskPlanResource): NonNullable<WorkbenchState["activeTask"]>["ledgerSummary"] {
+  const items = plan.ledgerItems ?? [];
+  if (items.length === 0) {
+    return undefined;
+  }
+  const current = items.find((item) =>
+    item.status === "in-progress" || item.status === "evidence-submitted" || item.status === "pending"
+  );
+  const blocked = items.find((item) => item.status === "blocked");
+  return {
+    total: items.length,
+    pending: items.filter((item) => item.status === "pending").length,
+    inProgress: items.filter((item) => item.status === "in-progress").length,
+    evidenceSubmitted: items.filter((item) => item.status === "evidence-submitted").length,
+    verified: items.filter((item) => item.status === "verified").length,
+    done: items.filter((item) => item.status === "done").length,
+    blocked: items.filter((item) => item.status === "blocked").length,
+    ...(current ? { currentItemId: current.id } : {}),
+    ...(blocked ? { blockedItemId: blocked.id } : {})
+  };
 }
 
 function contextSummary(summary: Extract<HostEvent, { type: "context.compacted" }>["summary"]): { summary?: string } {

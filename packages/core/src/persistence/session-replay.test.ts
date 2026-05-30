@@ -143,7 +143,65 @@ describe("session replay", () => {
           status: "interrupted",
           allowedActions: expect.arrayContaining(["resume", "fork", "mark_abandoned"])
         })
+      ],
+      recoveryOutcomes: [
+        expect.objectContaining({
+          category: "fork",
+          source: { kind: "interrupted_operation", eventId: "event-1" }
+        })
       ]
+    });
+  });
+
+  it("maps pending permission and store corruption diagnostics to recovery outcomes", async () => {
+    const events = [
+      durableEvent({
+        type: AgentEventType.PermissionRequested,
+        runId: "run-open",
+        turn: 0,
+        request: {
+          runId: "run-open",
+          turn: 0,
+          toolCallId: "call-1",
+          attempt: 1,
+          call: { id: "call-1", name: "shell_exec", input: {} },
+          subject: { kind: "tool", toolName: "shell_exec", effect: "write" },
+          profile: { action: "ask", reason: "needs approval" }
+        }
+      }, { eventId: "event-1", turn: 0 })
+    ];
+    const eventStore = new FakeEventStore(events);
+    eventStore.diagnostics = [{
+      kind: "partial_tail",
+      streamId: "session/session-1",
+      message: "truncated final line",
+      recoverable: true
+    }];
+    const sessionStore = new FakeSessionStore({
+      branches: [{
+        id: "main",
+        sessionId: "session-1",
+        createdAt: "2026-05-27T00:00:00.000Z",
+        createdFrom: { type: "root" },
+        visibleEventIds: ["event-1"]
+      }],
+      activeLeaf: {
+        sessionId: "session-1",
+        branchId: "main",
+        eventId: "event-1",
+        updatedAt: "2026-05-27T00:00:00.000Z",
+        reason: "resume-selected"
+      }
+    });
+
+    const report = await resumeSessionFromStores({ eventStore, sessionStore }, { sessionId: "session-1" });
+
+    expect(report).toMatchObject({
+      ok: true,
+      recoveryOutcomes: expect.arrayContaining([
+        expect.objectContaining({ category: "wait-for-user", source: { kind: "interrupted_operation", eventId: "event-1" } }),
+        expect.objectContaining({ category: "truncate", source: { kind: "store_diagnostic", diagnosticKind: "partial_tail" } })
+      ])
     });
   });
 });
