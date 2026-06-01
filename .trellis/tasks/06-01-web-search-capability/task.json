@@ -13,7 +13,7 @@
   "createdAt": "2026-06-01",
   "completedAt": null,
   "branch": "codex/feat-web-search-capability",
-  "base_branch": "codex/cli-claude-pi-alignment",
+  "base_branch": "dev",
   "worktree_path": null,
   "commit": null,
   "pr_url": null,
