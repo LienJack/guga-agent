@@ -1,0 +1,28 @@
+{
+  "id": "readme-guga-agent",
+  "name": "readme-guga-agent",
+  "title": "docs: write Chinese README and mascot logo",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": "docs",
+  "package": null,
+  "priority": "P2",
+  "creator": "LienJack",
+  "assignee": "LienJack",
+  "createdAt": "2026-06-01",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "codex/readme-guga-agent",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+} "",
+  "meta": {}
+}

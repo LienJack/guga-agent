@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Verify scoped documentation change and avoid unrelated edits."}
+{"file": "STRATEGY.md", "reason": "Check README positioning remains aligned with project strategy."}
+{"file": "docs/roadmap.md", "reason": "Check listed capabilities match current architecture and roadmap."}

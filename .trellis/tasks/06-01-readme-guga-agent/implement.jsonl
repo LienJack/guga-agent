@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared project thinking guide for documentation and scoped changes."}
+{"file": "STRATEGY.md", "reason": "Authoritative Guga positioning, target users, and market expression."}
+{"file": "docs/roadmap.md", "reason": "Current product philosophy, core/plugin boundary, and feature roadmap."}
+{"file": "docs/research/repomix/pi-focused-context.xml", "reason": "Reference README structure and pi-style monorepo/package framing requested by user."}
+{"file": "docs/research/repomix/opencode-context.1.xml", "reason": "Reference README structure, Chinese README style, and FAQ framing requested by user."}
