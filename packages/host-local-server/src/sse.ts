@@ -29,7 +29,7 @@ export async function streamRunEvents(options: StreamRunEventsOptions): Promise<
     "content-type": "text/event-stream; charset=utf-8",
     "cache-control": "no-cache, no-transform",
     connection: "keep-alive",
-    "access-control-allow-origin": "*"
+    "vary": "Origin"
   });
 
   return new Promise<void>((resolve) => {

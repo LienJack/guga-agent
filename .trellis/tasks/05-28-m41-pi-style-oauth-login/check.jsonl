@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify TypeScript/runtime test coverage and no generated dist or SDK contract leakage."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Check auth/refresh/provider failures normalize into structured failures."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Check output/events/status never expose token-like credential material."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Check workbench controller and selector state stay typed and exhaustive."}
+{"file": "docs/solutions/architecture-patterns/multi-provider-login-switching.md", "reason": "Check CLI/workbench/model registry/host factory all consume one auth-aware view."}
+{"file": "docs/solutions/architecture-patterns/provider-ai-sdk-bridge.md", "reason": "Check AI SDK bridge remains adapter-only and core contracts stay SDK-neutral."}

@@ -13,6 +13,7 @@ import type {
 import { ensureToolPairingSafety, toolPairingDecisionCode } from "../context/tool-pairing-safety";
 import { detectInterruptedOperations } from "./interruption-detector";
 import type { ResumeReportResult } from "./resume-report";
+import type { RecoveryPolicyOutcome, ResumeInterruptedOperation } from "./resume-report";
 import { buildSessionTree } from "./session-tree";
 
 export type ResumeSessionFromStoresOptions = {
@@ -33,7 +34,8 @@ export async function resumeSessionFromStores(
     return {
       ok: false,
       status: read.status === "not_found" ? "not_found" : read.status === "unavailable" ? "unavailable" : "repair_required",
-      diagnostics
+      diagnostics,
+      recoveryOutcomes: recoveryOutcomesFromDiagnostics(diagnostics)
     };
   }
 
@@ -42,7 +44,8 @@ export async function resumeSessionFromStores(
     return {
       ok: false,
       status: "repair_required",
-      diagnostics: blockingCorruption
+      diagnostics: blockingCorruption,
+      recoveryOutcomes: recoveryOutcomesFromDiagnostics(blockingCorruption)
     };
   }
 
@@ -67,9 +70,11 @@ export async function resumeSessionFromStores(
     return {
       ok: false,
       status: "repair_required",
-      diagnostics
+      diagnostics,
+      recoveryOutcomes: recoveryOutcomesFromDiagnostics(diagnostics)
     };
   }
+  const interrupted = detectInterruptedOperations(tree.projection.visibleEvents);
 
   return {
     ok: true,
@@ -78,7 +83,11 @@ export async function resumeSessionFromStores(
     activeLeaf: tree.projection.activeLeaf,
     conversation: replay.conversation,
     projectionLedger: replay.projectionLedger,
-    interrupted: detectInterruptedOperations(tree.projection.visibleEvents),
+    interrupted,
+    recoveryOutcomes: [
+      ...recoveryOutcomesFromInterrupted(interrupted),
+      ...recoveryOutcomesFromDiagnostics(diagnostics)
+    ],
     diagnostics
   };
 }
@@ -224,6 +233,73 @@ function providerInputs(events: readonly DurableEventEnvelope[]): ProviderInputR
       artifactRefs: envelope.artifactRefs ?? []
     }];
   });
+}
+
+function recoveryOutcomesFromInterrupted(interrupted: readonly ResumeInterruptedOperation[]): RecoveryPolicyOutcome[] {
+  return interrupted.map((operation) => ({
+    category: recoveryCategoryForOperation(operation),
+    message: operation.message,
+    recoverable: operation.allowedActions.length > 0,
+    source: {
+      kind: "interrupted_operation",
+      ...(operation.eventId ? { eventId: operation.eventId } : {})
+    },
+    allowedActions: operation.allowedActions,
+    ...(operation.metadata ? { metadata: operation.metadata } : {})
+  }));
+}
+
+function recoveryCategoryForOperation(operation: ResumeInterruptedOperation): RecoveryPolicyOutcome["category"] {
+  switch (operation.kind) {
+    case "permission":
+      return "wait-for-user";
+    case "tool":
+    case "hook":
+      return "repair";
+    case "compaction":
+      return "compact-and-retry";
+    case "model":
+      return "auto-retry";
+    case "run":
+    case "turn":
+      return "fork";
+  }
+}
+
+function recoveryOutcomesFromDiagnostics(
+  diagnostics: ReadonlyArray<ReplayDiagnostic | StoreCorruptionDiagnostic>
+): RecoveryPolicyOutcome[] {
+  return diagnostics.map((diagnostic) => {
+    if ("kind" in diagnostic) {
+      return {
+        category: diagnostic.recoverable ? storeRecoverableCategory(diagnostic.kind) : "blocked",
+        message: diagnostic.message,
+        recoverable: diagnostic.recoverable,
+        source: {
+          kind: "store_diagnostic",
+          diagnosticKind: diagnostic.kind,
+          ...(diagnostic.eventId ? { eventId: diagnostic.eventId } : {})
+        },
+        allowedActions: diagnostic.recoverable ? ["resume", "truncate"] : ["repair"],
+        ...(diagnostic.metadata ? { metadata: diagnostic.metadata } : {})
+      };
+    }
+    return {
+      category: diagnostic.severity === "error" ? "blocked" : "read-only-diagnostics",
+      message: diagnostic.message,
+      recoverable: diagnostic.severity !== "error",
+      source: {
+        kind: "replay_diagnostic",
+        diagnosticCode: diagnostic.code
+      },
+      allowedActions: diagnostic.severity === "error" ? ["repair"] : ["resume"],
+      ...(diagnostic.metadata ? { metadata: diagnostic.metadata } : {})
+    };
+  });
+}
+
+function storeRecoverableCategory(kind: StoreCorruptionDiagnostic["kind"]): RecoveryPolicyOutcome["category"] {
+  return kind === "partial_tail" ? "truncate" : "read-only-diagnostics";
 }
 
 function toJsonValue(value: unknown): JsonValue {

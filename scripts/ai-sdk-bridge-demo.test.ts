@@ -1,7 +1,7 @@
 import http from "node:http";
 import { afterAll, expect, test } from "vitest";
 import { AgentEventType, createAgentRuntime } from "../packages/core/src";
-import { createAiSdkProviderPlugin } from "../packages/provider-ai-sdk/src";
+import { createAiSdkProviderPlugin } from "../packages/core/src/builtins";
 
 const requests: unknown[] = [];
 const toolExecutions: Array<{ input: unknown; content: string }> = [];

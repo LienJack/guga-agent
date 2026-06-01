@@ -1,4 +1,4 @@
-import { AgentEventType, type AgentEvent } from "@guga-agent/core";
+import { AgentEventType, ModelEventType, type AgentEvent } from "@guga-agent/core";
 import {
   createHostEventSequencer,
   type HostEvent,
@@ -8,6 +8,7 @@ import {
 export type AgentEventProjectionContext = {
   sessionId: string;
   runId: string;
+  sourceRunId?: string;
   sequencer: HostEventSequencer;
 };
 
@@ -28,7 +29,7 @@ export function createProjectionContext(options: {
 }
 
 export function projectAgentEvent(event: AgentEvent, context: AgentEventProjectionContext): HostEvent[] {
-  if (event.runId !== context.runId) {
+  if (event.runId !== (context.sourceRunId ?? context.runId)) {
     return [];
   }
 
@@ -60,6 +61,40 @@ export function projectAgentEvent(event: AgentEvent, context: AgentEventProjecti
         role: "assistant"
       })
     ];
+  }
+
+  if (event.type === AgentEventType.ModelEvent && event.event.type === ModelEventType.ReasoningDelta) {
+    return [context.sequencer.next({
+      type: "message.reasoning_delta",
+      sessionId: context.sessionId,
+      runId: context.runId,
+      messageId: `reasoning-${context.runId}-${event.turn}`,
+      text: event.event.delta
+    })];
+  }
+
+  if (event.type === AgentEventType.ModelEvent && event.event.type === ModelEventType.RetryScheduled) {
+    return [context.sequencer.next({
+      type: "retry.started",
+      sessionId: context.sessionId,
+      runId: context.runId,
+      attempt: event.event.nextAttempt,
+      reason: event.event.error.message
+    })];
+  }
+
+  if (
+    event.type === AgentEventType.ModelEvent
+    && (event.event.type === ModelEventType.Finished || event.event.type === ModelEventType.ProviderError)
+    && event.event.attempt !== undefined
+    && event.event.attempt > 0
+  ) {
+    return [context.sequencer.next({
+      type: "retry.completed",
+      sessionId: context.sessionId,
+      runId: context.runId,
+      attempt: event.event.attempt
+    })];
   }
 
   if (event.type === AgentEventType.ToolStarted) {

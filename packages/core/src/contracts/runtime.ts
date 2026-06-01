@@ -20,6 +20,15 @@ import type { ModelPurpose } from "./provider";
 import type { ProviderRouterPolicy } from "./provider-router";
 import type { ResumeReportResult } from "../persistence/resume-report";
 import type { ToolDefinition } from "./tools";
+import type { RuntimeToolInvokeOptions, ToolRuntimeResult } from "./tool-runtime";
+
+export type AgentRuntimeBuiltInsOptions = false | {
+  capabilities?: {
+    providers?: Provider[];
+    models?: ModelMetadata[];
+    tools?: ToolDefinition[];
+  };
+};
 
 export type AgentSessionIdentity = {
   sessionId?: string;
@@ -62,6 +71,7 @@ export type AgentRunResult = AgentRunSuccess | AgentRunFailure;
 export type AgentRuntimeOptions = {
   model?: LocalModelPlugin;
   plugins?: LocalPlugin[];
+  builtIns?: AgentRuntimeBuiltInsOptions;
   permissions?: PermissionPolicy;
   routerPolicy?: ProviderRouterPolicy;
   session?: AgentSessionIdentity;
@@ -106,6 +116,7 @@ export type AgentRuntime = {
   replayConversation(request: ReplayRequest): Promise<ReplayConversationResult | ReplayFailureResult>;
   replayModelInput(request: ReplayRequest): Promise<ReplayModelInputResult | ReplayFailureResult>;
   replayAudit(request: ReplayRequest): Promise<ReplayAuditResult | ReplayFailureResult>;
+  invokeTool(options: RuntimeToolInvokeOptions): Promise<ToolRuntimeResult>;
   run(options: AgentRunOptions): Promise<AgentRunResult>;
   dispose(): Promise<AgentRuntimeShutdownResult>;
 };

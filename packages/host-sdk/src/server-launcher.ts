@@ -21,7 +21,7 @@ export async function createLocalGugaHost(options: LocalGugaHostOptions = {}): P
   const baseUrl = await server.listen(options.listen);
   return {
     baseUrl,
-    client: connectHost({ baseUrl }),
+    client: connectHost({ baseUrl, bridgeToken: server.bridgeToken }),
     server,
     close: () => server.close()
   };

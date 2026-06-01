@@ -1,7 +1,7 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { test, expect } from "vitest";
 import { AgentEventType, createAgentRuntime } from "../packages/core/src";
-import { createAiSdkProviderPlugin } from "../packages/provider-ai-sdk/src";
+import { createAiSdkProviderPlugin } from "../packages/core/src/builtins";
 
 const env = loadDotEnv(".env");
 const apiKey = env.API_KEY;
@@ -61,10 +61,21 @@ test.runIf(apiKey && baseURL && modelId)("runs the AI SDK bridge against the rea
   expect(modelEvents).toContain("model.requested");
   expect(modelEvents).toContain("model.selected");
   expect(modelEvents).toContain("model.finished");
-});
+}, 30_000);
+
+test.runIf(env.GUGA_REAL_OAUTH_SMOKE === "1" && env.GUGA_OAUTH_PROVIDER && env.GUGA_OAUTH_ACCESS_TOKEN)(
+  "has explicit opt-in guard for real OAuth-backed provider smoke coverage",
+  () => {
+    expect(env.GUGA_OAUTH_PROVIDER).toMatch(/^(copilot|codex)$/);
+    expect(env.GUGA_OAUTH_ACCESS_TOKEN).toBeTruthy();
+  }
+);
 
 function loadDotEnv(path: string): Record<string, string> {
   const values: Record<string, string> = {};
+  if (!existsSync(path)) {
+    return values;
+  }
   const file = readFileSync(path, "utf8");
 
   for (const line of file.split(/\r?\n/)) {

@@ -1,14 +1,258 @@
 import type { HostEvent } from "./events";
 
+export type JsonObjectResource = { [key: string]: unknown };
+
+export type HostProtocolInfoResource = {
+  version: "1";
+  features: HostProtocolFeature[];
+};
+
+export type HostProtocolFeature =
+  | "runs"
+  | "code-tasks"
+  | "run-input-queue"
+  | "run-abort"
+  | "follow-up-consumption"
+  | "steer-deferred"
+  | "tool-progress"
+  | "retry-events"
+  | "permissions"
+  | "interactions"
+  | "sessions"
+  | "operations"
+  | "sse-replay";
+
+export const HOST_PROTOCOL_VERSION = "1";
+
+export const HOST_PROTOCOL_FEATURES: HostProtocolFeature[] = [
+  "runs",
+  "code-tasks",
+  "run-input-queue",
+  "run-abort",
+  "follow-up-consumption",
+  "steer-deferred",
+  "tool-progress",
+  "retry-events",
+  "permissions",
+  "interactions",
+  "sessions",
+  "operations",
+  "sse-replay"
+];
+
 export type SessionResource = {
   id: string;
   title?: string;
   createdAt: string;
   updatedAt: string;
   activeBranchId?: string;
+  lastRunId?: string;
+  lastRunStatus?: RunStatus;
+  rootBranchId?: string;
+  activeLeafEventId?: string | null;
+  metadata?: JsonObjectResource;
+  branches?: SessionBranchResource[];
 };
 
-export type RunStatus = "queued" | "running" | "waiting-for-permission" | "completed" | "failed" | "cancelled";
+export type SessionBranchResource = {
+  id: string;
+  sessionId: string;
+  parentBranchId?: string;
+  createdFromRunId?: string;
+  summary?: string;
+  lastRunId?: string;
+  lastRunStatus?: RunStatus;
+  createdAt: string;
+  updatedAt: string;
+  metadata?: JsonObjectResource;
+};
+
+export type SessionTreeResource = {
+  sessionId: string;
+  activeBranchId: string;
+  branches: SessionBranchResource[];
+};
+
+export type RunStatus =
+  | "queued"
+  | "running"
+  | "waiting-for-permission"
+  | "waiting-for-interaction"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type CodeTaskStateResource =
+  | "created"
+  | "scouting"
+  | "planning"
+  | "executing"
+  | "verifying"
+  | "repairing"
+  | "completed"
+  | "blocked"
+  | "failed"
+  | "cancelled";
+
+export type CodeTaskPlanFileResource = {
+  path: string;
+  action: "inspect" | "create" | "modify" | "delete" | "test";
+  reason?: string;
+};
+
+export type CodeTaskPlannedCheckResource = {
+  command: string;
+  cwd?: string;
+  required: boolean;
+  reason: string;
+};
+
+export type CodeTaskPlanItemStatusResource =
+  | "pending"
+  | "in-progress"
+  | "evidence-submitted"
+  | "verified"
+  | "done"
+  | "blocked";
+
+export type CodeTaskPlanEvidenceKindResource =
+  | "event"
+  | "tool_result"
+  | "artifact"
+  | "diff"
+  | "verification"
+  | "user_confirmation";
+
+export type CodeTaskPlanEvidenceRefResource = {
+  kind: CodeTaskPlanEvidenceKindResource;
+  id: string;
+  summary: string;
+  sourceEventId?: string;
+  toolCallId?: string;
+  artifactId?: string;
+  verificationAttemptId?: string;
+  changedFiles?: string[];
+};
+
+export type CodeTaskPlanLedgerItemResource = {
+  id: string;
+  title: string;
+  status: CodeTaskPlanItemStatusResource;
+  evidence: CodeTaskPlanEvidenceRefResource[];
+  changedFiles: string[];
+  verificationAttemptIds: string[];
+  risks: string[];
+  blocker?: CodeTaskTerminalReasonResource;
+  settledAt?: string;
+};
+
+export type CodeTaskPlanResource = {
+  summary: string;
+  files: CodeTaskPlanFileResource[];
+  checks: CodeTaskPlannedCheckResource[];
+  assumptions: string[];
+  risks: string[];
+  userVisibleSummary?: string;
+  ledgerItems?: CodeTaskPlanLedgerItemResource[];
+};
+
+export type VerificationAttemptStatusResource =
+  | "planned"
+  | "running"
+  | "passed"
+  | "failed"
+  | "cancelled"
+  | "skipped";
+
+export type VerificationAttemptResource = {
+  id: string;
+  taskId: string;
+  sessionId: string;
+  runId?: string;
+  command: string;
+  cwd: string;
+  required: boolean;
+  status: VerificationAttemptStatusResource;
+  reason: string;
+  startedAt?: string;
+  completedAt?: string;
+  exitCode?: number;
+  outputSummary?: string;
+  artifactRef?: string;
+};
+
+export type CodeTaskTerminalReasonResource = {
+  code: string;
+  message: string;
+  recoverable?: boolean;
+  details?: unknown;
+};
+
+export type CodeTaskCompletionEvidenceResource = {
+  completedAt: string;
+  passingVerificationAttemptIds: string[];
+  summary?: string;
+};
+
+export type RecoveryPolicyOutcomeCategoryResource =
+  | "auto-retry"
+  | "compact-and-retry"
+  | "wait-for-user"
+  | "repair"
+  | "fork"
+  | "truncate"
+  | "blocked"
+  | "read-only-diagnostics";
+
+export type RecoveryPolicyOutcomeResource = {
+  category: RecoveryPolicyOutcomeCategoryResource;
+  message: string;
+  recoverable: boolean;
+  source: {
+    kind: "interrupted_operation" | "store_diagnostic" | "replay_diagnostic";
+    eventId?: string;
+    diagnosticKind?: string;
+    diagnosticCode?: string;
+  };
+  allowedActions: Array<"resume" | "fork" | "mark_abandoned" | "repair" | "truncate">;
+  metadata?: JsonObjectResource;
+};
+
+export type CodeTaskResource = {
+  id: string;
+  sessionId: string;
+  rootRunId: string;
+  activeRunId?: string;
+  cwd: string;
+  objective: string;
+  state: CodeTaskStateResource;
+  phase: CodeTaskStateResource;
+  attempt: number;
+  maxRepairAttempts: number;
+  createdAt: string;
+  updatedAt: string;
+  plan?: CodeTaskPlanResource;
+  ledgerSummary?: {
+    total: number;
+    pending: number;
+    inProgress: number;
+    evidenceSubmitted: number;
+    verified: number;
+    done: number;
+    blocked: number;
+    currentItemId?: string;
+    blockedItemId?: string;
+  };
+  verificationAttempts: VerificationAttemptResource[];
+  completionEvidence?: CodeTaskCompletionEvidenceResource;
+  terminalReason?: CodeTaskTerminalReasonResource;
+  recoveryOutcome?: RecoveryPolicyOutcomeResource;
+  durability?: {
+    status: "durable" | "memory_only" | "unavailable";
+    reason?: string;
+    latestEventId?: string;
+  };
+};
 
 export type RunResource = {
   id: string;
@@ -20,7 +264,86 @@ export type RunResource = {
   lastSeq: number;
   finalAnswer?: string;
   error?: HostErrorPayload;
+  queuedInputs?: QueuedRunInputResource[];
   events?: HostEvent[];
+};
+
+export type RunInputMode = "steer" | "follow_up";
+
+export type QueuedRunInputStatus = "pending" | "deferred" | "consumed" | "cancelled";
+
+export type QueuedRunInputResource = {
+  id: string;
+  mode: RunInputMode;
+  status: QueuedRunInputStatus;
+  text: string;
+  textPreview: string;
+  createdAt: string;
+  resolvedAt?: string;
+};
+
+export type QueuedRunInputSummaryResource = Omit<QueuedRunInputResource, "text">;
+
+export type InteractionStatus = "pending" | "resolved" | "cancelled";
+
+export type InteractionRequest =
+  | {
+      kind: "select";
+      title?: string;
+      options: Array<{ id: string; label: string; description?: string }>;
+      multi?: boolean;
+    }
+  | {
+      kind: "confirm";
+      title?: string;
+      message: string;
+      defaultValue?: boolean;
+    }
+  | {
+      kind: "input";
+      title?: string;
+      placeholder?: string;
+      defaultValue?: string;
+      secret?: boolean;
+    }
+  | {
+      kind: "editor";
+      title?: string;
+      language?: string;
+      initialText?: string;
+    }
+  | {
+      kind: "notify";
+      level: "info" | "warning" | "error";
+      message: string;
+    }
+  | {
+      kind: "setStatus";
+      text: string;
+    }
+  | {
+      kind: "setWidget";
+      widgetId: string;
+      payload: unknown;
+    }
+  | {
+      kind: "setTitle";
+      title: string;
+    }
+  | {
+      kind: "set_editor_text";
+      text: string;
+    };
+
+export type InteractionResource = {
+  id: string;
+  sessionId: string;
+  runId?: string;
+  status: InteractionStatus;
+  request: InteractionRequest;
+  response?: unknown;
+  createdAt: string;
+  resolvedAt?: string;
 };
 
 export type HostErrorPayload = {

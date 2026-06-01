@@ -9,11 +9,13 @@ Guga 下一步不是重写 CLI，而是在现有 `packages/host-*` 和 `packages
 | 项目 | Fact / Inference | 对 Guga 的执行判断 |
 | --- | --- | --- |
 | Claude Code | Fact: `docs/research/source-analysis/claude-code-analysis/analysis/components/01-component-architecture-overview.md` 将 TUI 描述为 terminal agent workbench，而不是普通 chat UI。 | CLI 要优先补 transcript、tool progress、permission、task/status 区域，而不是只打印最终答案。 |
-| Claude Code | Fact: `docs/research/source-analysis/claude-code-analysis/analysis/components/02-core-interaction-components.md` 中 `PromptInput` 承担 slash、history、typeahead、image、model、permission、task 等 orchestration。 | Guga 第一阶段只做 submit/steer/follow-up/abort/permission，保留 slash/typeahead 插槽。 |
+| Claude Code | Fact: `docs/research/source-analysis/claude-code-analysis/analysis/components/02-core-interaction-components.md` 中 `PromptInput` 承担 slash、history、typeahead、image、model、permission、task 等 orchestration。 | Guga 第一阶段必须把底部输入框做成 prompt/control editor：submit、slash、history、steer、follow-up、abort、permission 都从这里进入。 |
 | Claude Code | Fact: `docs/research/source-analysis/claude-code-analysis/analysis/components/04i-session-storage-resume.md` 描述 append-only JSONL transcript、resume recovery、sidechain transcript。 | Guga 的 resume/fork 要绑定 session/replay contract，不能只靠当前进程内存。 |
+| OpenCode | Fact: `docs/research/repomix/opencode-context.1.xml` 中 prompt input 有 `/` slash popover 与 `@` context popover，命令项包含 trigger/title/description/keybind/type/source。 | Guga 的 `/` 提示不能只是 help 文本；要有可过滤 popover、命令元数据、来源标识、selector/补参数路径。 |
 | Pi | Fact: `docs/research/repomix/pi-focused-context.xml` 中 `packages/coding-agent/docs/rpc.md` 定义 stdin/stdout JSONL RPC command/event。 | Guga 可增加 stdio adapter，但它只能映射 Host Protocol，不能成为第二套协议事实。 |
 | Pi | Fact: Pi RPC events 包含 `message_start/update/end`、`tool_execution_start/update/end`、`queue_update`、`compaction_start/end`、`auto_retry_start/end`、`extension_ui_request/response`。 | Guga 需要补 `tool.progress`、queue、retry、generic interaction request/response，现有事件集还不够驱动完整 CLI/desktop。 |
 | Pi | Fact: Pi interactive mode 在 agent 运行中输入默认走 steering，Alt+Enter 作为 follow-up，Escape abort 并恢复 queued messages。 | Guga CLI 应把运行中输入建模为控制命令，而不是等本轮结束再发新 prompt。 |
+| Pi | Fact: `docs/research/repomix/pi-focused-context.xml` 中 Pi TUI editor 支持 multiline editing、slash/file autocomplete、large paste handling、IME cursor positioning、selector overlay 和 Escape cancel/abort。 | Guga 第一阶段的输入框要达到真实 editor 体验，至少覆盖多行、历史、粘贴、IME、autocomplete、焦点恢复。 |
 | Guga 当前实现 | Fact: `packages/host-local-server/src/routes.ts` 的 `POST /sessions/:id/runs` 当前 `await hostRuntime.startRun()` 后才返回。 | 这会阻塞实时 SSE 消费；必须改成异步启动，立即返回 `run` resource。 |
 | Guga 当前实现 | Fact: `packages/cli/src/commands/run.ts` 当前 `startRun` 后调用 `listRunEvents` 渲染，`--headless` 只被解析，没有区分实时交互。 | CLI 需要改为 `streamRunEvents` 实时渲染；headless 输出最终答案/debug events，interactive 支持控制输入。 |
 
@@ -23,21 +25,27 @@ Guga 下一步不是重写 CLI，而是在现有 `packages/host-*` 和 `packages
 
    Adopt: CLI/TUI 是 workbench，要显示 transcript、工具状态、权限、session 状态和错误恢复。
 
-   Adapt: 不照搬完整 React/Ink 组件体系，先用当前 CLI renderer 做实时文本 UI，再按需求引入更重的 TUI。
+   Adapt: 不照搬完整 React/Ink 组件体系，但第一阶段必须有持久 bottom prompt editor 和 `/` command popover，否则产品手感仍然停留在协议 demo。
 
-2. **Pi 的嵌入式通信形态**
+2. **OpenCode 的 command popover**
+
+   Adopt: `/` 触发命令列表，命令项展示名称、描述、来源、快捷键；`@` 触发 context mention 可作为同一 overlay primitive 的后续扩展。
+
+   Adapt: Guga 的 command 来源来自 builtin/profile/skill/MCP/plugin registry，执行结果映射到 Host command/interaction，不让 renderer 直接做副作用。
+
+3. **Pi 的嵌入式通信形态**
 
    Adopt: command/event 明确分离；stdin/stdout JSONL 很适合 IDE extension、desktop child process、测试 harness。
 
    Adapt: Pi 的 `extension_ui_request` 应抽象为 Guga 的 `interaction.requested` / `interaction.resolved`，kind 可以覆盖 `select`、`confirm`、`input`、`editor`、`notify`、`setStatus`、`setWidget`、`setTitle`、`set_editor_text`。
 
-3. **控制面是协议，不是 UI 快捷键**
+4. **控制面是协议，不是 UI 快捷键**
 
    Adopt: `steer`、`follow_up`、`abort`、`permission respond`、`compact`、`fork`、`resume` 都应是 typed command。
 
    Adapt: CLI 快捷键只是这些 command 的一种输入方式；桌面/Web/extension 后续走同一命令。
 
-4. **会话是树，不只是列表**
+5. **会话是树，不只是列表**
 
    Adopt: Pi 的 fork/clone/tree 体验和 Claude Code 的 JSONL resume 都说明 session lineage 是核心产品能力。
 
@@ -47,11 +55,88 @@ Guga 下一步不是重写 CLI，而是在现有 `packages/host-*` 和 `packages
 
 - 不照搬 Claude Code 全量 TUI 平台面：MCP、teams、agents、hooks、sandbox、memory、skills 的专业面板可以后置。
 - 不照搬 Pi 的整套 TUI framework：Guga 已有 host packages，现阶段不需要迁移到另一个组件系统。
+- 不把 `/` 提示做成静态 help 输出：用户需要的是可过滤、可选择、可补参数的交互菜单。
 - 不把 `extension_ui_request` 这个名字放进 canonical 协议：它是 adapter 场景，不应限定为 extension。
 - 不把 stdio JSONL 做成唯一通信方式：桌面/Web 仍以 HTTP/SSE 或本地 SDK 为主。
 - 不让 CLI 解析 assistant 文本判断状态：所有工具、权限、队列、retry、compaction 都必须来自 typed events。
 
 ## Guga 落点
+
+## 完整交互迁移工作流
+
+### W0 — CLI 入口与运行模式
+
+- 裸 `guga` 进入 TUI workbench。
+- `guga run` / `guga -p` 保持 headless/one-shot。
+- `--list-models`、`--help`、非 TTY fallback、config/auth 错误输出稳定。
+
+### W1 — Workbench 壳层
+
+- 固定布局：transcript、status/footer、bottom prompt editor、overlay layer。
+- Startup screen 展示 cwd、session、branch、profile、model、provider、config source。
+- Resize、raw mode、cursor、scroll、status update 不破坏输入状态。
+
+### W2 — Transcript 与事件渲染
+
+- 渲染 user/assistant/system/tool/permission/error/retry/compact typed events。
+- Assistant delta、tool progress、shell output、diff/test summary 流式更新。
+- 长输出折叠，错误与恢复入口可见。
+
+### W3 — Bottom Prompt Editor
+
+- 多行编辑、历史、粘贴、宽字符、IME cursor、草稿保留。
+- Idle 提交 prompt；running 提交 steer；显式 follow-up 入队。
+- Editor 在 running、tool、permission pending 状态仍保持可聚焦。
+
+### W4 — Slash Command 与 Context Mention
+
+- `/` 打开可过滤 command popover，展示 name/title/description/source/keybind/参数需求。
+- 必备命令：help/status/clear/new/resume/fork/tree/models/model/profile/permissions/mcp/tools/skills/compact/follow/abort/exit。
+- `/model`、`/profile`、`/resume` 等打开 selector；缺参数命令补参数，不误执行。
+- `@` mention 与 slash 共享 fuzzy overlay 基座，先规划 file/context mention。
+
+### W5 — 快捷键与焦点栈
+
+- Enter、Tab、Escape、Ctrl-C、arrow keys 按 editor/popover/selector/permission/transcript 焦点消费。
+- Escape 优先关闭 topmost overlay，再取消交互，再 abort run。
+- Overlay 关闭、permission 完成、abort 后恢复 editor 焦点。
+
+### W6 — Queue、Abort 与运行中控制
+
+- Queue strip 展示 steer/follow-up/deferred 的短预览和顺序。
+- 支持取消单项、清空 run queue、abort active run。
+- Abort 清理 active run 相关 queue/permission/interaction，不损坏 session。
+
+### W7 — Permission 与 Generic Interaction
+
+- Permission overlay 支持 allow once/session、deny、reason。
+- Generic interaction 覆盖 select/confirm/input/editor/notify/status。
+- 所有 response 走 Host protocol，不做 renderer-local side effect。
+
+### W8 — Model、Profile、Config、Auth
+
+- `/model` selector 展示 alias/provider/model id/config source/可用性。
+- `/profile` selector 展示 profile 与工具集摘要。
+- Config/auth/provider 错误给出来源和修复动作。
+
+### W9 — Session、Resume、Fork、Tree
+
+- `/resume` 展示历史 session 列表和摘要。
+- `/fork` 创建 branch，`/tree` 查看和切换 lineage。
+- Resume 恢复 transcript、metadata、session state，并为桌面端共享同一 resource 语义。
+
+### W10 — Tools、MCP、Skills、Capability Discovery
+
+- `/tools`、`/mcp`、`/skills` 展示能力来源、enabled 状态、权限模式、错误。
+- Startup/status 显示 capability diff 摘要。
+- Tool/MCP/skill 错误进入 transcript/status，不污染 editor。
+
+### W11 — Protocol、Adapters、测试
+
+- TUI、HTTP SDK、stdio adapter 共享 Host command/event。
+- Contract tests 覆盖 streaming、input、abort、queue、permission、interaction、SSE replay。
+- UI tests 覆盖 editor、slash popover、selector、focus stack、queue、IME/paste smoke。
+- Smoke 覆盖 mock interactive、real provider、real tools、非 TTY/headless。
 
 ### P0 — 实时 run 与事件流
 
@@ -114,7 +199,9 @@ type HostEvent =
 - 新增 command/resource DTO 到 `packages/host-protocol`。
 - server 增加 `POST /runs/:runId/input`、`POST /runs/:runId/abort`、`POST /permissions/:requestId/respond`。
 - runtime store 维护 pending input queue；运行中普通输入默认 `steer`，明确 follow-up 进入队列。
-- CLI interactive stdin：Enter 发送 steer，特殊命令先用文本命令实现，例如 `/follow <text>`、`/abort`、`/compact`。
+- CLI interactive editor：idle 状态 Enter 发送 prompt；running 状态普通提交发送 steer；显式 follow-up 通过 `/follow` 或可发现快捷键入队。
+- 输入框需要保留 history、paste、multiline、IME/focus、Escape 焦点优先级，不能退回单行 readline。
+- `/` 打开 slash command popover；`/model`、`/profile`、`/resume` 等命令打开 selector/interaction；参数不足时进入补全/提示状态，不直接执行破坏性动作。
 - renderer 展示 queue/update、retry、tool.progress，不解析 assistant 文本。
 
 验收：
@@ -122,6 +209,8 @@ type HostEvent =
 - 运行中提交 steer 会产生 `queue.updated` 或被当前 turn 消费。
 - follow-up 在当前 run 结束后继续执行或成为下一 turn。
 - abort 通过协议传播到 abort signal，并产生稳定终态。
+- 输入 `/` 可以看到命令名、描述、来源、快捷键，并能过滤、选择、关闭后恢复 editor 焦点。
+- 底部 editor 在 idle、streaming、tool-running、permission-pending 状态都保持可见。
 
 ### P2 — 通用交互请求，替代 extension-only UI
 

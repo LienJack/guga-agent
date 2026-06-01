@@ -142,6 +142,7 @@ export type {
 export type {
   AgentPersistenceCapabilities,
   AgentResumeSessionOptions,
+  AgentRuntimeBuiltInsOptions,
   AgentSessionIdentity,
   AgentRunOptions,
   AgentRunResult,
@@ -178,6 +179,8 @@ export type {
   JsonObject,
   JsonPrimitive,
   JsonValue,
+  ListSessionsOptions,
+  ListSessionsResult,
   ProviderInputRecord,
   ProviderToolDescriptorRecord,
   PutArtifactOptions,
@@ -196,6 +199,7 @@ export type {
   SessionConflictDiagnostic,
   SessionLeaf,
   SessionRecord,
+  SessionSummary,
   SessionStore,
   SessionTreeResult,
   SetActiveLeafOptions,
@@ -236,9 +240,21 @@ export type {
 export type {
   CapabilityDescriptor,
   CapabilityDiff,
+  CapabilityDeclaredEffect,
+  CapabilityDependency,
+  CapabilityLayer,
+  CapabilityOverrideDeclaration,
+  CapabilityOverrideDescriptor,
+  CapabilityOverrideTarget,
+  CapabilityOwnerDescriptor,
+  CapabilityOwnerKind,
+  CapabilityPermissionRequirement,
   CapabilityRegistrationOptions,
   CapabilitySource,
   CapabilityStatus,
+  ExtensionLifecycleBehavior,
+  ExtensionSourceDescriptor,
+  ExtensionSpecMetadata,
   LocalPlugin,
   LocalModelPlugin,
   PluginCapabilityKind,
@@ -278,6 +294,8 @@ export type {
   ToolResourceScopeExtractor,
   ToolResultBudget,
   ToolResultReference,
+  RuntimeToolInvocationSource,
+  RuntimeToolInvokeOptions,
   ToolRuntimeFailureReason,
   ToolRuntimeResult,
   ToolSchedulerMetadata,
@@ -313,6 +331,31 @@ export { ToolScheduler } from "./tools/tool-scheduler";
 export { ResultPolicy } from "./tools/result-policy";
 export { AgentRuntime as DefaultAgentRuntime } from "./runtime/agent-runtime";
 export { createAgentRuntime } from "./runtime/create-agent-runtime";
+export type { RuntimeToolInvoker } from "./runtime/tool-invoker";
+export { createRuntimeToolInvoker } from "./runtime/tool-invoker";
+export type {
+  AiSdkBridgeMode,
+  AiSdkGenerateText,
+  AiSdkGenerateTextResult,
+  AiSdkProviderConfig,
+  AiSdkProviderFactoryOptions,
+  AiSdkToolCallLike,
+  BuiltInAiSdkProviderCapabilities,
+  BuiltInCoreCapabilityRegistration,
+  BuiltInCoreCapabilitySet,
+  BuiltInFilesystemOptions,
+  BuiltInGitOptions,
+  BuiltInShellOptions,
+  DefaultCoreCapabilitiesOptions,
+  FilesystemBackend,
+  FilesystemPluginOptions,
+  GitBackend,
+  GitPluginOptions,
+  ShellBackend,
+  ShellExecutionResult,
+  ShellPluginOptions,
+  WorkspacePathResolution
+} from "./builtins/index";
 export { createMockProvider } from "./testing/mock-provider";
 export { createExamplePlugin } from "./testing/example-plugin";
 export { createTestTool } from "./testing/test-tool";

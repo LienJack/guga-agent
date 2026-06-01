@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Verify no-model CLI failures are handled as friendly errors instead of escaping as stacks."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify focused tests cover the regression without broad unrelated changes."}

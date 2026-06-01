@@ -1,3 +1,4 @@
+import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   CreateSessionOptions,
@@ -5,10 +6,13 @@ import type {
   ForkBranchOptions,
   ForkBranchResult,
   JsonObject,
+  ListSessionsOptions,
+  ListSessionsResult,
   SessionBranch,
   SessionConflictDiagnostic,
   SessionLeaf,
   SessionRecord,
+  SessionSummary,
   SessionStore,
   SessionTreeResult,
   SetActiveLeafOptions,
@@ -124,6 +128,52 @@ export class JsonlSessionStore implements SessionStore {
       ...(loaded.diagnostics.length > 0 ? {
         diagnostics: loaded.diagnostics.map((diagnostic) => corruptionDiagnostic(sessionId, undefined, diagnostic))
       } : {})
+    };
+  }
+
+  async listSessions(options: ListSessionsOptions = {}): Promise<ListSessionsResult> {
+    let names: string[];
+    try {
+      names = await readdir(join(this.rootDir, "sessions"));
+    } catch (error) {
+      if (isNotFound(error)) {
+        return { ok: true, sessions: [] };
+      }
+      return {
+        ok: false,
+        diagnostic: {
+          status: "unavailable",
+          message: error instanceof Error ? error.message : "Unable to list session facts"
+        }
+      };
+    }
+
+    const sessions: SessionSummary[] = [];
+    const diagnostics: SessionConflictDiagnostic[] = [];
+    for (const name of names.filter((candidate) => candidate.endsWith(".jsonl"))) {
+      const fallbackId = name.slice(0, -".jsonl".length);
+      const loaded = await this.loadState(fallbackId);
+      if (!loaded.ok) {
+        diagnostics.push(corruptionDiagnostic(fallbackId, undefined, loaded.diagnostics[0]));
+        continue;
+      }
+      if (!loaded.state) {
+        continue;
+      }
+      sessions.push(summaryFromState(loaded.state, loaded.diagnostics));
+    }
+
+    const sorted = sessions.sort((left, right) => {
+      const field = options.order === "created_desc" ? "createdAt" : "updatedAt";
+      return right.session[field].localeCompare(left.session[field]);
+    });
+    const start = options.cursor ? Math.max(0, Number.parseInt(options.cursor, 10) || 0) : 0;
+    const end = options.limit === undefined ? sorted.length : start + options.limit;
+    return {
+      ok: true,
+      sessions: sorted.slice(start, end),
+      ...(end < sorted.length ? { nextCursor: String(end) } : {}),
+      ...(diagnostics.length > 0 ? { diagnostics } : {})
     };
   }
 
@@ -334,12 +384,27 @@ function updateSessionLeaf(session: SessionRecord, leaf: SessionLeaf): SessionRe
   };
 }
 
+function summaryFromState(state: SessionState, diagnostics: StoreCorruptionDiagnostic[]): SessionSummary {
+  return {
+    session: state.session,
+    activeLeaf: state.activeLeaf,
+    branchCount: state.branches.size,
+    ...(diagnostics.length > 0 ? {
+      diagnostics: diagnostics.map((diagnostic) => corruptionDiagnostic(state.session.id, undefined, diagnostic))
+    } : {})
+  };
+}
+
 function isSessionFact(record: unknown): record is SessionFact {
   if (!record || typeof record !== "object") {
     return false;
   }
   const kind = (record as { kind?: unknown }).kind;
   return kind === "session.created" || kind === "branch.forked" || kind === "leaf.moved";
+}
+
+function isNotFound(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "ENOENT");
 }
 
 function sessionNotFound(sessionId: string, branchId: string): SessionConflictDiagnostic {

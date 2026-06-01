@@ -37,6 +37,33 @@ describe("plugin-ops-health", () => {
     expect(view.diagnostics).toContainEqual(expect.objectContaining({ code: "CREDENTIAL_MISSING" }));
   });
 
+  it("does not scan the whole environment when no keys are required", () => {
+    const view = resolveCredentialConfig({
+      providerId: "openai",
+      source: "env",
+      env: { OPENAI_API_KEY: "sk-test-secret-1234" }
+    });
+
+    expect(view.status).toBe("configured");
+    expect(view.redacted).toEqual({});
+    expect(JSON.stringify(view)).not.toContain("sk-test-secret-1234");
+  });
+
+  it("warns when static credential values are configured", () => {
+    const view = resolveCredentialConfig({
+      providerId: "openai",
+      source: "static",
+      values: { apiKey: "sk-static-secret-1234" }
+    });
+
+    expect(view.status).toBe("configured");
+    expect(view.redacted.apiKey).toBe("sk-...1234");
+    expect(view.diagnostics).toContainEqual(expect.objectContaining({
+      severity: "warning",
+      code: "CREDENTIAL_STATIC_SECRET"
+    }));
+  });
+
   it("checks provider health with injectable healthy and failed checks", async () => {
     await expect(checkProviderHealth({
       target: { providerId: "mock", modelId: "small" },

@@ -8,7 +8,7 @@ export type SseEnvelope<Event extends HostEvent = HostEvent> = {
 
 export function createSseEnvelope<Event extends HostEvent>(event: Event): SseEnvelope<Event> {
   return {
-    id: `${event.runId}:${event.seq}`,
+    id: String(event.seq),
     event: hostEventSseName(event),
     data: event
   };

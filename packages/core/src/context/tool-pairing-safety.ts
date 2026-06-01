@@ -49,7 +49,7 @@ export function ensureToolPairingSafety(messages: readonly CoreMessage[]): ToolP
     if (!message) {
       continue;
     }
-    if (message.role === "assistant" && "toolCalls" in message) {
+    if (message.role === "assistant" && Array.isArray(message.toolCalls)) {
       const batchId = `message-${index}`;
       for (const call of message.toolCalls) {
         openCalls.set(call.id, { call, batchId, assistantIndex: index });
@@ -85,7 +85,7 @@ export function ensureToolPairingSafety(messages: readonly CoreMessage[]): ToolP
   const incompleteByBatch = groupOpenCalls(openCalls);
   for (const [batchId, calls] of incompleteByBatch) {
     const assistant = next[calls[0]?.assistantIndex ?? -1];
-    if (!assistant || assistant.role !== "assistant" || !("toolCalls" in assistant)) {
+    if (!assistant || assistant.role !== "assistant" || !Array.isArray(assistant.toolCalls)) {
       continue;
     }
 

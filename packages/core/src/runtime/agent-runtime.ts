@@ -36,8 +36,10 @@ import { CapabilityRegistry } from "../registry/capability-registry";
 import { ProviderRouter } from "../router/provider-router";
 import { resumeSessionFromStores } from "../persistence/session-replay";
 import { forkSessionBranch } from "../persistence/session-tree";
+import { ExecutionPipeline } from "../tools/execution-pipeline";
 import { ResultPolicy } from "../tools/result-policy";
-import type { ToolAvailabilityContext } from "../contracts/tool-runtime";
+import type { RuntimeToolInvokeOptions, ToolAvailabilityContext, ToolRuntimeResult } from "../contracts/tool-runtime";
+import { createDefaultCoreCapabilities, registerBuiltInCoreCapabilities } from "../builtins/default-core-capabilities";
 
 export class AgentRuntime implements AgentRuntimeContract {
   private readonly registry = new CapabilityRegistry();
@@ -80,6 +82,12 @@ export class AgentRuntime implements AgentRuntimeContract {
     this.hookKernel = new HookKernel({ eventBus: this.eventBus });
     this.permissionKernel = new PermissionKernel({ ...options.permissions, eventBus: this.eventBus });
     this.resultPolicy = new ResultPolicy({ eventBus: this.eventBus });
+    if (options.builtIns !== false) {
+      registerBuiltInCoreCapabilities(
+        this.registry,
+        options.builtIns?.capabilities ?? createDefaultCoreCapabilities()
+      );
+    }
     this.pluginHost = new PluginHost({
       plugins,
       registry: this.registry,
@@ -224,6 +232,79 @@ export class AgentRuntime implements AgentRuntimeContract {
       return replayUnavailable("REPLAY_UNAVAILABLE", "No replay capability is configured for this runtime");
     }
     return replay.replayAudit(request);
+  }
+
+  async invokeTool(options: RuntimeToolInvokeOptions): Promise<ToolRuntimeResult> {
+    this.assertNotDisposed();
+    const runSession = this.resolveRunSession(undefined);
+    this.activeSession = runSession;
+    const initializeResult = await this.pluginHost.initialize({ runId: options.runId });
+    if (!initializeResult.ok) {
+      return {
+        call: options.call,
+        correlation: {
+          runId: options.runId,
+          turn: options.turn ?? 0,
+          toolCallId: options.call.id,
+          attempt: options.attempt ?? 1,
+          ...(options.batchId ? { batchId: options.batchId } : {}),
+          source: options.source,
+          ...(options.taskId ? { taskId: options.taskId } : {})
+        },
+        result: {
+          ok: false,
+          error: {
+            code: initializeResult.error.code,
+            message: initializeResult.error.message,
+            details: initializeResult.error.details
+          }
+        },
+        reason: "exception"
+      };
+    }
+    const persistenceReady = await this.ensureDurableSession(runSession);
+    if (!persistenceReady.ok) {
+      return {
+        call: options.call,
+        correlation: {
+          runId: options.runId,
+          turn: options.turn ?? 0,
+          toolCallId: options.call.id,
+          attempt: options.attempt ?? 1,
+          ...(options.batchId ? { batchId: options.batchId } : {}),
+          source: options.source,
+          ...(options.taskId ? { taskId: options.taskId } : {})
+        },
+        result: {
+          ok: false,
+          error: {
+            code: "PERSISTENCE_CAPABILITY_NOT_FOUND",
+            message: persistenceReady.message,
+            details: persistenceReady.diagnostic
+          }
+        },
+        reason: "exception"
+      };
+    }
+
+    return new ExecutionPipeline({
+      registry: this.registry,
+      eventBus: this.eventBus,
+      hookKernel: this.hookKernel,
+      permissionKernel: this.permissionKernel,
+      resultPolicy: this.resultPolicy,
+      availabilityContext: this.availabilityContext
+    }).execute({
+      runId: options.runId,
+      turn: options.turn ?? 0,
+      call: options.call,
+      ...(options.attempt !== undefined ? { attempt: options.attempt } : {}),
+      ...(options.batchId ? { batchId: options.batchId } : {}),
+      source: options.source,
+      ...(options.taskId ? { taskId: options.taskId } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
+      ...(options.availabilityContext ? { availabilityContext: options.availabilityContext } : {})
+    });
   }
 
   async run(options: AgentRunOptions): Promise<AgentRunResult> {

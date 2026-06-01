@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Quality gates and behavior-test expectations for host/runtime changes."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Review error propagation and structured failure responses across layers."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check cross-layer consistency across protocol, runtime, server, SDK, CLI, and stdio."}
+{"file": "docs/plans/2026-05-28-036-feat-cli-claude-pi-alignment-plan.md", "reason": "Acceptance criteria for final plan verification."}

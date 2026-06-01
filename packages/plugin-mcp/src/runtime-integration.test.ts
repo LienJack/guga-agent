@@ -30,9 +30,25 @@ describe("createMcpPlugin", () => {
       type: "tool",
       name: "mcp__fixture__echo",
       source: "mcp",
+      layer: "extension",
       status: "registered",
       namespace: "fixture",
-      ownerPluginId: "mcp"
+      ownerPluginId: "mcp",
+      owner: { kind: "extension", id: "mcp", packageName: "@guga-agent/plugin-mcp" },
+      declaredEffects: ["process.spawn", "network.access"],
+      permissionRequirements: [{ subject: "mcp.server", actions: ["connect", "call-tool"] }],
+      dependencies: [{ kind: "service", name: "fixture", optional: false }],
+      lifecycle: { load: "eager", unload: "remove-contributions", reload: "unsupported", shutdownTimeoutMs: 1_000 },
+      extension: {
+        id: "mcp",
+        name: "Guga MCP",
+        source: { kind: "first-party", packageName: "@guga-agent/plugin-mcp" },
+        owner: { kind: "extension", id: "mcp", packageName: "@guga-agent/plugin-mcp" },
+        declaredEffects: ["process.spawn", "network.access"],
+        permissionRequirements: [{ subject: "mcp.server", actions: ["connect", "call-tool"] }],
+        dependencies: [{ kind: "service", name: "fixture", optional: false }],
+        lifecycle: { load: "eager", unload: "remove-contributions", reload: "unsupported", shutdownTimeoutMs: 1_000 }
+      }
     });
 
     await runtime.dispose();
