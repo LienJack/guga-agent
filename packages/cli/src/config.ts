@@ -5,6 +5,8 @@ import { parse as parseToml } from "smol-toml";
 import { GugaHomeError, resolveGugaHome } from "./guga-home";
 
 export type CliProviderMode = "gateway" | "openai-compatible" | "openai" | "anthropic";
+export type CliWebSearchProvider = "mock" | "brave";
+export type CliPermissionAction = "allow" | "ask" | "deny";
 
 export type CliProviderConfig = {
   id: string;
@@ -44,6 +46,18 @@ export type CliConfigDiagnostic = {
   modelId?: string;
 };
 
+export type CliWebSearchConfig = {
+  enabled?: boolean;
+  provider?: CliWebSearchProvider;
+  apiKey?: string;
+  apiKeyEnv?: string;
+  permission?: {
+    defaultAction?: CliPermissionAction;
+    trustedSessionAction?: CliPermissionAction;
+  };
+  resultBudgetMaxContentChars?: number;
+};
+
 export type CliConfig = {
   providerId?: string;
   modelId?: string;
@@ -57,6 +71,7 @@ export type CliConfig = {
   models?: CliModelConfig[];
   fallbackModels?: string[];
   auxiliaryModels?: Record<string, string[]>;
+  webSearch?: CliWebSearchConfig;
   diagnostics?: CliConfigDiagnostic[];
 };
 
@@ -136,19 +151,24 @@ export function readCliConfigWithSources(options: ReadCliConfigOptions = {}): Cl
     homeDir: options.homeDir ?? homedir()
   });
   const apiKey = env.GUGA_API_KEY ?? env.OPENAI_API_KEY ?? env.ANTHROPIC_API_KEY;
+  const envWebSearch = webSearchFromEnv(env);
   const config: CliConfig = {
     ...fileConfig.config,
     ...(env.GUGA_PROVIDER ? { providerId: env.GUGA_PROVIDER } : {}),
     ...(env.GUGA_MODEL ? { modelId: env.GUGA_MODEL, defaultModel: env.GUGA_MODEL } : {}),
     ...(isProviderMode(env.GUGA_PROVIDER_MODE) ? { providerMode: env.GUGA_PROVIDER_MODE } : {}),
     ...(apiKey ? { apiKey } : {}),
-    ...(env.GUGA_BASE_URL ? { baseURL: env.GUGA_BASE_URL } : {})
+    ...(env.GUGA_BASE_URL ? { baseURL: env.GUGA_BASE_URL } : {}),
+    ...(envWebSearch ? { webSearch: mergeWebSearchConfig(fileConfig.config.webSearch, envWebSearch) } : {})
   };
   const sources: CliConfigSourceMap = { ...fileConfig.sources };
   for (const key of ["providerId", "modelId", "defaultModel", "providerMode", "apiKey", "baseURL"] as const) {
     if (config[key] !== fileConfig.config[key] && config[key] !== undefined) {
       sources[key] = "env";
     }
+  }
+  if (envWebSearch) {
+    sources.webSearch = "env";
   }
   return {
     config,
@@ -368,7 +388,7 @@ function formatForPath(path: string): CliConfigFileFormat {
 }
 
 function normalizeCliConfig(config: CliConfig): CliConfig {
-  const { providerMode, providers, models, diagnostics, ...rest } = config;
+  const { providerMode, providers, models, webSearch, diagnostics, ...rest } = config;
   const normalizedDiagnostics = [...(diagnostics ?? [])];
   const normalizedProviderMode = normalizeProviderMode(providerMode, (value) => {
     normalizedDiagnostics.push({
@@ -381,6 +401,7 @@ function normalizeCliConfig(config: CliConfig): CliConfig {
     ...rest,
     ...(normalizedProviderMode ? { providerMode: normalizedProviderMode } : {}),
     ...(providers ? { providers: normalizeProviders(providers, normalizedDiagnostics) } : {}),
+    ...(webSearch ? { webSearch: normalizeWebSearch(webSearch, normalizedDiagnostics) } : {}),
     ...(models ? {
       models: models
         .filter((model) => typeof model.id === "string" && typeof model.modelId === "string")
@@ -415,13 +436,14 @@ function sourcesForConfig(config: CliConfig, source: CliConfigSourceKind): CliCo
 }
 
 function mergeCliConfig(base: CliConfig, override: CliConfig): CliConfig {
-  const { models: baseModels, providers: baseProviders, diagnostics: baseDiagnostics, ...baseRest } = base;
-  const { models: overrideModels, providers: overrideProviders, diagnostics: overrideDiagnostics, ...overrideRest } = override;
+  const { models: baseModels, providers: baseProviders, webSearch: baseWebSearch, diagnostics: baseDiagnostics, ...baseRest } = base;
+  const { models: overrideModels, providers: overrideProviders, webSearch: overrideWebSearch, diagnostics: overrideDiagnostics, ...overrideRest } = override;
   return {
     ...baseRest,
     ...definedEntries(overrideRest),
     ...mergeProviders(baseProviders, overrideProviders),
     ...mergeModels(baseModels, overrideModels),
+    ...(baseWebSearch || overrideWebSearch ? { webSearch: mergeWebSearchConfig(baseWebSearch, overrideWebSearch) } : {}),
     ...mergeDiagnostics(baseDiagnostics, overrideDiagnostics)
   };
 }
@@ -515,6 +537,94 @@ function normalizeProviders(
     });
 }
 
+function normalizeWebSearch(
+  value: CliWebSearchConfig,
+  diagnostics: CliConfigDiagnostic[]
+): CliWebSearchConfig {
+  const { provider, permission, ...rest } = value;
+  const normalizedProvider = normalizeWebSearchProvider(provider, (invalid) => {
+    diagnostics.push({
+      severity: "error",
+      code: "INVALID_WEB_SEARCH_PROVIDER",
+      message: `Unknown web search provider: ${invalid}`
+    });
+  });
+  return {
+    ...rest,
+    ...(normalizedProvider ? { provider: normalizedProvider } : {}),
+    ...(permission ? { permission: normalizeWebSearchPermission(permission, diagnostics) } : {})
+  };
+}
+
+function normalizeWebSearchPermission(
+  value: NonNullable<CliWebSearchConfig["permission"]>,
+  diagnostics: CliConfigDiagnostic[]
+): NonNullable<CliWebSearchConfig["permission"]> {
+  const defaultAction = normalizePermissionAction(value.defaultAction, (invalid) => {
+    diagnostics.push({
+      severity: "error",
+      code: "INVALID_WEB_SEARCH_PERMISSION",
+      message: `Unknown web search permission action: ${invalid}`
+    });
+  });
+  const trustedSessionAction = normalizePermissionAction(value.trustedSessionAction, (invalid) => {
+    diagnostics.push({
+      severity: "error",
+      code: "INVALID_WEB_SEARCH_PERMISSION",
+      message: `Unknown web search trusted-session permission action: ${invalid}`
+    });
+  });
+  return {
+    ...(defaultAction ? { defaultAction } : {}),
+    ...(trustedSessionAction ? { trustedSessionAction } : {})
+  };
+}
+
+function mergeWebSearchConfig(
+  base: CliWebSearchConfig | undefined,
+  override: CliWebSearchConfig | undefined
+): CliWebSearchConfig {
+  if (!override) {
+    return base ?? {};
+  }
+  return {
+    ...(base ?? {}),
+    ...definedEntries(override),
+    permission: {
+      ...(base?.permission ?? {}),
+      ...(override.permission ?? {})
+    }
+  };
+}
+
+function normalizeWebSearchProvider(
+  value: string | undefined,
+  onInvalid: (value: string) => void
+): CliWebSearchProvider | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === "mock" || value === "brave") {
+    return value;
+  }
+  onInvalid(value);
+  return undefined;
+}
+
+function normalizePermissionAction(
+  value: string | undefined,
+  onInvalid: (value: string) => void
+): CliPermissionAction | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === "allow" || value === "ask" || value === "deny") {
+    return value;
+  }
+  onInvalid(value);
+  return undefined;
+}
+
 function normalizeProviderMode(
   value: string | undefined,
   onInvalid: (value: string) => void
@@ -535,6 +645,40 @@ function providerModeFromEnv(env: NodeJS.ProcessEnv): CliProviderMode | undefine
   }
   if (env.ANTHROPIC_API_KEY) {
     return "anthropic";
+  }
+  return undefined;
+}
+
+function webSearchFromEnv(env: NodeJS.ProcessEnv): CliWebSearchConfig | undefined {
+  const enabled = parseEnvBoolean(env.GUGA_WEB_SEARCH);
+  const provider = normalizeWebSearchProvider(env.GUGA_WEB_SEARCH_PROVIDER, () => undefined);
+  const defaultAction = normalizePermissionAction(env.GUGA_WEB_SEARCH_PERMISSION, () => undefined);
+  const trustedSessionAction = normalizePermissionAction(env.GUGA_WEB_SEARCH_TRUSTED_SESSION, () => undefined);
+  const config: CliWebSearchConfig = {
+    ...(enabled !== undefined ? { enabled } : {}),
+    ...(provider ? { provider } : {}),
+    ...(env.GUGA_WEB_SEARCH_API_KEY ? { apiKey: env.GUGA_WEB_SEARCH_API_KEY } : {}),
+    ...(env.GUGA_WEB_SEARCH_API_KEY_ENV ? { apiKeyEnv: env.GUGA_WEB_SEARCH_API_KEY_ENV } : {}),
+    ...((defaultAction || trustedSessionAction) ? {
+      permission: {
+        ...(defaultAction ? { defaultAction } : {}),
+        ...(trustedSessionAction ? { trustedSessionAction } : {})
+      }
+    } : {})
+  };
+  return Object.keys(config).length > 0 ? config : undefined;
+}
+
+function parseEnvBoolean(value: string | undefined): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "on", "allow", "enabled"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "no", "off", "deny", "disabled"].includes(normalized)) {
+    return false;
   }
   return undefined;
 }

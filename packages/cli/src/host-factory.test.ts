@@ -25,6 +25,52 @@ describe("CLI host factory", () => {
     }
   });
 
+  it("does not register web_search by default", async () => {
+    const host = await createCliHost({ mock: true, env: {} });
+    try {
+      await runNoop(host);
+      await expect(host.local.client.listCapabilities()).resolves.not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: "tool", name: "web_search" })
+        ])
+      );
+    } finally {
+      await host.local.close();
+    }
+  });
+
+  it("registers mock web search when explicitly enabled in config", async () => {
+    const tempConfig = await writeTempConfig({
+      webSearch: {
+        enabled: true,
+        provider: "mock",
+        permission: { defaultAction: "allow" }
+      }
+    });
+    const host = await createCliHost({
+      mock: true,
+      env: {
+        GUGA_CONFIG: tempConfig.configPath,
+        GUGA_HOME: tempConfig.gugaHome
+      }
+    });
+    try {
+      await runNoop(host);
+      await expect(host.local.client.listCapabilities()).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "tool",
+            name: "web_search",
+            source: "plugin",
+            ownerPluginId: "guga-web-search"
+          })
+        ])
+      );
+    } finally {
+      await host.local.close();
+    }
+  });
+
   it("switches profiles from flags", async () => {
     const host = await createCliHost({
       mock: true,

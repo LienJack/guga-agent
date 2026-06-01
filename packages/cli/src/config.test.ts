@@ -99,6 +99,74 @@ baseURL = "http://project.example"
     expect(result.sourceStack?.map((source) => `${source.source}:${source.format}`)).toEqual(["user:toml", "project:toml"]);
   });
 
+  it("loads and merges optional web search config", async () => {
+    const root = await tempRoot();
+    writeRaw(root, "home/.guga/config.toml", `
+[webSearch]
+enabled = true
+provider = "brave"
+apiKeyEnv = "BRAVE_SEARCH_API_KEY"
+
+[webSearch.permission]
+defaultAction = "ask"
+`);
+    writeRaw(root, ".guga/config.toml", `
+[webSearch]
+provider = "mock"
+resultBudgetMaxContentChars = 500
+
+[webSearch.permission]
+trustedSessionAction = "allow"
+`);
+
+    const result = readCliConfigWithSources({
+      env: {},
+      cwd: root,
+      homeDir: join(root, "home")
+    });
+
+    expect(result.config.webSearch).toEqual({
+      enabled: true,
+      provider: "mock",
+      apiKeyEnv: "BRAVE_SEARCH_API_KEY",
+      resultBudgetMaxContentChars: 500,
+      permission: {
+        defaultAction: "ask",
+        trustedSessionAction: "allow"
+      }
+    });
+    expect(result.sources.webSearch).toBe("project");
+  });
+
+  it("applies web search env overrides over file config", async () => {
+    const root = await tempRoot();
+    writeConfig(root, ".guga/config.json", {
+      webSearch: {
+        enabled: false,
+        provider: "brave",
+        apiKeyEnv: "BRAVE_SEARCH_API_KEY"
+      }
+    });
+
+    const result = readCliConfigWithSources({
+      env: {
+        GUGA_WEB_SEARCH: "true",
+        GUGA_WEB_SEARCH_PROVIDER: "mock",
+        GUGA_WEB_SEARCH_PERMISSION: "allow"
+      },
+      cwd: root,
+      homeDir: join(root, "home")
+    });
+
+    expect(result.config.webSearch).toMatchObject({
+      enabled: true,
+      provider: "mock",
+      apiKeyEnv: "BRAVE_SEARCH_API_KEY",
+      permission: { defaultAction: "allow" }
+    });
+    expect(result.sources.webSearch).toBe("env");
+  });
+
   it("falls back to legacy JSON when TOML is absent", async () => {
     const root = await tempRoot();
     writeConfig(root, "home/.guga/config.json", { modelId: "legacy-user" });

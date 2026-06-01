@@ -50,6 +50,9 @@ importers:
       '@guga-agent/plugin-session-jsonl':
         specifier: workspace:*
         version: link:../plugin-session-jsonl
+      '@guga-agent/plugin-web-search':
+        specifier: workspace:*
+        version: link:../plugin-web-search
       '@guga-agent/profile-code-agent':
         specifier: workspace:*
         version: link:../profile-code-agent
@@ -243,6 +246,15 @@ importers:
       '@guga-agent/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/plugin-web-search:
+    dependencies:
+      '@guga-agent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@guga-agent/extension-sdk':
+        specifier: workspace:*
+        version: link:../extension-sdk
 
   packages/profile-code-agent:
     dependencies:

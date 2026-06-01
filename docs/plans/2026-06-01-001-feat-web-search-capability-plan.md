@@ -1,7 +1,7 @@
 ---
 title: "feat: 添加 web search 能力"
 type: feat
-status: active
+status: completed
 date: 2026-06-01
 origin: .trellis/tasks/06-01-web-search-capability/prd.md
 deepened: 2026-06-01

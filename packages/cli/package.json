@@ -33,6 +33,7 @@
     "@guga-agent/plugin-memory-jsonl": "workspace:*",
     "@guga-agent/plugin-ops-health": "workspace:*",
     "@guga-agent/plugin-session-jsonl": "workspace:*",
+    "@guga-agent/plugin-web-search": "workspace:*",
     "@guga-agent/profile-code-agent": "workspace:*",
     "@guga-agent/profile-deep-research-agent": "workspace:*",
     "@guga-agent/profile-review-agent": "workspace:*",

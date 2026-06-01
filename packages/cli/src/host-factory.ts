@@ -15,6 +15,11 @@ import { createMemoryJsonlPlugin } from "@guga-agent/plugin-memory-jsonl";
 import { createOpsHealthPlugin } from "@guga-agent/plugin-ops-health";
 import { JsonlEventStore, JsonlSessionStore } from "@guga-agent/plugin-session-jsonl";
 import {
+  createBraveSearchBackend,
+  createMockWebSearchBackend,
+  createWebSearchPlugin
+} from "@guga-agent/plugin-web-search";
+import {
   CODE_AGENT_PROFILE_ID,
   createCodeTaskHostRuntime,
   createCodeAgentRuntimeOptions
@@ -24,6 +29,7 @@ import { REVIEW_AGENT_PROFILE_ID } from "@guga-agent/profile-review-agent";
 import {
   CliConfigError,
   CliConfigPathError,
+  type CliConfig,
   type CliConfigWithSources,
   readCliConfigWithSources,
   type SelectedCliModel
@@ -102,7 +108,9 @@ export async function createCliHost(options: CliHostFactoryOptions = {}): Promis
   const runtimeOptions = createRuntimeOptions(profileId, {
     workspaceRoot,
     gugaHome,
-    stores: options.stores
+    stores: options.stores,
+    config: config.config,
+    env
   });
   const modelView = resolveModelRegistry({
     config: config.config,
@@ -300,9 +308,16 @@ function profileFromConfig(value: string | undefined): CliProfileId | undefined 
 
 function createRuntimeOptions(
   profileId: CliProfileId,
-  options: { workspaceRoot: string; gugaHome: GugaHomePaths; stores?: AgentRuntimeOptions["stores"] }
+  options: {
+    workspaceRoot: string;
+    gugaHome: GugaHomePaths;
+    stores?: AgentRuntimeOptions["stores"];
+    config?: CliConfig;
+    env?: NodeJS.ProcessEnv;
+  }
 ): AgentRuntimeOptions {
   const stores = options.stores ?? createDefaultStores(options.gugaHome);
+  const webSearchPlugins = createConfiguredWebSearchPlugins(options.config, options.env ?? process.env);
   if (profileId === CODE_AGENT_PROFILE_ID) {
     const runtimeOptions = createCodeAgentRuntimeOptions({
       workspaceRoot: options.workspaceRoot,
@@ -311,13 +326,54 @@ function createRuntimeOptions(
     return {
       ...runtimeOptions,
       stores,
-      plugins: [...(runtimeOptions.plugins ?? []), createMemoryJsonlPlugin()]
+      plugins: [...(runtimeOptions.plugins ?? []), createMemoryJsonlPlugin(), ...webSearchPlugins]
     };
   }
   return {
     stores,
-    plugins: [...createOperationalPlugins(), createMemoryJsonlPlugin()]
+    plugins: [...createOperationalPlugins(), createMemoryJsonlPlugin(), ...webSearchPlugins]
   };
+}
+
+function createConfiguredWebSearchPlugins(config: CliConfig | undefined, env: NodeJS.ProcessEnv): LocalPlugin[] {
+  const webSearch = config?.webSearch;
+  if (webSearch?.enabled !== true) {
+    return [];
+  }
+  const provider = webSearch.provider ?? "brave";
+  const resultBudget = webSearch.resultBudgetMaxContentChars
+    ? { maxContentChars: webSearch.resultBudgetMaxContentChars, strategy: "reference" as const }
+    : undefined;
+  if (provider === "mock") {
+    return [createWebSearchPlugin({
+      providerId: "mock",
+      backend: createMockWebSearchBackend(),
+      ...(webSearch.permission ? { permission: webSearch.permission } : {}),
+      ...(resultBudget ? { resultBudget } : {})
+    })];
+  }
+  if (provider === "brave") {
+    return [createWebSearchPlugin({
+      providerId: "brave",
+      backend: createBraveSearchBackend({
+        ...(webSearch.apiKey ? { apiKey: webSearch.apiKey } : {}),
+        ...(webSearch.apiKeyEnv ? { apiKeyEnv: webSearch.apiKeyEnv } : {}),
+        env
+      }),
+      ...(webSearch.permission ? { permission: webSearch.permission } : {}),
+      ...(resultBudget ? { resultBudget } : {})
+    })];
+  }
+  return [createWebSearchPlugin({
+    providerId: provider,
+    availability: {
+      status: "missing-backend",
+      reason: `Unsupported web search provider: ${provider}`,
+      metadata: { provider }
+    },
+    ...(webSearch.permission ? { permission: webSearch.permission } : {}),
+    ...(resultBudget ? { resultBudget } : {})
+  })];
 }
 
 function createDefaultStores(gugaHome: GugaHomePaths): NonNullable<AgentRuntimeOptions["stores"]> {
