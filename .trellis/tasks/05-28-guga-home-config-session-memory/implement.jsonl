@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend package quality checklist for config/path/storage implementation."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Guidance for placing shared resolver/config code without introducing ad-hoc module layout."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Needed for actionable config parse/path/storage diagnostics."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Testing and reliability bar for persistence/config changes."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "This task crosses CLI, host factory, plugins, and docs."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Ensure implementation reuses existing storage plugins and config surfaces."}
+{"file": ".trellis/spec/guides/agent-reference-projects-guide.md", "reason": "Reference-project evidence and migration judgment for Claude Code, OpenCode, and Hermes patterns."}
+{"file": "docs/research/source-analysis/claude-code-analysis/analysis/04i-session-storage-resume.md", "reason": "Reference pattern for append-only transcript and resume semantics."}
+{"file": "docs/research/source-analysis/claude-code-analysis/analysis/04-agent-memory.md", "reason": "Reference pattern for separating transcript, session memory, and long-term agent memory."}
+{"file": "docs/research/repomix/pi-token-tree.txt", "reason": "Reference index for Pi session format, sessions docs, JSONL storage, and branching implementation files."}
+{"file": "docs/research/repomix/pi-focused-context.xml", "reason": "Reference evidence for Pi session JSONL tree storage, id/parentId lineage, resume/tree/fork/clone, session_info metadata, and sessionDir settings."}
+{"file": "docs/research/source-analysis/learn-opencode/docs/internals/config.md", "reason": "Reference pattern for layered config and model/provider definitions."}
+{"file": "docs/research/source-analysis/hermes-wiki/concepts/configuration-and-profiles.md", "reason": "Reference pattern for home resolver and future profile isolation."}
+{"file": "docs/brainstorms/2026-05-27-m5-session-store-replay-plugins-requirements.md", "reason": "Existing Guga session/event/artifact/replay requirements that this task productizes as default home storage."}
+{"file": "docs/brainstorms/2026-05-28-m17-memory-jsonl-store-requirements.md", "reason": "Existing Guga memory JSONL requirements and non-goals."}
+{"file": "docs/brainstorms/2026-05-28-m37-productized-cli-workbench-requirements.md", "reason": "Existing CLI config/model/workbench requirements that this task extends."}

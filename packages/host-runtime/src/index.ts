@@ -1,5 +1,8 @@
 export type {
   HostRuntimeOptions,
+  EnqueueRunInputOptions,
+  PermissionResponseResult,
+  RequestInteractionOptions,
   StartRunOptions
 } from "./host-runtime";
 export {

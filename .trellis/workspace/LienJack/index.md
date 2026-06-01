@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
-- **Last Active**: 2026-05-27
+- **Total Sessions**: 6
+- **Last Active**: 2026-05-28
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~186 | Active |
+| `journal-1.md` | ~219 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-05-28 | Fix CLI model-required error handling | `0b8f472` | `codex/cli-claude-pi-alignment` |
 | 5 | 2026-05-27 | M4 context policy plugins and memory research corpus | `859e728`, `db5fb11`, `ebec016` | `codex/feat-context-policy-plugins` |
 | 4 | 2026-05-27 | M3 tool permission runtime | `a027a3b` | `codex/feat-tool-permission-runtime` |
 | 3 | 2026-05-26 | M2 provider bridge demo and write-up | `07677c3`, `1314faf`, `e21f0c4`, `3886cc5`, `b2dcf50`, `e57b307`, `e152d3b` | `codex/feat-provider-ai-sdk-bridge` |

@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Review terminal raw-mode cleanup, non-TTY fallback, and actionable CLI errors."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Verify tests/typecheck coverage for CLI/workbench changes."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Verify UI interaction tests for editor, overlay, focus, and selectors."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Check reducer/editor/focus state is explicit and deterministic."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check HostClient/event/control consistency across CLI and future desktop."}
+{"file": "docs/plans/2026-05-28-037-feat-productized-cli-workbench-plan.md", "reason": "Validate implementation against corrected workbench requirements."}
+{"file": "docs/plans/2026-05-28-036-feat-cli-claude-pi-alignment-plan.md", "reason": "Validate prompt editor, slash popover, queue, and control semantics."}
+{"file": "docs/research/repomix/pi-focused-context.xml", "reason": "Check Pi parity claims for editor and queue behavior."}
+{"file": "docs/research/repomix/opencode-context.1.xml", "reason": "Check keymap/autocomplete/selector expectations."}
+{"file": "docs/research/source-analysis/claude-code-analysis/analysis/components/02-core-interaction-components.md", "reason": "Check PromptInput orchestration parity without over-copying Claude Code."}

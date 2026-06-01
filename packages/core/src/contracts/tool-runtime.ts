@@ -124,7 +124,11 @@ export type ToolCallCorrelation = {
   toolCallId: string;
   attempt: number;
   batchId?: string;
+  source?: RuntimeToolInvocationSource;
+  taskId?: string;
 };
+
+export type RuntimeToolInvocationSource = "controller" | "verification" | "host";
 
 export type ToolRuntimeFailureReason =
   | "schema_invalid"
@@ -142,6 +146,18 @@ export type ToolRuntimeResult = {
   result: ToolResult;
   correlation: ToolCallCorrelation;
   reason?: ToolRuntimeFailureReason;
+};
+
+export type RuntimeToolInvokeOptions = {
+  runId: string;
+  call: ToolCall;
+  turn?: number;
+  attempt?: number;
+  batchId?: string;
+  source: RuntimeToolInvocationSource;
+  taskId?: string;
+  signal?: AbortSignal;
+  availabilityContext?: ToolAvailabilityContext;
 };
 
 export type ToolAvailabilityContext = {

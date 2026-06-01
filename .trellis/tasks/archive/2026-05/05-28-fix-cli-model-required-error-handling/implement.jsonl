@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "CLI startup failures should be converted into structured/friendly host-facing errors rather than uncaught exceptions."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Follow project testing and minimal-change expectations for backend TypeScript changes."}

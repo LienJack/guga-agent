@@ -17,6 +17,7 @@ Start here for "what is the system trying to be?" and "where are the boundaries?
 - [Learn OpenCode system architecture](./learn-opencode/docs/architecture/README.md)
 - [Learn OpenCode package overview](./learn-opencode/docs/packages/opencode/README.md)
 - [Learn OpenCode docs index](./learn-opencode/docs/index.md)
+- Gemini CLI source pack: `docs/research/context-packs/gemini-cli-reference.md` + `docs/research/repomix/gemini-cli-token-tree.txt` + `docs/research/repomix/gemini-cli-focused-context.xml` for TypeScript CLI/core/SDK/A2A product-agent boundaries.
 - Pi source pack: `docs/research/repomix/pi-token-tree.txt` + `docs/research/repomix/pi-focused-context.xml` for TypeScript agent harness, coding-agent CLI/TUI, and extension-first runtime patterns.
 
 ## Agent Loop And Orchestration
@@ -35,6 +36,7 @@ Use these for run-loop shape, turn lifecycle, graph/middleware flow, and how con
 - [Learn OpenCode agent internals](./learn-opencode/docs/internals/agent.md)
 - [Learn OpenCode agent lifecycle](./learn-opencode/docs/flow/agent_lifecycle.md)
 - [Learn OpenCode run flow](./learn-opencode/docs/packages/opencode/README.md)
+- Gemini CLI source pack: search `Turn`, `GeminiChat`, `GeminiClient`, `Scheduler`, `ToolExecutor`, `nonInteractiveCliAgentSession`, and `Agent` in `docs/research/repomix/gemini-cli-token-tree.txt` before opening focused context.
 - Pi source pack: search `agentLoop`, `Agent`, `beforeToolCall`, `afterToolCall`, `tool_execution_*`, and `shouldStopAfterTurn` in `docs/research/repomix/pi-token-tree.txt` before opening focused context.
 
 ## Context, Compression, And Session Recovery
@@ -52,6 +54,7 @@ Use these for context budget policy, compaction, session splitting, resume, hist
 - [Hermes session search and SessionDB](./hermes-wiki/concepts/session-search-and-sessiondb.md)
 - [Learn OpenCode session internals](./learn-opencode/docs/internals/session.md)
 - [Learn OpenCode state sync flow](./learn-opencode/docs/flow/state_sync.md)
+- Gemini CLI source pack: search `ContextManager`, `contextCompressionService`, `chatCompressionService`, `memoryContextManager`, `truncation`, and `context pipeline` in `docs/research/repomix/gemini-cli-token-tree.txt` before opening focused context.
 - Pi source pack: search `jsonl`, `session`, `compact`, `transformContext`, and `convertToLlm` in `docs/research/repomix/pi-token-tree.txt` before opening focused context.
 
 ## Tools, MCP, Skills, And Extension Design
@@ -80,6 +83,7 @@ Use these for extension boundaries, progressive disclosure, tool registry shape,
 - [Learn OpenCode plugin package](./learn-opencode/docs/packages/plugin/README.md)
 - [Learn OpenCode plugin loading flow](./learn-opencode/docs/flow/plugin_loading.md)
 - [Learn OpenCode skill internals](./learn-opencode/docs/internals/skill.md)
+- Gemini CLI source pack: search `ToolRegistry`, `ToolExecutor`, `mcp-client`, `mcp-tool`, `activate-skill`, `SkillCommandLoader`, `McpPromptLoader`, and `extension-manager` in `docs/research/repomix/gemini-cli-token-tree.txt` before opening focused context.
 - Pi source pack: search `registerTool`, `ToolDefinition`, `beforeToolCall`, `afterToolCall`, `prepareArguments`, `renderResult`, and `skills` in `docs/research/repomix/pi-token-tree.txt` before opening focused context.
 
 ## Multi-Agent And Delegation
@@ -93,6 +97,7 @@ Use these for subagent isolation, coordinator modes, teammate/team abstractions,
 - [Hermes multi-agent architecture](./hermes-wiki/concepts/multi-agent-architecture.md)
 - [Hermes parallel tool execution](./hermes-wiki/concepts/parallel-tool-execution.md)
 - [Hermes interrupt and fault tolerance](./hermes-wiki/concepts/interrupt-and-fault-tolerance.md)
+- Gemini CLI source pack: search `packages/core/src/agents`, `agent-tool`, `local-executor`, `local-invocation`, `remote-invocation`, `A2A`, and `subagent` in `docs/research/repomix/gemini-cli-token-tree.txt`.
 - [Learn OpenCode agents and permissions](./learn-opencode/docs/packages/opencode/01-agents-and-permissions.md)
 - [Learn OpenCode custom agent cookbook](./learn-opencode/docs/cookbook/01-create-custom-agent.md)
 
@@ -120,6 +125,7 @@ Use these for model selection, provider routing, transport adapters, credential 
 - [Hermes smart model routing](./hermes-wiki/concepts/smart-model-routing.md)
 - [Hermes credential pool and isolation](./hermes-wiki/concepts/credential-pool-and-isolation.md)
 - [Hermes prompt caching optimization](./hermes-wiki/concepts/prompt-caching-optimization.md)
+- Gemini CLI source pack: search `GeminiChat`, `baseLlmClient`, `contentGenerator`, `code_assist`, `oauth2`, `models`, and `defaultModelConfigs` in `docs/research/repomix/gemini-cli-token-tree.txt`.
 - [Learn OpenCode provider internals](./learn-opencode/docs/internals/provider.md)
 - [Learn OpenCode config internals](./learn-opencode/docs/internals/config.md)
 
@@ -174,6 +180,7 @@ Use these for CLI/product UX, remote gateway, messaging channels, scheduling, ho
 - [Learn OpenCode CLI internals](./learn-opencode/docs/internals/cli.md)
 - [Learn OpenCode server internals](./learn-opencode/docs/internals/server.md)
 - [Learn OpenCode bus internals](./learn-opencode/docs/internals/bus.md)
+- Gemini CLI source pack: search `acpSession`, `acpSessionManager`, `a2a-server`, `packages/sdk/src`, `gemini.tsx`, and `AppContainer` in `docs/research/repomix/gemini-cli-token-tree.txt`.
 - [Learn OpenCode ACP concept](./learn-opencode/docs/concepts/acp.md)
 - [Learn OpenCode ACP implementation](./learn-opencode/docs/internals/acp-implementation.md)
 - [Learn OpenCode LSP concept](./learn-opencode/docs/concepts/lsp.md)

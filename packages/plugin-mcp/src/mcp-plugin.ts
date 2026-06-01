@@ -1,4 +1,5 @@
 import type { LocalPlugin } from "@guga-agent/core";
+import { defineExtension } from "@guga-agent/extension-sdk";
 import { McpStdioClient } from "./mcp-stdio-client";
 import { createMcpToolDefinition } from "./mcp-tool-adapter";
 
@@ -16,12 +17,21 @@ export type McpPluginOptions = {
 };
 
 export function createMcpPlugin(options: McpPluginOptions): LocalPlugin {
+  return createMcpExtension(options);
+}
+
+export function createMcpExtension(options: McpPluginOptions): LocalPlugin {
   const pluginId = options.pluginId ?? "guga-mcp";
   const clients: McpStdioClient[] = [];
-  return {
+  return defineExtension({
     id: pluginId,
     name: "Guga MCP",
-    async init(context) {
+    source: { kind: "first-party", packageName: "@guga-agent/plugin-mcp" },
+    declaredEffects: ["process.spawn", "network.access"],
+    permissionRequirements: [{ subject: "mcp.server", actions: ["connect", "call-tool"] }],
+    dependencies: options.servers.map((server) => ({ kind: "service", name: server.name, optional: false })),
+    lifecycle: { load: "eager", unload: "remove-contributions", reload: "unsupported", shutdownTimeoutMs: 1_000 },
+    async setup(context) {
       try {
         for (const server of options.servers) {
           const client = new McpStdioClient(server);
@@ -47,7 +57,7 @@ export function createMcpPlugin(options: McpPluginOptions): LocalPlugin {
     shutdown() {
       closeClients(clients);
     }
-  };
+  });
 }
 
 function closeClients(clients: McpStdioClient[]): void {

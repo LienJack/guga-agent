@@ -1,4 +1,5 @@
 export {
+  createMcpExtension,
   createMcpPlugin
 } from "./mcp-plugin";
 export type {

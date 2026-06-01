@@ -1,12 +1,10 @@
 import type { AgentRuntimeOptions, LocalPlugin } from "@guga-agent/core";
+import { createDefaultCoreCapabilities } from "@guga-agent/core/builtins";
 import { createAuditExportPlugin } from "@guga-agent/plugin-audit-export";
 import { createEvalRunnerPlugin } from "@guga-agent/plugin-eval-runner";
 import { createMcpPlugin, type McpServerConfig } from "@guga-agent/plugin-mcp";
 import { createOpsHealthPlugin } from "@guga-agent/plugin-ops-health";
 import { createSkillsPlugin, type SkillRoot } from "@guga-agent/plugin-skills";
-import { createFilesystemPlugin } from "@guga-agent/plugin-tools-filesystem";
-import { createGitPlugin } from "@guga-agent/plugin-tools-git";
-import { createShellPlugin } from "@guga-agent/plugin-tools-shell";
 import { createCodeAgentPermissionPolicy } from "./permissions";
 
 export type CodeAgentBundleOptions = {
@@ -21,20 +19,7 @@ export type CodeAgentBundleOptions = {
 };
 
 export function createCodeAgentPlugins(options: CodeAgentBundleOptions): LocalPlugin[] {
-  const plugins: LocalPlugin[] = [
-    createFilesystemPlugin({
-      workspaceRoot: options.workspaceRoot,
-      pluginId: "code-agent-filesystem"
-    }),
-    createShellPlugin({
-      workspaceRoot: options.workspaceRoot,
-      pluginId: "code-agent-shell"
-    }),
-    createGitPlugin({
-      workspaceRoot: options.workspaceRoot,
-      pluginId: "code-agent-git"
-    })
-  ];
+  const plugins: LocalPlugin[] = [];
 
   if (options.skills && options.skills.roots.length > 0) {
     plugins.push(createSkillsPlugin({
@@ -61,10 +46,17 @@ export function createCodeAgentPlugins(options: CodeAgentBundleOptions): LocalPl
   return plugins;
 }
 
+export function createCodeAgentBuiltIns(options: CodeAgentBundleOptions): NonNullable<AgentRuntimeOptions["builtIns"]> {
+  return {
+    capabilities: createDefaultCoreCapabilities({ workspaceRoot: options.workspaceRoot })
+  };
+}
+
 export function createCodeAgentRuntimeOptions(
   options: CodeAgentBundleOptions
 ): AgentRuntimeOptions {
   return {
+    builtIns: createCodeAgentBuiltIns(options),
     plugins: createCodeAgentPlugins(options),
     permissions: createCodeAgentPermissionPolicy()
   };

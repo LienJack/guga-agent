@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Checklist for reviewing backend/config/storage changes."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Review actionable diagnostics and failure modes for config and persistence paths."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Review test coverage, build/typecheck expectations, and dependency boundaries."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Review cross-layer consistency between CLI, host runtime, storage plugins, and docs."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Check that implementation reuses existing plugins instead of duplicating persistence logic."}
+{"file": "docs/brainstorms/2026-05-27-m5-session-store-replay-plugins-requirements.md", "reason": "Check that default Guga Home wiring preserves session/replay requirements and non-goals."}
+{"file": "docs/research/repomix/pi-focused-context.xml", "reason": "Check session lineage, branch/fork, session_info metadata, and sessionDir claims against Pi reference evidence."}
+{"file": "docs/brainstorms/2026-05-28-m17-memory-jsonl-store-requirements.md", "reason": "Check that memory JSONL remains explicit and governed, with no automatic extraction scope creep."}
+{"file": "docs/brainstorms/2026-05-28-m37-productized-cli-workbench-requirements.md", "reason": "Check that CLI config/model/workbench semantics remain compatible."}

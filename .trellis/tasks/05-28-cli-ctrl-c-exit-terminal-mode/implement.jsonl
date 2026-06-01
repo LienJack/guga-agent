@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Ink workbench is a terminal UI component surface; preserve typed state and keyboard accessibility patterns."}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Behavior change should be covered by command dispatch and terminal UI tests."}

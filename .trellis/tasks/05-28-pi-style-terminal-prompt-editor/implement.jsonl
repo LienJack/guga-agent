@@ -1,0 +1,17 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend/package quality bar for CLI command, host client, and protocol-adjacent changes."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Guide where terminal adapter, workbench state, and command code should live without ad-hoc layout."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Ensure TTY/raw-mode, terminal restore, and command errors are actionable and fail closed."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Testing/typecheck expectations for CLI runtime and host integration."}
+{"file": ".trellis/spec/frontend/index.md", "reason": "UI state/rendering checklist for terminal workbench surfaces."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Keep editor, overlay, focus, transcript, and queue state explicit and testable."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Model terminal events, command metadata, and selector state without unsafe casts."}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Feature crosses CLI input, HostClient controls, host events, and future desktop reuse."}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Reuse existing workbench reducer/view/editor helpers before adding abstractions."}
+{"file": ".trellis/spec/guides/agent-reference-projects-guide.md", "reason": "Reference-project evidence must follow the project research funnel."}
+{"file": "docs/plans/2026-05-28-037-feat-productized-cli-workbench-plan.md", "reason": "Current Guga productized workbench plan and corrected line-REPL gap."}
+{"file": "docs/plans/2026-05-28-036-feat-cli-claude-pi-alignment-plan.md", "reason": "Existing Pi/Claude/OpenCode CLI control and prompt editor migration plan."}
+{"file": "docs/research/context-packs/ui-protocol.md", "reason": "Reference summary for TUI/server/client UI patterns and Host protocol reuse."}
+{"file": "docs/research/source-analysis/claude-code-analysis/analysis/components/02-core-interaction-components.md", "reason": "Claude Code PromptInput as input orchestrator reference."}
+{"file": "docs/research/repomix/pi-token-tree.txt", "reason": "Index for Pi TUI editor, autocomplete, selectors, and queue implementation files."}
+{"file": "docs/research/repomix/pi-focused-context.xml", "reason": "Focused Pi evidence for steer/follow-up/nextTurn queues, abort, selectors, and editor contracts."}
+{"file": "docs/research/repomix/opencode-context.1.xml", "reason": "Focused OpenCode evidence for keymap, slash commands, @ autocomplete, and model/session selectors."}

@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Core/CLI runtime quality boundaries, test expectations, and forbidden provider SDK leakage."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Provider and runtime failures must be structured and observable."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "OAuth work must preserve redacted diagnostics and event-first observability."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Ink workbench surfaces must remain typed/state-driven and not parse display strings."}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Workbench auth/model state should project runtime facts instead of duplicating source of truth."}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "UI/controller state should use discriminated unions and typed command results."}
+{"file": "docs/solutions/architecture-patterns/multi-provider-login-switching.md", "reason": "Provider auth, model registry, host factory, and router ownership model for this feature."}
+{"file": "docs/solutions/architecture-patterns/provider-ai-sdk-bridge.md", "reason": "AI SDK stays an adapter; provider-specific auth must not leak into core contracts."}
+{"file": "docs/solutions/architecture-patterns/production-operations-runtime.md", "reason": "Redaction and operational diagnostics patterns for credentials."}
+{"file": "docs/research/context-packs/provider-abstraction.md", "reason": "Reference-project provider transport and credential-policy layering evidence."}

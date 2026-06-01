@@ -34,6 +34,8 @@ export type ExecuteToolCallOptions = {
   call: ToolCall;
   attempt?: number;
   batchId?: string;
+  source?: ToolCallCorrelation["source"];
+  taskId?: string;
   signal?: AbortSignal;
   availabilityContext?: ToolAvailabilityContext;
 };
@@ -330,7 +332,9 @@ function correlationFor(options: ExecuteToolCallOptions): ToolCallCorrelation {
     turn: options.turn,
     toolCallId: options.call.id,
     attempt: options.attempt ?? 1,
-    ...(options.batchId ? { batchId: options.batchId } : {})
+    ...(options.batchId ? { batchId: options.batchId } : {}),
+    ...(options.source ? { source: options.source } : {}),
+    ...(options.taskId ? { taskId: options.taskId } : {})
   };
 }
 
@@ -354,7 +358,15 @@ function permissionRequestFor(
       effect: tool.effect,
       ...(scopes.length > 0 ? { scopes, resourceSummary: scopes.map(scopeSummary).join(", ") } : {}),
       ...(tool.runtime?.permission?.scope === "command" ? { commandSummary: commandSummaryFor(call.input) } : {})
-    }
+    },
+    ...((correlation.source || correlation.taskId)
+      ? {
+          metadata: {
+            ...(correlation.source ? { source: correlation.source } : {}),
+            ...(correlation.taskId ? { taskId: correlation.taskId } : {})
+          }
+        }
+      : {})
   };
 }
 

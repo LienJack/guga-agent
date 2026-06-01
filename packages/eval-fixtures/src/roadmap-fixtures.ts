@@ -83,6 +83,23 @@ export const flywheelEvalFixtures = [
     }
   },
   {
+    id: "m9-code-task-verification-gate",
+    name: "M9 autonomous code task verification gate",
+    module: "M9",
+    category: "code-agent",
+    layer: "profile",
+    covers: "Autonomous code tasks must not be considered completed unless required verification passed.",
+    tags: ["code-agent", "verification", "completion-gate"],
+    input: "Implement a small code change and report completion evidence.",
+    runId: "eval-m9-code-task-verification-gate",
+    mockResponses: [finalResponse("The task remains blocked because the required verification failed; it is not completed.")],
+    expected: {
+      ok: true,
+      finalAnswerIncludes: "not completed",
+      eventTypes: [AgentEventType.RunFinished]
+    }
+  },
+  {
     id: "m10-deep-research-evidence-ledger",
     name: "M10 deep research evidence ledger",
     module: "M10",

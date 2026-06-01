@@ -23,7 +23,7 @@ import type {
   ProviderHealth,
   TrustDescriptor
 } from "./operations";
-import type { LocalPlugin } from "./plugins";
+import type { CapabilityDescriptor, ExtensionSpecMetadata, LocalPlugin } from "./plugins";
 import {
   ProviderErrorCategory,
   type ModelMetadata,
@@ -184,6 +184,52 @@ describe("core contracts", () => {
     };
 
     expect(response.error).toMatchObject({ code: "LEGACY_PROVIDER_FAILED" });
+  });
+
+  it("can express built-in and extension capability descriptor metadata", () => {
+    const builtIn: CapabilityDescriptor = {
+      type: "tool",
+      name: "fs_read",
+      source: "built-in",
+      layer: "built-in-core",
+      status: "registered",
+      namespace: "filesystem",
+      owner: { kind: "core", id: "guga-core" },
+      declaredEffects: ["filesystem.read"],
+      permissionRequirements: [{ subject: "workspace", actions: ["read"] }]
+    };
+    const extension: ExtensionSpecMetadata = {
+      id: "mcp",
+      name: "MCP",
+      version: "0.0.0",
+      source: { kind: "first-party", packageName: "@guga-agent/plugin-mcp" },
+      namespace: "fixture",
+      owner: { kind: "extension", id: "mcp", packageName: "@guga-agent/plugin-mcp" },
+      declaredEffects: ["network.access"],
+      dependencies: [{ kind: "service", name: "fixture", optional: true }],
+      lifecycle: { load: "eager", unload: "remove-contributions", reload: "supported" }
+    };
+    const mcpTool: CapabilityDescriptor = {
+      type: "tool",
+      name: "mcp__fixture__echo",
+      source: "mcp",
+      layer: "extension",
+      status: "registered",
+      namespace: "fixture",
+      ownerPluginId: "mcp",
+      owner: extension.owner,
+      extension,
+      declaredEffects: ["network.access"],
+      override: {
+        status: "denied",
+        target: { type: "tool", name: "fs_read", layer: "built-in-core" },
+        reason: "extensions cannot replace built-ins without host policy",
+        owner: extension.owner
+      }
+    };
+
+    expect(JSON.parse(JSON.stringify([builtIn, mcpTool]))).toEqual([builtIn, mcpTool]);
+    expect(mcpTool.override?.target.layer).toBe("built-in-core");
   });
 
   it("can express model events for text, tool intent, usage, finish, and provider errors", () => {
@@ -360,7 +406,7 @@ describe("core contracts", () => {
         },
         resultBudget: { maxContentChars: 4_000, strategy: "truncate" },
         renderer: { category: "read", label: "Read file" },
-        source: { kind: "first-party", packageName: "@guga-agent/plugin-tools-filesystem" },
+        source: { kind: "first-party", packageName: "@guga-agent/core/builtins" },
         visibility: "model",
         availability: { status: "available" },
         backend: { kind: "local-workspace" }

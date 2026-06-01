@@ -1,0 +1,35 @@
+/Users/lienli/Documents/GitHub/agent-ref/cc-switch/README_ZH.md
+/Users/lienli/Documents/GitHub/agent-ref/cc-switch/session-manager.md
+/Users/lienli/Documents/GitHub/agent-ref/cc-switch/graphify-out/GRAPH_REPORT.md
+/Users/lienli/Documents/GitHub/agent-ref/cc-switch/graphify-out/graph.json
+/Users/lienli/Documents/GitHub/agent-ref/cc-switch/graphify-out/cc-switch-focused-files.txt
+docs/research/repomix/cc-switch-token-tree.txt
+docs/research/repomix/cc-switch-context.1.xml
+docs/research/repomix/cc-switch-generation-notes.md
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/services/provider/mod.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/services/provider/live.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/services/mcp.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/services/skill.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/app_config.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/mcp/claude.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/mcp/codex.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/mcp/gemini.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/mcp/opencode.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/mcp/hermes.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/proxy/mod.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/proxy/forwarder.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/proxy/provider_router.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/proxy/providers/adapter.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/proxy/providers/claude.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/proxy/providers/codex.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/proxy/providers/gemini.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/session_manager/mod.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/session_manager/providers/codex.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/session_manager/providers/claude.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src-tauri/src/session_manager/providers/opencode.rs">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src/lib/api/providers.ts">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src/lib/api/mcp.ts">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src/lib/api/skills.ts">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src/hooks/useProviderActions.ts">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src/hooks/useMcp.ts">
+docs/research/repomix/cc-switch-context.1.xml::<file path="src/hooks/useSkills.ts">

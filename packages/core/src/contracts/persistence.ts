@@ -290,6 +290,31 @@ export type SessionTreeResult =
       diagnostic: SessionConflictDiagnostic;
     };
 
+export type SessionSummary = {
+  session: SessionRecord;
+  activeLeaf?: SessionLeaf;
+  branchCount?: number;
+  diagnostics?: SessionConflictDiagnostic[];
+};
+
+export type ListSessionsOptions = {
+  limit?: number;
+  cursor?: string;
+  order?: "updated_desc" | "created_desc";
+};
+
+export type ListSessionsResult =
+  | {
+      ok: true;
+      sessions: SessionSummary[];
+      nextCursor?: string;
+      diagnostics?: SessionConflictDiagnostic[];
+    }
+  | {
+      ok: false;
+      diagnostic: SessionConflictDiagnostic;
+    };
+
 export type ForkBranchOptions = {
   sessionId: string;
   branchId: string;
@@ -328,6 +353,7 @@ export type SetActiveLeafResult =
 export type SessionStore = {
   createSession(options: CreateSessionOptions): Promise<CreateSessionResult> | CreateSessionResult;
   getSessionTree(sessionId: string): Promise<SessionTreeResult> | SessionTreeResult;
+  listSessions?(options?: ListSessionsOptions): Promise<ListSessionsResult> | ListSessionsResult;
   forkBranch(options: ForkBranchOptions): Promise<ForkBranchResult> | ForkBranchResult;
   setActiveLeaf(options: SetActiveLeafOptions): Promise<SetActiveLeafResult> | SetActiveLeafResult;
 };

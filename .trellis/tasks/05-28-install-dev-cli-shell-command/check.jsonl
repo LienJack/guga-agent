@@ -1,0 +1,3 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Verify tests cover the install command behavior and no dist output is committed."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Check that shell integration logic remains centralized in the install script."}
+{"file":"docs/research/repomix/pi-focused-context.xml","reason":"Re-check the Pi evidence used to justify shell function/package-command approach."}

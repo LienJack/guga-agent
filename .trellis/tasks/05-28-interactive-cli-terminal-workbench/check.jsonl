@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"Entry point for backend/package quality checklist."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Review changed TypeScript code for project quality and test expectations."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Check invalid config, unsupported protocol, run input, abort, and permission response errors."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Review that CLI, workbench, SDK, server, runtime, and protocol stay aligned."}
+{"file":"docs/solutions/architecture-patterns/host-ui-protocol-v1.md","reason":"Validate implementation against the canonical Host UI Protocol contract."}

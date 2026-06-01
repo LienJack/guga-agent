@@ -1,0 +1,10 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Ink components must render typed host projections and keyboard-reachable controls"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "Workbench runtime facts must come from host SDK/events, with only local prompt/overlay state in renderer"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Visible run, permission, cancellation, failure, and layout quality requirements"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "TypeScript strictness, behavior tests, and runtime boundary constraints"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Structured host/runtime failure handling for controller and projections"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Workbench must not rely on free-form logs or write disruptive stdout"}
+{"file": "docs/solutions/architecture-patterns/host-ui-protocol-v1.md", "reason": "Host UI protocol boundary for renderer/client responsibilities"}
+{"file": "docs/solutions/architecture-patterns/host-protocol-cli-workbench.md", "reason": "CLI workbench architecture pattern"}
+{"file": "docs/research/context-packs/ui-protocol.md", "reason": "Reference grounding for Ink terminal control-surface patterns"}

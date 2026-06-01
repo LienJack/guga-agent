@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/index.md","reason":"Entry point for backend/package implementation guidelines used by CLI, host runtime, host SDK, and local server packages."}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Quality rules for TypeScript backend implementation and tests."}
+{"file":".trellis/spec/backend/error-handling.md","reason":"Error and failure semantics matter for CLI config, HostClient, queue, abort, and permission responses."}
+{"file":".trellis/spec/backend/logging-guidelines.md","reason":"Host events and operational status changes should preserve observability conventions."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"The work crosses CLI, SDK, local server, runtime, protocol resources, and profile permissions."}
+{"file":"docs/solutions/architecture-patterns/host-ui-protocol-v1.md","reason":"Canonical productized CLI workbench and future desktop Host UI Protocol target."}
+{"file":"docs/solutions/architecture-patterns/host-protocol-cli-workbench.md","reason":"Existing host protocol CLI workbench architecture pattern to preserve and extend."}

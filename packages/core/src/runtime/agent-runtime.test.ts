@@ -151,6 +151,50 @@ describe("AgentRuntime", () => {
     ]));
   });
 
+  it("registers configured built-in capabilities before plugin initialization", async () => {
+    const runtime = createAgentRuntime({
+      builtIns: {
+        capabilities: {
+          tools: [createTestTool({ name: "builtin_echo", content: "built-in" })]
+        }
+      }
+    });
+    runtime.registerProvider(createMockProvider([
+      { type: "tool_calls", toolCalls: [{ id: "call-built-in", name: "builtin_echo", input: {} }] },
+      { type: "final", content: "done" }
+    ]));
+
+    await expect(runtime.run({ input: "use built-in", providerId: "mock", runId: "runtime-built-ins" })).resolves.toMatchObject({
+      ok: true,
+      finalAnswer: "done"
+    });
+    expect(runtime.listCapabilityDescriptors()).toContainEqual(expect.objectContaining({
+      type: "tool",
+      name: "builtin_echo",
+      source: "built-in",
+      layer: "built-in-core",
+      owner: { kind: "core", id: "guga-core", packageName: "@guga-agent/core" }
+    }));
+  });
+
+  it("registers default filesystem, git, and shell built-ins for plain runtimes", () => {
+    const runtime = createAgentRuntime();
+
+    expect(runtime.listCapabilityDescriptors()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "tool", name: "fs_read", source: "built-in", layer: "built-in-core" }),
+      expect.objectContaining({ type: "tool", name: "git_status", source: "built-in", layer: "built-in-core" }),
+      expect.objectContaining({ type: "tool", name: "shell_exec", source: "built-in", layer: "built-in-core" })
+    ]));
+  });
+
+  it("can disable built-in capability registration", () => {
+    const runtime = createAgentRuntime({
+      builtIns: false
+    });
+
+    expect(runtime.listCapabilityDescriptors()).toEqual([]);
+  });
+
   it("does not require real provider SDKs for runtime tests", async () => {
     const runtime = createAgentRuntime();
     runtime.registerProvider(createMockProvider([{ type: "final", content: "mocked" }]));

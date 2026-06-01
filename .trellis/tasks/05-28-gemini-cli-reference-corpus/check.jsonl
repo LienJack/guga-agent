@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/guides/agent-reference-projects-guide.md", "reason": "Check that the new corpus follows reference-project evidence rules."}
+{"file": "docs/research/reference-project-workflow.md", "reason": "Check that generated artifacts match the documented workflow."}
+{"file": "docs/research/context-packs/README.md", "reason": "Check the context pack against the expected shape."}
+{"file": "docs/research/intake/source-contract.md", "reason": "Check that version anchors are recorded."}

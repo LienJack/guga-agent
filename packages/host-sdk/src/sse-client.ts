@@ -6,12 +6,16 @@ export type StreamHostEventsOptions = {
   url: string;
   fetch?: HostClientFetch;
   signal?: AbortSignal;
+  bridgeToken?: string;
 };
 
 export async function* streamHostEvents(options: StreamHostEventsOptions): AsyncIterable<HostEvent> {
   const fetchImpl = options.fetch ?? fetch;
   const response = await fetchImpl(options.url, {
-    headers: { accept: "text/event-stream" },
+    headers: {
+      accept: "text/event-stream",
+      ...(options.bridgeToken ? { authorization: `Bearer ${options.bridgeToken}` } : {})
+    },
     ...(options.signal ? { signal: options.signal } : {})
   });
   if (!response.ok) {
