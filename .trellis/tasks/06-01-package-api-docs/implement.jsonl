@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend package quality checklist for documentation-only package work."}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Repository structure conventions relevant to package-level docs."}
+{"file": "docs/plans/2026-05-26-001-feat-core-kernel-runtime-plan.md", "reason": "Core/kernel architecture context for package API documentation."}
+{"file": "docs/plans/2026-05-26-002-feat-plugin-host-hook-kernel-plan.md", "reason": "Plugin host and hook design context for plugin package docs."}
