@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="README.md">简体中文</a> |
-  <a href="README.en.md">English</a> |
-  <a href="README.ja.md">日本語</a>
+  <a href="README.md">English</a> |
+  <a href="README.zh.md">Chinese</a> |
+  <a href="README.ja.md">Japanese</a>
 </p>
 
 ---
