@@ -33,6 +33,12 @@ const runtime = createAgentRuntime({
 
 Advanced tests can call `defaultContextPolicy()` or `defaultContextHooks()` directly when they need to inspect or register the pieces independently.
 
+## Parameters
+
+- `createDefaultContextPlugin(options)` takes an optional `pluginId`; omit it to use `guga-default-context`. The id is also passed into the registered policy and hooks for audit identity and hook contribution metadata.
+- `defaultContextPolicy(pluginId)` requires the plugin id to embed in the policy audit identity. It returns the stable `DEFAULT_CONTEXT_POLICY_ID` policy with the built-in context phases, timeout, permission scope, and compaction metadata.
+- `defaultContextHooks(pluginId)` requires the same plugin id and returns hook registrations that annotate or patch the default context lifecycle phases.
+
 ## Notes
 
 - The plugin uses `registerContextPolicy` when available and registers hooks through the normal hook path.

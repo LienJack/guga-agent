@@ -14,6 +14,8 @@ Add a non-README usage/API document for every package under `packages/`, so cont
 ## Requirements
 
 - Create a package-level usage/API document for each package under `packages/`.
+- Create a Chinese package-level usage/API document for each package under `packages/`.
+- Include parameter explanations for the main public APIs, plugin factories, tool inputs, and CLI commands.
 - Keep docs concise and consistent across packages.
 - Prefer facts from package metadata, source exports, tests, and existing README files.
 - Do not edit package runtime code unless required to make docs accurate.
@@ -21,6 +23,8 @@ Add a non-README usage/API document for every package under `packages/`, so cont
 ## Acceptance Criteria
 
 - [x] Every `packages/*/package.json` directory has a non-README usage/API document.
+- [x] Every `packages/*/package.json` directory has a Chinese non-README usage/API document.
+- [x] English and Chinese usage/API documents include parameter explanations.
 - [x] Each document includes purpose, installation/import guidance where applicable, main APIs/entry points, common usage, and related packages.
 - [x] Documentation is internally consistent and does not claim APIs that are not exported.
 - [x] Repository checks relevant to docs pass or are reported if unavailable.

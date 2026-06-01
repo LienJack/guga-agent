@@ -40,6 +40,16 @@ try {
 }
 ```
 
+## Parameters
+
+- `connectHost({ baseUrl, bridgeToken, fetch })`: `baseUrl` is required and should point at a local host server. `bridgeToken` is optional for read-only routes but required for mutating routes on protected servers. `fetch` is optional and defaults to global `fetch`.
+- `createLocalGugaHost(options)`: `options` is optional and accepts `HostLocalServerOptions` plus optional `listen` options. Use `runtimeOptions` or `hostRuntime` to configure the server, and `listen.host` / `listen.port` to choose the bind address.
+- `host.client.createSession(request)`: `request` is optional; `title` is optional.
+- `host.client.startRun(sessionId, request)`: `sessionId` and `request.input` are required. `request.providerId`, `request.modelId`, and `request.maxTurns` are optional.
+- `host.client.sendRunInput(runId, request)`: `runId`, `request.mode`, and `request.text` are required.
+- `host.client.streamRunEvents(runId, options)`: `runId` is required. `options.afterSeq` resumes after a sequence number, and `options.signal` cancels the stream.
+- `streamHostEvents(options)`: `url` is required. `fetch`, `signal`, and `bridgeToken` are optional.
+
 ## Notes
 
 - The package root does not re-export every internal request type from `client.ts`; use the root API types listed above as the public surface.

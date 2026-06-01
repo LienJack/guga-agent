@@ -33,6 +33,13 @@ const runtime = createAgentRuntime({
 
 Advanced hosts can instantiate `new FilesystemArtifactStore({ rootDir })` and register it through a custom plugin.
 
+## Parameters
+
+- `createFilesystemArtifactPlugin(options)` requires `rootDir`, the directory where artifact content and manifests are written. Optional `pluginId` overrides the registered plugin id, and optional `now` injects a timestamp provider for deterministic tests.
+- `new FilesystemArtifactStore(options)` uses the same required `rootDir` and optional `now` fields, but it only creates the store; the host is responsible for registering it.
+- Store writes use the core `PutArtifactOptions`: `data` and `mimeType` describe the content, while optional `artifactId`, `label`, `privacyTags`, `retention`, `actor`, and `metadata` control identity and manifest annotations.
+- `tombstoneManifest(manifest, options)` requires the current manifest plus `reason` and `createdAt`; optional `actor` records who requested the transition.
+
 ## Notes
 
 - Artifact content and manifests are stored separately; reads verify the recorded SHA-256 hash.

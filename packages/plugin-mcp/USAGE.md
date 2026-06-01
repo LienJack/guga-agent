@@ -43,6 +43,15 @@ const runtime = createAgentRuntime({
 });
 ```
 
+## Parameters
+
+- `createMcpExtension(options)` and `createMcpPlugin(options)` require `servers`, an array of MCP stdio server configs. Optional `pluginId` overrides the registered extension id.
+- Each `McpServerConfig` requires `name` and `command`. Optional `args`, `cwd`, and `env` are passed to the spawned process; `env` is merged over `process.env`.
+- `new McpStdioClient(options)` uses the same stdio process fields and also accepts optional `clientInfo` for the MCP initialize request.
+- `createMcpToolDefinition(options)` requires `serverName`, MCP `tool` metadata, and a connected `client`. Tool metadata may include optional `description` and `inputSchema`; missing schemas become permissive object schemas.
+- `mcpToolName(serverName, toolName)` requires both names and sanitizes non-alphanumeric characters to `_`.
+- `stringifyMcpToolResult(result)` accepts an MCP call result and joins text content when possible, falling back to JSON for structured parts.
+
 ## Notes
 
 - This package currently supports stdio transport only. SSE, HTTP, OAuth, and remote auth caches are not implemented here.

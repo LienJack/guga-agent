@@ -45,6 +45,15 @@ const result = await discoverSkills({
 const body = await loadSkillBody(result.skills[0]);
 ```
 
+## Parameters
+
+- `createSkillsPlugin(options)` requires `roots`, an array of skill roots to scan. Optional `pluginId` overrides the registered plugin id.
+- Each `SkillRoot` requires `path`. Optional `namespace` is applied to discovered metadata when a `SKILL.md` file does not define its own namespace.
+- `discoverSkills(roots)` requires the root array directly and returns `skills`, `invalid`, and `conflicts`. Non-directory roots and invalid frontmatter are reported instead of thrown.
+- `loadSkillBody(skill)` requires a `DiscoveredSkill` from discovery and reads the full `SKILL.md` body after frontmatter.
+- `resolveSkillAssetPath(skill, relativePath)` requires a discovered skill plus a relative asset path; it throws if the resolved path escapes the skill directory.
+- `parseSkillFileContent(content, location)` and `parseSkillMetadataFrontmatter(frontmatterText, location)` require text input and accept optional `location` for metadata provenance and error reporting.
+
 ## Notes
 
 - The frontmatter parser is intentionally small and is not a complete YAML parser.

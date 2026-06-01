@@ -41,6 +41,14 @@ const runtime = createAgentRuntime(runtimeOptions);
 
 For task orchestration, use `CodeTaskController` with stage runners supplied by the host runtime.
 
+## Parameters
+
+- `createCodeAgentRuntimeOptions(options)` and `createCodeAgentPlugins(options)` require `workspaceRoot`. Optional `skills.roots` registers project or user skill roots, `mcp.servers` registers MCP servers, and `includeOperations` controls whether ops-health, audit-export, and eval-runner plugins are included; it defaults to `true`.
+- `createCodeAgentProfile(options)` accepts optional `workspaceRoot` metadata for the profile. `createCodeAgentPermissionPolicy(options)` accepts optional `delegate` and `timeoutMs`; `createCodeAgentPermissionResolver(delegate)` accepts an optional host resolver for decisions the profile does not handle directly.
+- `buildRepoContext(options)` requires `workspaceRoot`; `gitStatus`, `activeFiles`, `packageScripts`, and `notes` are optional and are normalized for rendering. `discoverTestCommands(options)` accepts optional `packageManager`, `packageScripts`, and `changedFiles`.
+- `CodeTaskController` requires an `invoker` and `runStage` callback. Optional fields include `now`, `maxRepairAttempts`, `onTaskCreated`, `onTransition`, and `onVerificationStarted`.
+- `CodeTaskController.start(options)` requires task identity and objective fields (`taskId`, `sessionId`, `rootRunId`, `cwd`, `objective`) plus the user `prompt`. `changedFiles` and `plannedChecks` are optional; when checks are omitted, verification commands are selected from task plans or discovered package scripts.
+
 ## Notes
 
 - The package root exports the public profile and task APIs from `src/index.ts`; not every internal helper in submodules is public.

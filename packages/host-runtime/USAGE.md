@@ -39,6 +39,15 @@ const run = await hostRuntime.startRun({
 const events = await hostRuntime.listRunEvents(run.id);
 ```
 
+## Parameters
+
+- `createHostRuntime(options)` / `new HostRuntime(options)`: `options` is optional. Pass `runtime` to use an existing core runtime, or `runtimeOptions` to have the host create one. `now` and `idFactory` are optional test hooks. `profileId` and `cwd` annotate hosted runs. `codeTasks` is optional code-task integration.
+- `hostRuntime.createSession(request)`: `request` is optional. `title` is optional and labels the session.
+- `hostRuntime.startRun(options)`: `sessionId` and `input` are required. `providerId`, `modelId`, and `maxTurns` are optional and are forwarded to core run routing and loop control.
+- `hostRuntime.enqueueRunInput(runId, options)`: `runId` is required. `options.mode` is required and must be a run input mode; `options.text` is required queued input text.
+- `hostRuntime.requestInteraction(options)`: `sessionId` and `request` are required. `runId` is optional when the interaction is not tied to a specific run.
+- `projectAgentEvent(event, context)`: `event` is the core `AgentEvent` to project. `context.sessionId`, `context.runId`, and `context.sequencer` are required; `sourceRunId` is optional when the source core run id differs from the host run id.
+
 ## Notes
 
 - This package does not implement HTTP, CLI, Web UI, or desktop UI.

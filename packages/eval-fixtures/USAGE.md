@@ -32,6 +32,14 @@ import { runEvalSuite } from "@guga-agent/plugin-eval-runner";
 const result = await runEvalSuite([...flywheelEvalFixtures]);
 ```
 
+## Parameters
+
+- `flywheelEvalFixtures` is a readonly collection of `FlywheelEvalFixture` entries. Each fixture includes the base eval fields from `@guga-agent/plugin-eval-runner`, including `id`, `input`, `mockResponses`, optional provider/model/run controls, and optional expectations.
+- `FlywheelEvalFixture` adds required roadmap metadata: `module`, `category`, `layer`, `covers`, and `tags`. `tags` must contain at least one entry, `covers` must describe the covered risk, and fixtures should include a stable `runId`.
+- `createFlywheelEvalManifest(fixtures)` requires an array of flywheel fixtures and returns counts grouped by category plus the covered modules.
+- `getFlywheelFixturesByCategory(fixtures, category)` requires a fixture array and one category value, such as `"code-agent"` or `"deep-research"`.
+- `validateFlywheelEvalFixtures(fixtures)` returns string diagnostics for duplicate ids, missing tags, empty risk coverage, missing stable run ids, and missing category coverage.
+
 ## Notes
 
 - Fixtures include metadata for category, module, layer, covered risk, and tags.

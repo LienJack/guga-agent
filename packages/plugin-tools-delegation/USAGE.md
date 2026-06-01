@@ -41,6 +41,14 @@ const runtime = createAgentRuntime({
 });
 ```
 
+## Parameters
+
+- `createDelegationPlugin(options)` and `createDelegateTaskTool(options)` require `childRunner`. The runner receives the normalized goal, context, selected child tools, run/session ids, parent ids, turn and timeout limits, and an optional abort `signal`; it must return a `status` and `summary`.
+- Tool configuration options include `parentRunId`, `toolName`, `description`, `toolCatalog`, `defaultAgentType`, `defaultMaxTurns`, `defaultTimeoutMs`, `defaultToolAllowlist`, `blockedToolNames`, `createChildRunId`, and `createChildSessionId`. `pluginId` is available on `createDelegationPlugin(options)` only.
+- `toolCatalog` lists the tools the child is allowed to request by name. `defaultToolAllowlist` and model-provided `toolAllowlist` entries must exist in `toolCatalog` and cannot include the delegation tool itself or any `blockedToolNames`.
+- Model input for `delegate_task` requires `goal`. Optional fields are `context`, `agentType`, `toolAllowlist`, `maxTurns`, and `timeoutMs`; `maxTurns` and `timeoutMs` must be positive integers when present.
+- `buildDelegationInput(input, agentType, tools)` expects validated input and renders the compact prompt passed to the child runner.
+
 ## Notes
 
 - The host must provide the child runner; this package does not spawn processes or agents on its own.

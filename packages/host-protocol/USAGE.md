@@ -38,6 +38,13 @@ const event = sequencer({
 const frame = encodeSseEnvelope(createSseEnvelope(event));
 ```
 
+## Parameters
+
+- `createHostEventSequencer(options)`: `options` is optional. `startSeq` sets the sequence number before the first emitted event; `now` overrides timestamp creation and is mainly useful for tests.
+- `sequencer.next(event)`: `event` must include the host event fields except `seq` and `occurredAt`. `occurredAt` is optional; when omitted, the sequencer fills it from `now()`.
+- `createSseEnvelope(event)`: `event` is required and must already be a sequenced `HostEvent`. The helper derives the SSE `id` from `event.seq` and the SSE event name from the host event helper.
+- `encodeSseEnvelope(envelope)`: `envelope.id`, `envelope.event`, and `envelope.data` are required and are encoded as one SSE frame.
+
 ## Notes
 
 - Public consumers should import from the package root. Some internal event type aliases in `events.ts` are represented inside the `HostEvent` union but are not individually re-exported.

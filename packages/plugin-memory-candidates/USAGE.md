@@ -55,6 +55,14 @@ const runtime = createAgentRuntime({
 });
 ```
 
+## Parameters
+
+- `createMemoryCandidate(input)` requires stable candidate fields: `id`, `scope`, `kind`, `content`, `confidence`, `importance`, `status`, `createdAt`, and at least one `sourceRefs` entry. `confidence` and `importance` are numbers from 0 to 1. `safety` is optional; when provided, it is merged with the package's content scan. `tags` is optional.
+- Governance decisions passed to `createMemoryGovernanceLedger(candidates, decisions)` use `id`, `candidateId`, `action`, `decidedAt`, `reviewer`, and `reason`. `itemId` is optional for accepted items, while `supersedesItemId` is required when `action` is `"supersede"`.
+- `searchGovernedMemoryItems(items, query, options)` requires `options.scope`. `kind`, `tags`, `includeSuperseded`, and `maxResults` are optional filters and limits.
+- Rendering helpers accept optional display controls such as `maxItems`, `maxContentChars`, `includeSourceRefs`, `includeReasons`, `includeTags`, and `title`, depending on the renderer.
+- `createMemoryCandidatesPlugin(options)`, `createMemoryGovernancePlugin(options)`, and `createMemoryReviewPlugin(options)` accept optional `pluginId` values for hosts that need stable custom plugin identifiers.
+
 ## Notes
 
 - The plugin factories register operation descriptors only; they do not persist memory records.

@@ -39,6 +39,14 @@ const runtime = createAgentRuntime({
 
 Advanced hosts can construct `ReplayAuditProjectionCapability` directly when they already manage stores.
 
+## Parameters
+
+- `createReplayAuditPlugin(options)` accepts optional `eventStore`, `sessionStore`, `artifactStore`, and `pluginId`. If stores are omitted, the plugin tries to read them from the runtime context; replay requires an event store to produce views.
+- `new ReplayAuditProjectionCapability(stores)` accepts the same optional stores directly. `eventStore` supplies durable event paths, `sessionStore` enables branch-aware replay, and `artifactStore` enables artifact verification diagnostics.
+- `buildConversationView(events)` requires durable event envelopes and rebuilds branch-visible user, assistant, and tool messages from committed facts.
+- `buildModelInputView(events, request)` requires durable event envelopes. Optional `request.turn` selects a specific provider-input turn; omit it to use the latest committed provider input.
+- `buildAuditView(options)` requires `events`. Optional `branch` adds branch metadata to the result, `artifactStore` verifies referenced artifacts, and `readDiagnostics` carries store corruption diagnostics into the audit view.
+
 ## Notes
 
 - Replay is non-mutating and does not simulate or rerun model/tool behavior.

@@ -40,6 +40,15 @@ const eventStore = new JsonlEventStore({ rootDir: ".guga/sessions/events" });
 const sessionStore = new JsonlSessionStore({ rootDir: ".guga/sessions/sessions" });
 ```
 
+## Parameters
+
+- `createJsonlSessionPlugin(options)` requires `rootDir`, the base directory for JSONL persistence. Optional `pluginId` overrides the registered plugin id, optional `upcasters` are passed to the event store, and optional `now` is passed to the session store.
+- `new JsonlEventStore(options)` requires `rootDir`. Optional `upcasters` are used when `readStream()` is called with a target schema version.
+- `new JsonlSessionStore(options)` requires `rootDir`. Optional `now` injects deterministic timestamps for session, branch, and active-leaf facts.
+- `JsonlEventStore.append(event, options)` requires a durable event envelope; optional append options include expected revision and idempotency controls from the core event-store contract.
+- `JsonlEventStore.readStream(streamId, options)` requires `streamId`; optional read options slice by revision/event path and request schema upcasting.
+- `JsonlSessionStore` methods use core session-store option objects such as `CreateSessionOptions`, `ForkBranchOptions`, `SetActiveLeafOptions`, and `ListSessionsOptions`.
+
 ## Notes
 
 - Event records are append-only durable envelopes with expected revision and idempotency support.

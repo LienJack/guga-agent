@@ -36,6 +36,13 @@ try {
 }
 ```
 
+## Parameters
+
+- `createHostLocalServer(options)` / `new HostLocalServer(options)`: `options` is optional. Pass `hostRuntime` to serve an existing runtime, or `runtimeOptions` to create one. `pollIntervalMs` controls SSE polling. `disposeRuntimeOnClose` defaults to disposing the runtime on close. `bridgeToken` overrides the generated bearer token.
+- `server.listen(options)`: `options` is optional. `host` defaults to `127.0.0.1`; `port` defaults to `0`, letting the OS choose an available port.
+- `createHostRequestHandler(hostRuntime, options)`: `hostRuntime` is required. `options.pollIntervalMs` controls event stream polling, and `options.bridgeToken` is required for mutating requests.
+- `streamRunEvents(options)`: `hostRuntime`, `runId`, `request`, and `response` are required. `afterSeq` is optional and resumes after a known event sequence. `pollIntervalMs` is optional and defaults to a short polling interval.
+
 ## Notes
 
 - Mutating requests require the bridge token created by the server unless a caller provides one explicitly.

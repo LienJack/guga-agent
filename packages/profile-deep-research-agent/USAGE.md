@@ -57,6 +57,13 @@ const report = renderResearchReport({
 });
 ```
 
+## Parameters
+
+- `createDeepResearchProfile()` and `createDeepResearchSystemPrompt()` take no parameters; they return stable first-party profile metadata and prompt text.
+- `sortSourcesByPolicy(paths)` requires an array of source paths. Paths are classified by `classifyResearchSource(path)` and sorted according to `defaultResearchSourcePolicy`, from curated context packs through raw source.
+- `createEvidenceLedger(items)` accepts `EvidenceItem` objects with `id`, `claim`, `strength`, `source`, `summary`, `capturedAt`, and `confidence`. `strength` is `"Fact"`, `"Inference"`, or `"Pending Verification"`; `confidence` should be from 0 to 1.
+- `renderResearchReport(input)` requires `title`, `conclusion`, `projectComparison`, `reusablePatterns`, `avoidPatterns`, `gugaLanding`, and `ledger`. Empty arrays render as explicit empty sections, but `checkResearchReportInput(input)` warns when project comparison is missing and errors when evidence is absent or invalid.
+
 ## Notes
 
 - This package does not modify code and does not perform web or filesystem research by itself.

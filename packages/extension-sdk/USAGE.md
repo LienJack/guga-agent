@@ -40,6 +40,13 @@ export const extension = defineExtension({
 
 Pass the returned value to `createAgentRuntime({ plugins: [extension] })`.
 
+## Parameters
+
+- `defineExtension(definition)`: `definition.id`, `definition.source`, and `definition.setup(context)` are required. `name`, `version`, `namespace`, `owner`, `declaredEffects`, `permissionRequirements`, `dependencies`, `lifecycle`, and `shutdown(context)` are optional metadata and lifecycle fields.
+- `definition.source`: `kind` is required. `packageName` and `location` are optional and identify where the extension came from.
+- `setup(context)`: `context` is active only during setup. Use `context.provider()`, `context.model()`, `context.tool()`, `context.skill()`, `context.hook()`, `context.contextPolicy()`, or `context.operation()` to register capabilities. Each registration takes the capability as the required first argument and optional extension capability options as the second argument.
+- `shutdown(context)`: optional cleanup hook. The `context` exposes extension metadata and active-state helpers, but registration after setup has completed is not supported.
+
 ## Notes
 
 - Extension capability `source` may be `"plugin"` or `"mcp"`; it cannot claim `"host"` or `"built-in"`.

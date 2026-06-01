@@ -46,6 +46,13 @@ const report = renderReviewReport({
 });
 ```
 
+## Parameters
+
+- `createReviewAgentProfile()` and `createReviewAgentSystemPrompt()` take no parameters; they return stable review profile metadata and prompt text.
+- `createReviewFindingLedger(findings)` accepts findings with required `id`, `title`, `severity`, `confidence`, `category`, `body`, and `evidence`. `file`, `line`, and `recommendation` are optional; `line` must be a positive integer when present.
+- `severity` is ordered from `P0` through `P3`, and `confidence` is `"high"`, `"medium"`, or `"low"`. `category` should identify the risk family, such as correctness, security, performance, test gap, maintainability, protocol, permission, context, session, or profile.
+- `renderReviewReport(input)` requires `title` and `ledger`. `openQuestions` and `summary` are optional. `checkReviewReportInput(input)` errors on invalid findings or an empty title and warns when the ledger has no findings.
+
 ## Notes
 
 - Reports lead with actionable findings, then supporting context.

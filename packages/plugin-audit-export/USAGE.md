@@ -36,6 +36,12 @@ const runtime = createAgentRuntime({
 });
 ```
 
+## Parameters
+
+- `createAuditSummary(options)` requires `runId` and `events`. `runId` selects the run to summarize, while `events` is the full event list to filter; optional `startedAt` and `completedAt` override inferred timestamps and make duration fields meaningful.
+- `createMetricsSnapshot(options)` requires `events`. Optional `runId` filters counters to one run, and optional `updatedAt` sets the snapshot timestamp instead of using the current time.
+- `createAuditExportPlugin(options)` accepts optional `pluginId`; omit it to register the default `audit-export` plugin id.
+
 ## Notes
 
 - The plugin registers operation descriptors only; it does not expose a model-visible tool or HTTP route by itself.

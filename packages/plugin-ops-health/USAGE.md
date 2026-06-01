@@ -39,6 +39,13 @@ const health = await checkProviderHealth({
 });
 ```
 
+## Parameters
+
+- `resolveCredentialConfig(options)` requires `providerId` and `source`. Use `source: "env"` with `requiredKeys` and optional `env`, or `source: "static"` with `values`; when `requiredKeys` is omitted, keys are inferred from `values`.
+- `redactSecret(value)` accepts a secret string or `undefined`; missing values return `<missing>`, short values return `<redacted>`, and longer values keep only a small prefix and suffix.
+- `checkProviderHealth(options)` requires `target.providerId`; optional `target.modelId` scopes the check to a model. Optional `check` performs the real health probe, and optional `now` controls the reported `checkedAt` timestamp.
+- `createOpsHealthPlugin(options)` accepts optional `pluginId`; omit it to register the default `ops-health` operation plugin.
+
 ## Notes
 
 - Without an injected `check` function, provider health is reported as `unknown` instead of making a network call.

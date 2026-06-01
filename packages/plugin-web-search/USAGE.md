@@ -54,6 +54,14 @@ Tool input shape:
 }
 ```
 
+## Parameters
+
+- `createWebSearchPlugin(options)` and `createWebSearchTool(options)` accept `backend`, `providerId`, `availability`, `permission`, `timeoutMs`, `resultBudget`, and `now`. `pluginId` is available on `createWebSearchPlugin(options)` only. A backend must be available before the tool can execute successfully.
+- `createBraveSearchBackend(options)` accepts `apiKey` or `apiKeyEnv`, optional `env`, `endpoint`, injectable `fetch`, and `providerId`. `apiKeyEnv` defaults to `BRAVE_SEARCH_API_KEY` when no direct `apiKey` is provided.
+- `createMockWebSearchBackend(options)` accepts optional `providerId`, deterministic `results` or a result factory, and `metadata`.
+- Tool input requires `query`, a non-empty string up to the package limit. Optional `maxResults` defaults to 5 and is capped at 20; `contextMaxCharacters` defaults to 8000 and is capped at 20000.
+- Optional input filters include `allowedDomains`, `blockedDomains`, `recencyDays`, and `searchType`. `recencyDays` must be an integer from 1 to 365 when present, and `searchType` is `"web"` or `"news"`.
+
 ## Notes
 
 - CLI environment toggles such as `GUGA_WEB_SEARCH` are host-level configuration. This package provides the tool and backends; it does not read all host config env vars itself.

@@ -41,6 +41,14 @@ const runtime = createAgentRuntime({
 });
 ```
 
+## Parameters
+
+- `runEvalFixture(fixture, options)` requires a fixture with `id`, `input`, and `mockResponses`. Optional fixture fields include `name`, `providerId`, `modelId`, `runId`, `maxTurns`, and `expected`; omit `expected` to require a successful run by default.
+- `expected` can assert `ok`, exact `finalAnswer`, `finalAnswerIncludes`, `errorCode`, and emitted `eventTypes`.
+- `options.runtime` is optional and is passed to `createAgentRuntime()` before the mock provider is registered.
+- `runEvalSuite(fixtures, options)` requires an array of fixtures and reuses the same optional runtime options for each fixture.
+- `createEvalRunnerPlugin(options)` accepts optional `pluginId`; omit it to register the default `eval-runner` operation plugin.
+
 ## Notes
 
 - `createEvalRunnerPlugin()` does not execute evals. Actual execution uses the exported runner helpers.

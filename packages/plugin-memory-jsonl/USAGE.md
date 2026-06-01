@@ -43,6 +43,14 @@ const runtime = createAgentRuntime({
 });
 ```
 
+## Parameters
+
+- `new JsonlMemoryStore(options)` requires `rootDir`, the directory that contains the JSONL memory file. `fileName` is optional and defaults to `memory.jsonl`.
+- `appendCandidate(candidate, options)` and `appendDecision(decision, options)` require a valid candidate or decision object. Optional `recordId` and `recordedAt` override the generated record id and timestamp.
+- `readRetrieval(query, options)` requires a non-empty `query` and a `MemoryRetrievalOptions` object with `scope`. Optional fields include `kind`, `tags`, `includeSuperseded`, and `maxResults`.
+- `readReviewMarkdown(options)` and `readAuditSnapshot(options)` accept review rendering options such as `title`, item limits, diagnostic limits, and `maxContentChars`. `readCuratedMarkdown(options)` accepts curated-memory filters such as `scopes`, `kinds`, `includeTags`, and source rendering controls. `readReviewHealthMarkdown(options)` accepts an optional `title`.
+- `createMemoryJsonlPlugin(options)` accepts an optional `pluginId`; it changes operation ownership metadata but does not configure storage.
+
 ## Notes
 
 - The plugin registers operation descriptors; callers still decide which store instance to use for actual persistence.

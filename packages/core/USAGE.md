@@ -50,6 +50,13 @@ const result = await runtime.run({
 });
 ```
 
+## Parameters
+
+- `createAgentRuntime(options)`: `options` is optional. Use `model` for a single local model plugin, `plugins` for trusted `LocalPlugin` instances, and `builtIns` to register built-in providers, models, and tools. Set `builtIns` to `false` to disable built-ins. `permissions`, `routerPolicy`, and `session` are optional runtime policy and identity defaults. `stores` and `replay` are optional persistence and replay integrations.
+- `createDefaultCoreCapabilities(options)`: `options` is optional. `workspaceRoot` defaults filesystem, git, and shell tools to a workspace. Set `filesystem`, `git`, or `shell` to `false` to omit that built-in group, or pass the matching options object to customize it. `aiSdk` is optional and requires a provider `config`; `factory` is optional.
+- `runtime.run(options)`: `input` is required. `providerId`, `modelId`, and `purpose` are optional routing hints. `maxTurns` limits loop iterations, `signal` cancels the run, `runId` supplies an external id, and `session` overrides the runtime session identity for that run.
+- `runtime.onEvent(listener)`: `listener` is required and receives every emitted `AgentEvent`. The return value is an unsubscribe function.
+
 ## Notes
 
 - Core does not implement CLI, HTTP, UI, MCP, skills, memory, artifact storage, replay storage, evals, or delegation as built-ins.

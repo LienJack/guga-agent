@@ -58,6 +58,17 @@ guga auth status
 guga --list-models
 ```
 
+## Parameters
+
+- `guga` / `guga chat` / `guga interactive`: accepts optional `--mock`, `--profile <code|deep-research|review>`, `--provider <id>`, and `--model <id>` flags. Interactive mode requires TTY stdin and stdout.
+- `guga run "<prompt>"` and `guga -p "<prompt>"`: `<prompt>` is required. `--provider <id>` and `--model <id>` constrain model selection. `--profile <code|deep-research|review>` selects the runtime profile. `--mock` uses the deterministic local mock provider. `--debug-events` prints structured event rendering, and `--ops` prints operational status after the run.
+- `guga init`: `--user` and `--project` choose config scope, defaulting to user scope. `--force` overwrites an existing config. `--provider <id>`, `--provider-mode <openai|anthropic|openai-compatible|gateway>`, `--model <id>`, `--base-url <url>`, and `--api-key-env <VAR>` are optional config fields.
+- `guga login <provider>`: `<provider>` is required. `--api-key <key>` or `--api-key-env <VAR>` is required for non-OAuth providers. `--mode` / `--provider-mode`, `--model <id>`, and `--static` are optional.
+- `guga logout <provider>`: `<provider>` is required.
+- `guga auth status [provider]`: `provider` is optional; omit it to show all known provider auth states.
+- `guga --list-models`: takes no additional parameters.
+- `runCli(argv, io)`: internal test-facing entry point. `argv` is required and excludes the executable path. `io.stdout` and `io.stderr` are required writers; `stdin`, `env`, and `oauthLoginRunner` are optional.
+
 ## Internal Entry Points
 
 - `src/index.ts`: executable entry that calls `runCli(process.argv.slice(2), io)`.
