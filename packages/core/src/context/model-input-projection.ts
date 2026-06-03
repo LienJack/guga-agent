@@ -181,6 +181,12 @@ function reinjectedKind(content: string): ContextSourceKind | undefined {
   if (content.startsWith("[Reinjected permission_mode:")) {
     return ContextSourceKind.PermissionMode;
   }
+  if (content.startsWith("[Reinjected state_projection:")) {
+    return ContextSourceKind.StateProjection;
+  }
+  if (content.startsWith("[Reinjected accountable_trace:")) {
+    return ContextSourceKind.AccountableTrace;
+  }
   return undefined;
 }
 

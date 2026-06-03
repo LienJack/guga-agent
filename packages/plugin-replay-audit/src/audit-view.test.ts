@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AgentEventType, type ArtifactStore, type ReadArtifactResult } from "@guga-agent/core";
-import { artifactReferenceFixture, durableEvent } from "./test-fixtures";
+import { artifactReferenceFixture, durableEvent, projectionFixture } from "./test-fixtures";
 import { buildAuditView } from "./audit-view";
 
 describe("audit replay view", () => {
@@ -143,6 +143,52 @@ describe("audit replay view", () => {
       eventId: "event-memory"
     }));
   });
+
+  it("surfaces Attention OS source summaries and compaction continuity without treating candidates as curated memory", async () => {
+    const projection = projectionFixture({ attentionSources: true });
+    const view = await buildAuditView({
+      events: [
+        durableEvent({
+          type: AgentEventType.ContextProjectionCreated,
+          runId: "run-1",
+          turn: 0,
+          projection
+        }, { eventId: "event-projection" }),
+        durableEvent({
+          type: AgentEventType.ContextCompactCompleted,
+          runId: "run-1",
+          turn: 0,
+          projectionId: "projection-1",
+          result: compactResult()
+        }, { eventId: "event-compact" })
+      ]
+    });
+
+    expect(view.timeline[0]).toMatchObject({
+      diagnostics: [expect.objectContaining({
+        code: "ATTENTION_CONTEXT_SOURCES_RECORDED",
+        metadata: expect.objectContaining({
+          summaries: expect.arrayContaining([
+            expect.objectContaining({ sourceId: "source-state", ontology: "state_projection" }),
+            expect.objectContaining({ sourceId: "source-memory-candidate", candidateCount: 1 })
+          ])
+        })
+      })]
+    });
+    expect(view.timeline[1]).toMatchObject({
+      diagnostics: [expect.objectContaining({
+        code: "CONTEXT_COMPACTION_BOUNDARY",
+        metadata: expect.objectContaining({
+          quality: expect.objectContaining({ continuitySourceIds: ["source-state", "source-trace"] })
+        })
+      })]
+    });
+    expect(view.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "MEMORY_CANDIDATE_CONTEXT_RECORDED" }),
+      expect.objectContaining({ code: "CURATED_MEMORY_WRITE_ABSENT" })
+    ]));
+    expect(view.diagnostics).not.toContainEqual(expect.objectContaining({ code: "CURATED_MEMORY_WRITE_DETECTED" }));
+  });
 });
 
 function artifactStore(result: ReadArtifactResult): ArtifactStore {
@@ -187,6 +233,14 @@ function compactResult() {
     iterationNo: 1,
     preprocessingApplied: { dedup: true, smartCollapse: false, parameterTruncation: false },
     strippedRoundIds: [],
-    degradedTo: "local-skeleton" as const
+    degradedTo: "local-skeleton" as const,
+    quality: {
+      status: "degraded" as const,
+      summarySource: "local-skeleton" as const,
+      retainedSourceCount: 2,
+      compactedSourceCount: 1,
+      continuitySourceIds: ["source-state", "source-trace"],
+      signals: ["local-skeleton-summary"]
+    }
   };
 }

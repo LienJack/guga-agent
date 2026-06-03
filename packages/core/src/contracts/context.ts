@@ -16,7 +16,10 @@ export const ContextSourceKind = {
   CompactionSummary: "compaction_summary",
   HostContext: "host_context",
   ActiveTool: "active_tool",
-  PermissionMode: "permission_mode"
+  PermissionMode: "permission_mode",
+  StateProjection: "state_projection",
+  AccountableTrace: "accountable_trace",
+  MemoryCandidate: "memory_candidate"
 } as const;
 
 export type ContextSourceKind = (typeof ContextSourceKind)[keyof typeof ContextSourceKind];
@@ -45,11 +48,85 @@ export type ContextSourceTokenEstimate = {
 };
 
 export type ContextSourceReference = {
-  type: "artifact" | "tool-result" | "resource" | "host-reference";
+  type: "artifact" | "tool-result" | "resource" | "host-reference" | "event" | "message";
   id: string;
   label?: string;
   rereadInstruction?: string;
   metadata?: Record<string, unknown>;
+};
+
+export type ContextSourceSensitivity = "public" | "internal" | "sensitive" | "secret";
+
+export type ContextSourceScope = "turn" | "run" | "session" | "workspace" | "cross-session";
+
+export type ContextSourceConfidence = "low" | "medium" | "high";
+
+export type ContextSourceIntendedUsage =
+  | "provider-input"
+  | "compaction-continuity"
+  | "audit"
+  | "replay"
+  | "memory-review";
+
+export type AttentionSourceMetadata = {
+  sensitivity: ContextSourceSensitivity;
+  confidence: ContextSourceConfidence;
+  scope: ContextSourceScope;
+  intendedUsage: ContextSourceIntendedUsage[];
+  sourceRefs?: ContextSourceReference[];
+};
+
+export type StateProjectionItemKind =
+  | "objective"
+  | "constraint"
+  | "key_fact"
+  | "active_resource"
+  | "artifact"
+  | "open_question"
+  | "validation"
+  | "next_step";
+
+export type StateProjectionItem = AttentionSourceMetadata & {
+  kind: StateProjectionItemKind;
+  label: string;
+};
+
+export type StateProjectionMetadata = AttentionSourceMetadata & {
+  ontology: typeof ContextSourceKind.StateProjection;
+  items: StateProjectionItem[];
+  generatedFromSourceIds: string[];
+};
+
+export type AccountableTraceItemKind =
+  | "assumption"
+  | "evidence"
+  | "decision"
+  | "action"
+  | "observation"
+  | "validation"
+  | "next_step";
+
+export type AccountableTraceItem = AttentionSourceMetadata & {
+  kind: AccountableTraceItemKind;
+  label: string;
+};
+
+export type AccountableTraceMetadata = AttentionSourceMetadata & {
+  ontology: typeof ContextSourceKind.AccountableTrace;
+  items: AccountableTraceItem[];
+  generatedFromDecisionIds: string[];
+  generatedFromSourceIds: string[];
+};
+
+export type MemoryCandidateReference = AttentionSourceMetadata & {
+  candidateId: string;
+  sourceRefs: ContextSourceReference[];
+  rawCandidateTextIncluded: false;
+};
+
+export type MemoryCandidateMetadata = AttentionSourceMetadata & {
+  ontology: typeof ContextSourceKind.MemoryCandidate;
+  candidates: MemoryCandidateReference[];
 };
 
 export type ContextSourceDescriptor = {
@@ -120,6 +197,18 @@ export type ProjectionHashDescriptor = {
   inputVersion: string;
 };
 
+export type ContextSourceMetadataSummary = {
+  sourceId: string;
+  kind: ContextSourceKind;
+  ontology?: string;
+  sensitivity?: ContextSourceSensitivity;
+  confidence?: ContextSourceConfidence;
+  scope?: ContextSourceScope;
+  intendedUsage?: ContextSourceIntendedUsage[];
+  itemKinds?: string[];
+  candidateCount?: number;
+};
+
 export type ModelInputProjection = {
   id: string;
   runId: string;
@@ -179,6 +268,14 @@ export type CompactionResult = {
   };
   strippedRoundIds: string[];
   degradedTo: "llm" | "local-skeleton" | "none";
+  quality?: {
+    status: "complete" | "degraded";
+    summarySource: "llm" | "local-skeleton" | "none";
+    retainedSourceCount: number;
+    compactedSourceCount: number;
+    continuitySourceIds: string[];
+    signals: string[];
+  };
   failed?: {
     code: string;
     message: string;
@@ -194,7 +291,9 @@ export type ReinjectionSource = {
     | typeof ContextSourceKind.SkillBody
     | typeof ContextSourceKind.ActiveTool
     | typeof ContextSourceKind.PermissionMode
-    | typeof ContextSourceKind.HostContext;
+    | typeof ContextSourceKind.HostContext
+    | typeof ContextSourceKind.StateProjection
+    | typeof ContextSourceKind.AccountableTrace;
   priority: Exclude<ContextSourcePriority, typeof ContextSourcePriority.Critical>;
   content?: string;
   references?: ContextSourceReference[];
@@ -209,6 +308,7 @@ export type ProjectionLedgerEntry = {
   projectionId: string;
   sourceRefs: ContextSourceReference[];
   sourceDescriptors: Omit<ContextSourceDescriptor, "metadata">[];
+  sourceMetadataSummaries?: ContextSourceMetadataSummary[];
   policyDecisions: ContextPolicyDecision[];
   compactionBoundary?: CompactionBoundary;
   projectionHash?: ProjectionHashDescriptor;

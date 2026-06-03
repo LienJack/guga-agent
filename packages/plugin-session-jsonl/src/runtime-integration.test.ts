@@ -130,6 +130,12 @@ describe("jsonl session runtime integration", () => {
         runId: "run-jsonl-replay",
         turn: 0,
         messages: [{ role: "user", content: "hello" }],
+        sourceDescriptors: expect.arrayContaining([
+          expect.objectContaining({ kind: "state_projection" })
+        ]),
+        sourceMetadataSummaries: expect.arrayContaining([
+          expect.objectContaining({ ontology: "state_projection", itemKinds: ["objective"] })
+        ]),
         tools: expect.arrayContaining([
           expect.objectContaining({ name: "fs_read" }),
           expect.objectContaining({ name: "git_status" }),

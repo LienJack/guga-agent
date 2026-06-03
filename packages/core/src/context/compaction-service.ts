@@ -72,7 +72,23 @@ export class CompactionService {
         parameterTruncation: true
       },
       strippedRoundIds: [],
-      degradedTo
+      degradedTo,
+      quality: {
+        status: degradedTo === "none" ? "complete" : "degraded",
+        summarySource: degradedTo,
+        retainedSourceCount: retained.length,
+        compactedSourceCount: compressible.length,
+        continuitySourceIds: retained
+          .filter((source) =>
+            source.kind === ContextSourceKind.StateProjection || source.kind === ContextSourceKind.AccountableTrace
+          )
+          .map((source) => source.id),
+        signals: [
+          "retained-protected-sources",
+          ...(degradedTo === "local-skeleton" ? ["local-skeleton-summary"] : []),
+          ...(compressible.length === 0 ? ["no-compressible-sources"] : [])
+        ]
+      }
     };
 
     return {

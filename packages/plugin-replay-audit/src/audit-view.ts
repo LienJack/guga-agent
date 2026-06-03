@@ -1,4 +1,4 @@
-import { AgentEventType, type AgentEvent, type ArtifactStore, type DurableEventEnvelope, type ReplayAuditResult, type ReplayAuditTimelineItem, type ReplayDiagnostic, type SessionBranch, type SessionLeaf, type SessionRecord, type StoreCorruptionDiagnostic } from "@guga-agent/core";
+import { AgentEventType, ContextSourceKind, summarizeContextSourceMetadata, type AgentEvent, type ArtifactStore, type DurableEventEnvelope, type ReplayAuditResult, type ReplayAuditTimelineItem, type ReplayDiagnostic, type SessionBranch, type SessionLeaf, type SessionRecord, type StoreCorruptionDiagnostic } from "@guga-agent/core";
 
 export type BranchReplayView = {
   session: SessionRecord;
@@ -23,6 +23,7 @@ export async function buildAuditView(options: {
     ...corruptionDiagnostics(options.readDiagnostics ?? []),
     ...artifactDiagnostics,
     ...interruptedDiagnostics(options.events),
+    ...memoryCandidateDiagnostics(options.events),
     ...memoryWriteDiagnostics(options.events)
   ];
 
@@ -78,9 +79,26 @@ function eventDiagnostics(envelope: DurableEventEnvelope): ReplayDiagnostic[] {
       metadata: {
         boundary: event.result.boundary as unknown as import("@guga-agent/core").JsonObject,
         trigger: event.result.trigger,
-        summary: event.result.summary as unknown as import("@guga-agent/core").JsonObject
+        summary: event.result.summary as unknown as import("@guga-agent/core").JsonObject,
+        ...(event.result.quality ? { quality: event.result.quality as unknown as import("@guga-agent/core").JsonObject } : {})
       }
     }];
+  }
+  if (event.type === AgentEventType.ContextProjectionCreated) {
+    const summaries = event.projection.sourceDescriptors
+      .map((source) => summarizeContextSourceMetadata(source))
+      .filter((summary): summary is NonNullable<typeof summary> => summary !== undefined);
+    if (summaries.length > 0) {
+      return [{
+        severity: "info",
+        code: "ATTENTION_CONTEXT_SOURCES_RECORDED",
+        message: `Projection ${event.projection.id} recorded ${summaries.length} derived context metadata summaries`,
+        eventId: envelope.eventId,
+        metadata: {
+          summaries: summaries as unknown as import("@guga-agent/core").JsonObject
+        }
+      }];
+    }
   }
   if (event.type === AgentEventType.SessionForked) {
     return [{
@@ -199,6 +217,33 @@ function interruptedDiagnostics(events: readonly DurableEventEnvelope[]): Replay
     ...[...openPermissions.values()].map((event) => interrupted("PERMISSION_INTERRUPTED", event, "Permission request started without a terminal marker")),
     ...[...openCompactions.values()].map((event) => interrupted("COMPACTION_INTERRUPTED", event, "Compaction started without a terminal marker"))
   ];
+}
+
+function memoryCandidateDiagnostics(events: readonly DurableEventEnvelope[]): ReplayDiagnostic[] {
+  const candidates = events.flatMap((envelope) => {
+    const event = envelope.payload as AgentEvent;
+    if (event.type !== AgentEventType.ContextProjectionCreated) {
+      return [];
+    }
+    return event.projection.sourceDescriptors
+      .filter((source) => source.kind === ContextSourceKind.MemoryCandidate)
+      .map((source) => ({ envelope, source }));
+  });
+  if (candidates.length === 0) {
+    return [{
+      severity: "info",
+      code: "MEMORY_CANDIDATE_CONTEXT_ABSENT",
+      message: "Replay path contains no memory-candidate context sources"
+    }];
+  }
+  return [{
+    severity: "info",
+    code: "MEMORY_CANDIDATE_CONTEXT_RECORDED",
+    message: `Replay path contains ${candidates.length} memory-candidate context source(s); these are candidate context, not curated memory writes`,
+    metadata: {
+      sourceIds: candidates.map((candidate) => candidate.source.id)
+    }
+  }];
 }
 
 function memoryWriteDiagnostics(events: readonly DurableEventEnvelope[]): ReplayDiagnostic[] {
