@@ -1,6 +1,6 @@
 import type { CoreMessage } from "./messages";
 import type { ModelIdentifier, ModelMetadata, ModelPurpose } from "./provider";
-import type { ToolCallCorrelation, ToolResultReference } from "./tool-runtime";
+import type { ToolCallCorrelation, ToolCapabilityLease, ToolResultReference } from "./tool-runtime";
 import type { ToolDefinition } from "./tools";
 
 export const ContextSourceKind = {
@@ -215,6 +215,7 @@ export type ModelInputProjection = {
   turn: number;
   messages: CoreMessage[];
   tools: ToolDefinition[];
+  toolLease?: ToolCapabilityLease;
   sourceDescriptors: ContextSourceDescriptor[];
   budget: ContextBudget;
   pressure: ContextPressureDecision;

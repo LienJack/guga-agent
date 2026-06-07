@@ -9,8 +9,7 @@ import type {
   ToolAvailabilityContext,
   ToolCallCorrelation,
   ToolResourceScope,
-  ToolRuntimeResult,
-  ToolVisibilityDecision
+  ToolRuntimeResult
 } from "../contracts/tool-runtime";
 import type { ToolDefinition, ToolExecutionContext, ToolResult } from "../contracts/tools";
 import { EventBus } from "../events/event-bus";
@@ -18,6 +17,7 @@ import { HookKernel } from "../hooks/hook-kernel";
 import { PermissionKernel } from "../permissions/permission-kernel";
 import { CapabilityRegistry } from "../registry/capability-registry";
 import { ResultPolicy } from "./result-policy";
+import { toolVisibilityDecision } from "./tool-projection";
 
 export type ExecutionPipelineOptions = {
   registry: CapabilityRegistry;
@@ -393,46 +393,6 @@ function commandSummaryFor(input: unknown): string {
   return command.length > 120 ? `${command.slice(0, 117)}...` : command;
 }
 
-export function toolVisibilityDecision(
-  tool: ToolDefinition,
-  context: ToolAvailabilityContext = {}
-): ToolVisibilityDecision {
-  if (tool.runtime?.visibility === "hidden" || tool.runtime?.visibility === "runtime-only") {
-    return { visible: false, toolName: tool.name, reason: "hidden", metadata: { visibility: tool.runtime.visibility } };
-  }
-
-  const availability = availabilityFor(tool, context);
-  if (availability.status !== "available") {
-    return {
-      visible: false,
-      toolName: tool.name,
-      reason: visibilityReasonFor(availability),
-      metadata: { availability }
-    };
-  }
-
-  const profileAction = context.profile ? tool.runtime?.permission?.profileActions?.[context.profile] : undefined;
-  if (profileAction === "deny" || tool.runtime?.permission?.defaultAction === "deny") {
-    return {
-      visible: false,
-      toolName: tool.name,
-      reason: "policy-denied",
-      metadata: { permission: tool.runtime?.permission }
-    };
-  }
-
-  if ((context.profile === "headless" || context.profile === "background") && permissionDefaultAction(tool) === "ask") {
-    return {
-      visible: false,
-      toolName: tool.name,
-      reason: "policy-denied",
-      metadata: { permission: tool.runtime?.permission, profile: context.profile }
-    };
-  }
-
-  return { visible: true, toolName: tool.name, reason: "available" };
-}
-
 function toolUnavailableResult(tool: ToolDefinition, context: ToolAvailabilityContext): ToolResult | undefined {
   const decision = toolVisibilityDecision(tool, context);
   if (!decision.visible) {
@@ -440,40 +400,6 @@ function toolUnavailableResult(tool: ToolDefinition, context: ToolAvailabilityCo
     return failure("TOOL_UNAVAILABLE", availability?.status === "available" || !availability ? `Tool is not model-visible: ${tool.name}` : availability.reason, decision.metadata);
   }
   return undefined;
-}
-
-function availabilityFor(tool: ToolDefinition, context: ToolAvailabilityContext): ToolAvailability {
-  const availability = tool.runtime?.availability;
-  if (!availability) {
-    return { status: "available" };
-  }
-  return typeof availability === "function" ? availability(context) : availability;
-}
-
-function visibilityReasonFor(availability: ToolAvailability): NonNullable<ToolVisibilityDecision["reason"]> {
-  switch (availability.status) {
-    case "available":
-      return "available";
-    case "missing-backend":
-      return "missing-backend";
-    case "missing-credential":
-      return "missing-credential";
-    case "missing-sandbox":
-      return "missing-sandbox";
-    case "denied-by-policy":
-      return "policy-denied";
-    case "outside-workspace":
-      return "outside-workspace";
-    case "disabled":
-      return "disabled";
-  }
-}
-
-function permissionDefaultAction(tool: ToolDefinition): "allow" | "ask" | "deny" {
-  if (tool.runtime?.permission?.defaultAction) {
-    return tool.runtime.permission.defaultAction;
-  }
-  return tool.effect === "read" ? "allow" : "ask";
 }
 
 async function executeTool(call: ToolCall, tool: ToolDefinition, signal?: AbortSignal): Promise<ToolResult> {

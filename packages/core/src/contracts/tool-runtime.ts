@@ -338,3 +338,9 @@ export type ToolProjection = {
   source?: ToolSourceMetadata;
   lease?: ToolCapabilityLease;
 };
+
+export type ToolView = {
+  lease: ToolCapabilityLease;
+  tools: readonly ToolProjection[];
+  filtered: readonly ToolVisibilityDecision[];
+};

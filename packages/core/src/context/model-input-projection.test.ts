@@ -47,6 +47,53 @@ describe("ModelInputProjector", () => {
     expect(projection.budget.usableInputTokens).toBe(90);
   });
 
+  it("carries tool lease metadata on the projection and active tool sources", () => {
+    const projector = new ModelInputProjector({ idFactory: () => "lease" });
+    const projection = projector.assemble({
+      runId: "run-lease",
+      turn: 1,
+      messages: [{ role: "user", content: "Read the file" }],
+      tools: [
+        {
+          name: "read_file",
+          description: "Read a file",
+          inputSchema: { type: "object" },
+          effect: "read",
+          runtime: {
+            action: { category: "read", risk: "low" },
+            source: { kind: "core", namespace: "filesystem" }
+          },
+          execute() {
+            return { ok: true, content: "unused" };
+          }
+        }
+      ],
+      toolLease: {
+        leaseId: "lease-context",
+        runId: "run-lease",
+        turn: 1,
+        visibleToolNames: ["read_file"],
+        decisions: [{ visible: true, toolName: "read_file", reason: "available" }]
+      }
+    });
+
+    expect(projection.toolLease?.leaseId).toBe("lease-context");
+    expect(projection.sourceDescriptors).toContainEqual(expect.objectContaining({
+      kind: ContextSourceKind.ActiveTool,
+      metadata: expect.objectContaining({
+        toolName: "read_file",
+        leaseId: "lease-context"
+      }),
+      provenance: expect.objectContaining({
+        metadata: expect.objectContaining({
+          leaseId: "lease-context",
+          action: { category: "read", risk: "low" },
+          visibility: expect.objectContaining({ reason: "available" })
+        })
+      })
+    }));
+  });
+
   it("marks the estimate as partial when model context window is unknown", () => {
     const projector = new ModelInputProjector({ idFactory: () => "unknown" });
     const projection = projector.assemble({

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mapCoreMessagesToAiSdk } from "./message-mapper";
 import { mapToolsToAiSdk } from "./tool-mapper";
 import { AiSdkProviderErrorCategory, mapAiSdkError, mapAiSdkFinishReason, mapAiSdkUsage } from "./usage-error-mapper";
+import { projectToolView } from "../tools/tool-projection";
 
 describe("AI SDK mappers", () => {
   it("maps Guga messages to AI SDK-shaped messages", () => {
@@ -60,6 +61,28 @@ describe("AI SDK mappers", () => {
     expect(tools.echo?.description).toBe("Echo input");
     expect(tools.echo?.inputSchema).toMatchObject({ jsonSchema: { type: "object" } });
     expect("execute" in tools.echo!).toBe(false);
+  });
+
+  it("maps only tools selected by the capability lease projection", () => {
+    const visible = {
+      name: "visible",
+      description: "Visible tool",
+      inputSchema: { type: "object" },
+      effect: "read" as const,
+      execute() {
+        return { ok: true as const, content: "unused" };
+      }
+    };
+    const hidden = {
+      ...visible,
+      name: "hidden",
+      runtime: { visibility: "hidden" as const }
+    };
+    const view = projectToolView({ tools: [visible, hidden], leaseId: "lease-mapper" });
+    const mapped = mapToolsToAiSdk(view.visibleTools);
+
+    expect(Object.keys(mapped)).toEqual(["visible"]);
+    expect(view.filtered).toContainEqual(expect.objectContaining({ toolName: "hidden", reason: "hidden" }));
   });
 
   it("maps usage to token counts with explicit unknown cost", () => {

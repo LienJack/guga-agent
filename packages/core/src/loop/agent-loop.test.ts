@@ -79,7 +79,7 @@ describe("AgentLoop", () => {
         messages: [{ role: "user", content: "Use echo" }],
         sourceDescriptors: expect.arrayContaining([
           expect.objectContaining({ kind: "pending_turn" }),
-          expect.objectContaining({ kind: "active_tool", metadata: { toolName: "echo" } }),
+          expect.objectContaining({ kind: "active_tool", metadata: expect.objectContaining({ toolName: "echo" }) }),
           expect.objectContaining({ kind: "state_projection", modelVisible: false })
         ])
       }
@@ -238,11 +238,25 @@ describe("AgentLoop", () => {
     expect(result).toMatchObject({ ok: true, finalAnswer: "visible" });
     expect(result.events).toContainEqual(expect.objectContaining({
       type: AgentEventType.ToolVisibilityFiltered,
-      decision: expect.objectContaining({ toolName: "dynamic-denied", reason: "policy-denied" })
+      decision: expect.objectContaining({ toolName: "dynamic-denied", reason: "policy-denied" }),
+      lease: expect.objectContaining({
+        visibleToolNames: ["visible"],
+        decisions: expect.arrayContaining([
+          expect.objectContaining({ toolName: "hidden", reason: "hidden" }),
+          expect.objectContaining({ toolName: "missing-backend", reason: "missing-backend" }),
+          expect.objectContaining({ toolName: "dynamic-denied", reason: "policy-denied" }),
+          expect.objectContaining({ toolName: "headless-denied", reason: "policy-denied" })
+        ])
+      })
     }));
     expect(result.events).toContainEqual(expect.objectContaining({
       type: AgentEventType.ToolVisibilityFiltered,
       decision: expect.objectContaining({ toolName: "headless-denied", reason: "policy-denied" })
+    }));
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ModelRequested,
+      toolNames: ["visible"],
+      toolLease: expect.objectContaining({ visibleToolNames: ["visible"] })
     }));
   });
 

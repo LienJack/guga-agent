@@ -7,7 +7,7 @@ import type { LegacyProviderError, Provider, ProviderError, ProviderRequest, Pro
 import { ProviderErrorCategory } from "../contracts/provider";
 import type { AgentRunFailure, AgentRunOptions, AgentRunResult } from "../contracts/runtime";
 import type { DurablePublishResult } from "../events/event-bus";
-import type { ToolAvailabilityContext } from "../contracts/tool-runtime";
+import type { ToolAvailabilityContext, ToolCapabilityLease } from "../contracts/tool-runtime";
 import type { ToolDefinition } from "../contracts/tools";
 import { ModelInputProjector } from "../context/model-input-projection";
 import { buildAccountableTraceSource } from "../context/accountable-trace";
@@ -26,7 +26,8 @@ import { PermissionKernel } from "../permissions/permission-kernel";
 import { CapabilityRegistry } from "../registry/capability-registry";
 import { ProviderRouter } from "../router/provider-router";
 import { ConversationState } from "../state/conversation-state";
-import { ExecutionPipeline, toolVisibilityDecision } from "../tools/execution-pipeline";
+import { ExecutionPipeline } from "../tools/execution-pipeline";
+import { projectToolView } from "../tools/tool-projection";
 import { ResultPolicy } from "../tools/result-policy";
 import { ToolScheduler } from "../tools/tool-scheduler";
 
@@ -102,12 +103,27 @@ export class AgentLoop {
 
     for (let turn = 0; turn < maxTurns; turn += 1) {
       const messages = state.snapshot();
-      const tools = visibleTools(this.registry.listTools(), this.availabilityContext, this.eventBus, runId, turn);
+      const toolView = projectToolView({
+        tools: this.registry.listTools(),
+        context: this.availabilityContext,
+        runId,
+        turn
+      });
+      for (const decision of toolView.filtered) {
+        this.publish({
+          type: AgentEventType.ToolVisibilityFiltered,
+          runId,
+          turn,
+          decision,
+          lease: toolView.lease
+        });
+      }
       const projectionResult = await this.prepareProjection({
         runId,
         turn,
         messages,
-        tools,
+        tools: toolView.visibleTools,
+        toolLease: toolView.lease,
         ...(overridePolicyDecisions ? { policyDecisions: overridePolicyDecisions } : {}),
         model: modelTargetFor({ router: this.router, registry: this.registry, directProvider, options })
       });
@@ -355,7 +371,8 @@ export class AgentLoop {
       turn,
       providerId: provider.id,
       messages,
-      toolNames: tools.map((tool) => tool.name)
+      toolNames: tools.map((tool) => tool.name),
+      ...(projection.toolLease ? { toolLease: projection.toolLease } : {})
     } as const;
     const start = await this.eventBus.publishDurable(requestEvent, {
       idempotencyKey: durableKey(runId, turn, "model.requested", provider.id)
@@ -550,6 +567,7 @@ export class AgentLoop {
     turn: number;
     messages: readonly CoreMessage[];
     tools: readonly ToolDefinition[];
+    toolLease?: ToolCapabilityLease;
     model: ReturnType<typeof modelTargetFor>;
     policyDecisions?: ContextPolicyDecision[];
   }): Promise<CoreError | { projection: ReturnType<ModelInputProjector["assemble"]>; alreadyCompacted: boolean }> {
@@ -574,6 +592,7 @@ export class AgentLoop {
       turn: options.turn,
       messages: options.messages,
       tools: options.tools,
+      ...(options.toolLease ? { toolLease: options.toolLease } : {}),
       ...(policyDecisions.length ? { policyDecisions } : {}),
       ...(additionalSources.length ? { additionalSources } : {}),
       ...modelTargetOption(options.model)
@@ -599,6 +618,7 @@ export class AgentLoop {
         turn: options.turn,
         messages: options.messages,
         tools: options.tools,
+        ...(options.toolLease ? { toolLease: options.toolLease } : {}),
         policyDecisions,
         additionalSources,
         ...modelTargetOption(options.model)
@@ -656,6 +676,7 @@ export class AgentLoop {
           turn: options.turn,
           messages: messagesWithoutSnippedSources(projection.messages, truncated.snipped),
           tools: options.tools,
+          ...(options.toolLease ? { toolLease: options.toolLease } : {}),
           policyDecisions: [
             ...policyDecisions,
             ...truncated.decisions
@@ -1045,28 +1066,6 @@ function providerErrorFromDetails(details: unknown): ProviderError | undefined {
 
 function isProviderError(error: unknown): error is ProviderError {
   return !!error && typeof error === "object" && "category" in error && "code" in error && "message" in error;
-}
-
-function visibleTools(
-  tools: ToolDefinition[],
-  context: ToolAvailabilityContext,
-  eventBus: EventBus,
-  runId: string,
-  turn: number
-): ToolDefinition[] {
-  return tools.filter((tool) => {
-    const decision = toolVisibilityDecision(tool, context);
-    if (decision.visible) {
-      return true;
-    }
-    eventBus.publish({
-      type: AgentEventType.ToolVisibilityFiltered,
-      runId,
-      turn,
-      decision
-    });
-    return false;
-  });
 }
 
 function durableKey(runId: string, turn: number, boundary: string, identity: string): string {

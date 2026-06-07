@@ -336,6 +336,7 @@ export type {
   ToolSchedulerMetadata,
   ToolSourceKind,
   ToolSourceMetadata,
+  ToolView,
   ToolVisibility,
   ToolVisibilityDecision
 } from "./contracts/tool-runtime";
