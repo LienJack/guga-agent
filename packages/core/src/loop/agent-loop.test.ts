@@ -52,6 +52,20 @@ describe("AgentLoop", () => {
       AgentEventType.ModelResponded,
       AgentEventType.RunFinished
     ]);
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ToolQueued,
+      intent: expect.objectContaining({
+        toolName: "echo",
+        leaseId: expect.stringMatching(/^tool-lease-/)
+      })
+    }));
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ToolCompleted,
+      intent: expect.objectContaining({
+        toolName: "echo",
+        leaseId: expect.stringMatching(/^tool-lease-/)
+      })
+    }));
   });
 
   it("creates a projection before each provider request", async () => {

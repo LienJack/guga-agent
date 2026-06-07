@@ -301,6 +301,7 @@ export type ToolRuntimeResult = {
   call: ToolCall;
   result: ToolResult;
   correlation: ToolCallCorrelation;
+  intent?: ToolIntent;
   reason?: ToolRuntimeFailureReason;
 };
 

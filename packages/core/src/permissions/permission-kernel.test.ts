@@ -68,6 +68,42 @@ describe("PermissionKernel", () => {
     ]);
   });
 
+  it("preserves tool intent metadata on permission request and resolution events", async () => {
+    const resolver = vi.fn().mockResolvedValue({
+      action: "allow",
+      remember: "once",
+      source: "host"
+    });
+    const eventBus = new EventBus();
+    const tool = executeTool();
+    const request = requestFor(tool, {
+      intent: {
+        id: "intent-permission",
+        toolName: tool.name,
+        toolCallId: baseCall.id,
+        action: { category: "execute", risk: "high" },
+        inputSummary: "echo hi"
+      }
+    });
+    const kernel = new PermissionKernel({ eventBus, resolver });
+
+    const result = await kernel.resolve({ request, tool });
+
+    expect(result.ok).toBe(true);
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.PermissionRequested,
+      request: expect.objectContaining({
+        intent: expect.objectContaining({ id: "intent-permission", toolName: "execute" })
+      })
+    }));
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.PermissionResolved,
+      request: expect.objectContaining({
+        intent: expect.objectContaining({ id: "intent-permission", action: { category: "execute", risk: "high" } })
+      })
+    }));
+  });
+
   it("does not ask the host resolver when the durable permission request marker fails", async () => {
     const resolver = vi.fn();
     const eventBus = durableEventBus({ failTypes: new Set([AgentEventType.PermissionRequested]) });

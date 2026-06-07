@@ -24,6 +24,14 @@ describe("ExecutionPipeline", () => {
     });
 
     expect(result.result).toEqual({ ok: true, content: "hello" });
+    expect(result.intent).toMatchObject({
+      toolName: "echo",
+      toolCallId: "call-1",
+      action: { category: "read", risk: "low" },
+      summary: "echo",
+      inputSummary: "input keys: value",
+      correlation: { runId: "run-pipeline", turn: 0, toolCallId: "call-1" }
+    });
     expect(eventBus.events.map((event) => event.type)).toEqual([
       AgentEventType.ToolQueued,
       AgentEventType.PermissionResolved,
@@ -31,6 +39,20 @@ describe("ExecutionPipeline", () => {
       AgentEventType.ToolResult,
       AgentEventType.ToolCompleted
     ]);
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ToolQueued,
+      intent: expect.objectContaining({ toolName: "echo", toolCallId: "call-1" })
+    }));
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.PermissionResolved,
+      request: expect.objectContaining({
+        intent: expect.objectContaining({ toolName: "echo" })
+      })
+    }));
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ToolCompleted,
+      intent: expect.objectContaining({ toolName: "echo" })
+    }));
   });
 
   it("applies tool.call.before patches before permission and execution", async () => {
@@ -98,6 +120,7 @@ describe("ExecutionPipeline", () => {
 
   it("returns schema validation failures without permission or execution", async () => {
     const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
     const resolver = vi.fn();
     const execute = vi.fn();
     registry.registerTool(
@@ -109,6 +132,7 @@ describe("ExecutionPipeline", () => {
     );
     const pipeline = new ExecutionPipeline({
       registry,
+      eventBus,
       permissionKernel: new PermissionKernel({ resolver })
     });
 
@@ -122,6 +146,11 @@ describe("ExecutionPipeline", () => {
       ok: false,
       error: { code: "TOOL_SCHEMA_INVALID" }
     });
+    expect(result.intent).toMatchObject({ toolName: "needs-path", toolCallId: "call-schema" });
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ToolFailed,
+      intent: expect.objectContaining({ toolName: "needs-path" })
+    }));
     expect(resolver).not.toHaveBeenCalled();
     expect(execute).not.toHaveBeenCalled();
   });
@@ -353,7 +382,15 @@ describe("ExecutionPipeline", () => {
         source: "verification",
         taskId: "task-1"
       },
+      intent: expect.objectContaining({
+        toolName: "shell_exec",
+        toolCallId: "call-scope",
+        action: expect.objectContaining({ category: "execute" }),
+        resourceScopes: [expect.objectContaining({ kind: "shell", access: "execute", value: "echo one" })],
+        inputSummary: "echo one"
+      }),
       subject: expect.objectContaining({
+        action: expect.objectContaining({ category: "execute" }),
         commandSummary: "echo one",
         resourceSummary: "shell:execute:echo one"
       })

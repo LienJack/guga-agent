@@ -272,6 +272,7 @@ export class AgentLoop {
           turn,
           call: scheduledCall.call,
           batchId,
+          ...(projection.toolLease ? { toolLease: projection.toolLease } : {}),
           ...(options.signal ? { signal: options.signal } : {})
         }));
         const settled = batch.parallel
