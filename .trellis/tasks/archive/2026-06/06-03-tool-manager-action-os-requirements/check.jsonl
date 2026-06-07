@@ -1,0 +1,6 @@
+{"file":"docs/brainstorms/2026-06-03-tool-manager-action-os-requirements.md","reason":"Check future plans and changes against the confirmed Action OS requirements and scope boundaries."}
+{"file":"docs/plans/2026-06-03-002-feat-tool-manager-action-os-plan.md","reason":"Check implementation against the planned units, test scenarios, source boundaries, and deferred scope."}
+{"file":"docs/brainstorms/2026-05-26-m3-tool-plugins-permission-runtime-requirements.md","reason":"Verify compatibility with the existing M3 requirements and avoid regressing the established execution pipeline and permission runtime."}
+{"file":"docs/research/context-packs/tool-registry.md","reason":"Review tool registry, permission, MCP, hook, and result-handling claims against the reference-project evidence summary."}
+{"file":"docs/research/context-packs/context-compression.md","reason":"Check tool result evidence, artifact reference, and context projection requirements against context-management constraints."}
+{"file":"docs/solutions/architecture-patterns/tool-permission-runtime.md","reason":"Verify that future implementation still matches the existing architecture pattern and current limits."}

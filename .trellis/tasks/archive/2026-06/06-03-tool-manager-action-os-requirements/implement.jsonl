@@ -1,0 +1,6 @@
+{"file":"docs/brainstorms/2026-06-03-tool-manager-action-os-requirements.md","reason":"Primary requirements supplement for Tool Manager Action OS scope, requirements, acceptance examples, and boundaries."}
+{"file":"docs/plans/2026-06-03-002-feat-tool-manager-action-os-plan.md","reason":"Primary implementation plan with units, file paths, sequencing, test scenarios, risks, and verification strategy."}
+{"file":"docs/brainstorms/2026-05-26-m3-tool-plugins-permission-runtime-requirements.md","reason":"Baseline M3 tool plugin, permission runtime, execution pipeline, result budget, and event requirements to preserve while extending."}
+{"file":"docs/roadmap.md","reason":"Project-level roadmap for core, plugin ecosystem, tool/permission runtime, context, skills/MCP, host protocol, and audit/replay direction."}
+{"file":"docs/research/context-packs/tool-registry.md","reason":"Reference-project context pack for tool registration, permission, hooks, MCP integration, concurrency, and result handling patterns."}
+{"file":"docs/solutions/architecture-patterns/tool-permission-runtime.md","reason":"Condensed architecture pattern for the existing tool permission runtime decision and current limits."}
