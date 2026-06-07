@@ -40,7 +40,24 @@ describe("audit replay view", () => {
             applied: true,
             originalContentChars: 1000,
             reference: { type: "artifact", id: artifact.artifactId, artifact },
-            view: { llmPreview: "preview" }
+            view: { llmPreview: "preview" },
+            evidence: {
+              raw: {
+                source: "artifact",
+                available: true,
+                reference: { type: "artifact", id: artifact.artifactId, artifact },
+                contentHash: artifact.contentHash.value,
+                originalContentChars: 1000
+              },
+              model: { preview: "preview", omittedContentChars: 995 },
+              audit: {
+                reference: { type: "artifact", id: artifact.artifactId, artifact },
+                redaction: { state: "none" },
+                verifier: { status: "unverified" }
+              }
+            },
+            redaction: { state: "none" },
+            verifier: { status: "unverified" }
           }
         }
       }, { eventId: "event-3", artifactRefs: [artifact] }),
@@ -83,7 +100,17 @@ describe("audit replay view", () => {
     ]);
     expect(view.timeline[2]).toMatchObject({
       artifactRefs: [expect.objectContaining({ artifactId: artifact.artifactId })],
-      diagnostics: [expect.objectContaining({ code: "TOOL_RESULT_ARTIFACT_REFERENCED" })]
+      diagnostics: [expect.objectContaining({
+        code: "TOOL_RESULT_ARTIFACT_REFERENCED",
+        metadata: expect.objectContaining({
+          rawAvailable: true,
+          redaction: { state: "none" },
+          verifier: { status: "unverified" },
+          evidence: expect.objectContaining({
+            raw: expect.objectContaining({ source: "artifact", available: true })
+          })
+        })
+      })]
     });
     expect(view.timeline[3]).toMatchObject({
       diagnostics: [expect.objectContaining({ code: "CONTEXT_COMPACTION_BOUNDARY" })]

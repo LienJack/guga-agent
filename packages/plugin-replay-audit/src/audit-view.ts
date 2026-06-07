@@ -56,6 +56,7 @@ function timelineItem(envelope: DurableEventEnvelope): ReplayAuditTimelineItem {
 function eventDiagnostics(envelope: DurableEventEnvelope): ReplayDiagnostic[] {
   const event = envelope.payload as AgentEvent;
   if (event.type === AgentEventType.ToolResultBudgeted && event.result.budget?.reference?.type === "artifact") {
+    const evidence = event.result.budget.evidence;
     return [{
       severity: "info",
       code: "TOOL_RESULT_ARTIFACT_REFERENCED",
@@ -66,6 +67,10 @@ function eventDiagnostics(envelope: DurableEventEnvelope): ReplayDiagnostic[] {
         toolCallId: event.call.id,
         preview: event.result.budget.view?.llmPreview ?? (event.result.ok ? event.result.content : event.result.error.message),
         originalContentChars: event.result.budget.originalContentChars ?? null,
+        rawAvailable: evidence?.raw.available ?? true,
+        redaction: (event.result.budget.redaction ?? evidence?.audit.redaction ?? { state: "none" }) as unknown as import("@guga-agent/core").JsonObject,
+        verifier: (event.result.budget.verifier ?? evidence?.audit.verifier ?? { status: "unverified" }) as unknown as import("@guga-agent/core").JsonObject,
+        ...(evidence ? { evidence: evidence as unknown as import("@guga-agent/core").JsonObject } : {}),
         reference: event.result.budget.reference as unknown as import("@guga-agent/core").JsonObject
       }
     }];

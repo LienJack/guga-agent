@@ -57,7 +57,12 @@ export class InMemoryToolResultStore implements ToolResultStore {
       metadata: {
         toolName: options.toolName,
         originalContentChars: options.content.length,
-        contentHash: simpleContentHash(options.content)
+        contentHash: simpleContentHash(options.content),
+        evidence: {
+          rawSource: "buffer",
+          redaction: { state: "none" },
+          verifier: { status: "unverified" }
+        }
       }
     };
   }
@@ -94,6 +99,11 @@ export class ArtifactToolResultStore implements ToolResultStore {
         correlation: jsonSafeMetadata(options.correlation),
         result: jsonSafeMetadata(options.result),
         originalContentChars: options.content.length,
+        evidence: {
+          rawSource: "artifact",
+          redaction: { state: "none" },
+          verifier: { status: "unverified" }
+        },
         ...(options.metadata ? { policy: jsonSafeMetadata(options.metadata) } : {})
       }
     });
@@ -116,7 +126,12 @@ export class ArtifactToolResultStore implements ToolResultStore {
         contentHash: result.reference.contentHash.value,
         sizeBytes: result.reference.sizeBytes,
         mimeType: result.reference.mimeType,
-        artifactId: result.reference.artifactId
+        artifactId: result.reference.artifactId,
+        evidence: {
+          rawSource: "artifact",
+          redaction: result.reference.redaction ?? { state: "none" },
+          verifier: { status: "unverified" }
+        }
       }
     };
   }

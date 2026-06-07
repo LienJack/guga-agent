@@ -27,6 +27,13 @@ describe("InMemoryToolResultStore", () => {
       content: "full output",
       originalContentChars: 11
     });
+    expect(reference.metadata).toMatchObject({
+      evidence: {
+        rawSource: "buffer",
+        redaction: { state: "none" },
+        verifier: { status: "unverified" }
+      }
+    });
   });
 
   it("includes run, turn, attempt, batch, and call id in record ids", () => {
@@ -69,7 +76,12 @@ describe("ArtifactToolResultStore", () => {
       },
       metadata: {
         contentHash: expect.stringMatching(/^[a-f0-9]{64}$/),
-        sizeBytes: 20
+        sizeBytes: 20,
+        evidence: {
+          rawSource: "artifact",
+          redaction: { state: "none" },
+          verifier: { status: "unverified" }
+        }
       }
     });
     expect(store.get(reference.id)).toMatchObject({

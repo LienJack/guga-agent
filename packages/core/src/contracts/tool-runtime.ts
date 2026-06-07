@@ -242,6 +242,45 @@ export type ToolResultReference = {
   metadata?: Record<string, unknown>;
 };
 
+export type ToolEvidenceRedaction = {
+  state: "none" | "partial" | "redacted";
+  reason?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type ToolEvidenceVerifier = {
+  status: "unverified" | "verified" | "failed" | "not-applicable";
+  verifierId?: string;
+  checkedAt?: string;
+  reason?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type ToolResultEvidence = {
+  raw: {
+    source: "inline" | "buffer" | "artifact" | "host-reference";
+    available: boolean;
+    reference?: ToolResultReference;
+    contentHash?: string;
+    originalContentChars?: number;
+  };
+  model: {
+    preview: string;
+    notice?: string;
+    omittedContentChars?: number;
+  };
+  ui?: {
+    projection: string;
+    reference?: ToolResultReference;
+  };
+  audit: {
+    metadata?: Record<string, unknown>;
+    reference?: ToolResultReference;
+    redaction: ToolEvidenceRedaction;
+    verifier: ToolEvidenceVerifier;
+  };
+};
+
 export type BudgetedToolResult = ToolResult & {
   budget?: {
     applied: boolean;
@@ -255,6 +294,9 @@ export type BudgetedToolResult = ToolResult & {
       uiProjection?: string;
       auditMetadata?: Record<string, unknown>;
     };
+    evidence?: ToolResultEvidence;
+    redaction?: ToolEvidenceRedaction;
+    verifier?: ToolEvidenceVerifier;
   };
 };
 
