@@ -10,6 +10,15 @@ export type McpToolInfo = {
   name: string;
   description?: string;
   inputSchema?: unknown;
+  annotations?: McpToolAnnotations;
+};
+
+export type McpToolAnnotations = {
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+  [key: string]: unknown;
 };
 
 export type McpCallToolResult = {
@@ -83,7 +92,8 @@ export class McpStdioClient {
     return result.tools.filter(isObject).map((tool) => ({
       name: String(tool.name),
       ...(typeof tool.description === "string" ? { description: tool.description } : {}),
-      ...(tool.inputSchema ? { inputSchema: tool.inputSchema } : {})
+      ...(tool.inputSchema ? { inputSchema: tool.inputSchema } : {}),
+      ...(isObject(tool.annotations) ? { annotations: tool.annotations as McpToolAnnotations } : {})
     }));
   }
 

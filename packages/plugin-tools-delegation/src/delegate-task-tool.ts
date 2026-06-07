@@ -45,6 +45,28 @@ export function createDelegateTaskTool(options: DelegateTaskToolOptions): ToolDe
         maxContentChars: 12_000,
         strategy: "truncate"
       },
+      action: {
+        category: "delegate",
+        risk: "high",
+        label: "Delegate task",
+        summary: "Run an isolated child agent with a scoped context and tool allowance.",
+        effects: [{
+          kind: "delegation",
+          access: "execute",
+          target: "child-agent",
+          external: true,
+          metadata: {
+            defaultMaxTurns: options.defaultMaxTurns ?? defaultMaxTurns,
+            defaultTimeoutMs: options.defaultTimeoutMs ?? defaultTimeoutMs,
+            defaultAgentType: options.defaultAgentType ?? "general"
+          }
+        }],
+        tags: ["delegation", "child-agent", "agent-runtime"]
+      },
+      principal: {
+        kind: "agent",
+        label: "Child agent"
+      },
       renderer: {
         category: "custom",
         label: "Delegate task",
@@ -58,6 +80,14 @@ export function createDelegateTaskTool(options: DelegateTaskToolOptions): ToolDe
       backend: {
         kind: "custom",
         description: "Delegation backend"
+      },
+      eval: {
+        categories: ["tool-action", "delegation"],
+        coveredRisks: ["high"],
+        expectedUseCases: ["Use for self-contained subtasks that benefit from isolated agent execution."],
+        unsafeUseCases: ["Do not delegate recursively or grant tools unavailable to the parent runtime."],
+        selectionTags: ["delegate", "child-agent"],
+        auditRequirements: ["Record parent/child run correlation, child tool allowance, budget, timeout, and compact event summary."]
       },
       availability: { status: "available" },
       visibility: "model"
@@ -77,13 +107,36 @@ export function createDelegateTaskTool(options: DelegateTaskToolOptions): ToolDe
       if (!toolSelection.ok) {
         return failure(toolSelection.code, toolSelection.message, toolSelection.details);
       }
+      const childBudget = {
+        maxTurns: parsed.input.maxTurns ?? options.defaultMaxTurns ?? defaultMaxTurns,
+        timeoutMs: parsed.input.timeoutMs ?? options.defaultTimeoutMs ?? defaultTimeoutMs
+      };
       const baseMetadata = {
         parentRunId,
         parentToolCallId,
         childRunId,
         childSessionId,
         agentType,
-        tools: toolSelection.tools
+        tools: toolSelection.tools,
+        allowance: {
+          tools: toolSelection.tools,
+          context: parsed.input.context ? "provided" : "none"
+        },
+        budget: childBudget,
+        timeoutMs: childBudget.timeoutMs,
+        trace: {
+          parentRunId,
+          parentToolCallId,
+          childRunId,
+          childSessionId
+        },
+        evidence: {
+          source: "delegation",
+          rawSource: childSessionId,
+          verifier: { status: "unverified" },
+          redaction: { state: "none" },
+          summary: "Child output is compacted before returning to the parent model."
+        }
       };
 
       try {
@@ -93,8 +146,8 @@ export function createDelegateTaskTool(options: DelegateTaskToolOptions): ToolDe
           ...(parsed.input.context ? { context: parsed.input.context } : {}),
           agentType,
           tools: toolSelection.tools,
-          maxTurns: parsed.input.maxTurns ?? options.defaultMaxTurns ?? defaultMaxTurns,
-          timeoutMs: parsed.input.timeoutMs ?? options.defaultTimeoutMs ?? defaultTimeoutMs,
+          maxTurns: childBudget.maxTurns,
+          timeoutMs: childBudget.timeoutMs,
           parentRunId,
           parentToolCallId,
           childRunId,

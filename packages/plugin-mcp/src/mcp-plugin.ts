@@ -1,7 +1,7 @@
 import type { LocalPlugin } from "@guga-agent/core";
 import { defineExtension } from "@guga-agent/extension-sdk";
 import { McpStdioClient } from "./mcp-stdio-client";
-import { createMcpToolDefinition } from "./mcp-tool-adapter";
+import { createMcpToolDefinition, type McpToolPolicyResolver } from "./mcp-tool-adapter";
 
 export type McpServerConfig = {
   name: string;
@@ -14,6 +14,7 @@ export type McpServerConfig = {
 export type McpPluginOptions = {
   pluginId?: string;
   servers: McpServerConfig[];
+  toolPolicy?: McpToolPolicyResolver;
 };
 
 export function createMcpPlugin(options: McpPluginOptions): LocalPlugin {
@@ -42,10 +43,19 @@ export function createMcpExtension(options: McpPluginOptions): LocalPlugin {
             context.registerTool(createMcpToolDefinition({
               serverName: server.name,
               tool,
-              client
+              client,
+              ...(options.toolPolicy ? { policy: options.toolPolicy } : {})
             }), {
               source: "mcp",
-              namespace: server.name
+              namespace: server.name,
+              trust: {
+                level: "untrusted",
+                scopes: [
+                  { kind: "mcp.server", access: "call-tool", value: server.name },
+                  { kind: "mcp.tool", access: "execute", value: tool.name }
+                ],
+                reason: "MCP server capabilities are external to the core runtime."
+              }
             });
           }
         }

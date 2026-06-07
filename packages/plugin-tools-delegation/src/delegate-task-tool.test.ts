@@ -50,6 +50,27 @@ describe("plugin-tools-delegation", () => {
           agentType: "review",
           status: "completed",
           tools: ["read_file", "run_tests"],
+          allowance: {
+            tools: ["read_file", "run_tests"],
+            context: "provided"
+          },
+          budget: {
+            maxTurns: 2,
+            timeoutMs: 1000
+          },
+          timeoutMs: 1000,
+          trace: {
+            parentRunId: "parent-run",
+            parentToolCallId: "call-1",
+            childRunId: "call-1-child",
+            childSessionId: "parent-run/child/call-1-child"
+          },
+          evidence: {
+            source: "delegation",
+            rawSource: "parent-run/child/call-1-child",
+            verifier: { status: "unverified" },
+            redaction: { state: "none" }
+          },
           events: [
             { type: "model.responded", count: 1 },
             { type: "run.started", count: 1 }
@@ -64,6 +85,38 @@ describe("plugin-tools-delegation", () => {
       timeoutMs: 1000,
       tools: ["read_file", "run_tests"]
     }));
+  });
+
+  it("declares delegation as a governed tool-like action", () => {
+    const tool = createDelegateTaskTool({
+      childRunner: vi.fn(),
+      toolCatalog: [{ name: "read_file" }],
+      defaultToolAllowlist: ["read_file"],
+      defaultMaxTurns: 3,
+      defaultTimeoutMs: 5000
+    });
+
+    expect(tool.runtime).toMatchObject({
+      permission: { defaultAction: "ask", profileActions: { headless: "deny", background: "deny" } },
+      action: {
+        category: "delegate",
+        risk: "high",
+        effects: [expect.objectContaining({
+          kind: "delegation",
+          access: "execute",
+          target: "child-agent",
+          metadata: expect.objectContaining({
+            defaultMaxTurns: 3,
+            defaultTimeoutMs: 5000
+          })
+        })]
+      },
+      principal: { kind: "agent", label: "Child agent" },
+      eval: expect.objectContaining({
+        categories: ["tool-action", "delegation"],
+        coveredRisks: ["high"]
+      })
+    });
   });
 
   it("rejects invalid input before running a child", async () => {
@@ -166,6 +219,7 @@ describe("plugin-tools-delegation", () => {
         summary: "ok",
         metadata: {
           delegation: { parentRunId: "forged" },
+          evidence: { rawSource: "forged" },
           note: "from child"
         }
       })
@@ -178,11 +232,16 @@ describe("plugin-tools-delegation", () => {
       metadata: {
         childMetadata: {
           delegation: { parentRunId: "forged" },
+          evidence: { rawSource: "forged" },
           note: "from child"
         },
         delegation: {
           parentRunId: "parent",
-          parentToolCallId: "call-1"
+          parentToolCallId: "call-1",
+          evidence: {
+            source: "delegation",
+            rawSource: "parent/child/call-1-child"
+          }
         }
       }
     });

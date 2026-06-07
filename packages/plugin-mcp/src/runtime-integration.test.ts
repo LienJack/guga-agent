@@ -35,6 +35,14 @@ describe("createMcpPlugin", () => {
       namespace: "fixture",
       ownerPluginId: "mcp",
       owner: { kind: "extension", id: "mcp", packageName: "@guga-agent/plugin-mcp" },
+      trust: {
+        level: "untrusted",
+        scopes: [
+          { kind: "mcp.server", access: "call-tool", value: "fixture" },
+          { kind: "mcp.tool", access: "execute", value: "echo" }
+        ],
+        reason: "MCP server capabilities are external to the core runtime."
+      },
       declaredEffects: ["process.spawn", "network.access"],
       permissionRequirements: [{ subject: "mcp.server", actions: ["connect", "call-tool"] }],
       dependencies: [{ kind: "service", name: "fixture", optional: false }],
