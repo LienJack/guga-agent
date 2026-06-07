@@ -11,7 +11,14 @@ import type { ModelEvent } from "./model-events";
 import type { PermissionDecision, PermissionRequest } from "./permissions";
 import type { PluginCapabilityKind, PluginFailureKind } from "./plugins";
 import type { ProviderResponse, Usage } from "./provider";
-import type { BudgetedToolResult, ToolCallCorrelation, ToolVisibilityDecision } from "./tool-runtime";
+import type {
+  BudgetedToolResult,
+  ToolCallCorrelation,
+  ToolCapabilityLease,
+  ToolEnvironmentAssessment,
+  ToolIntent,
+  ToolVisibilityDecision
+} from "./tool-runtime";
 import type { ToolResult } from "./tools";
 
 export const AgentEventType = {
@@ -74,6 +81,7 @@ export type AgentEvent =
       providerId: string;
       messages: CoreMessage[];
       toolNames: string[];
+      toolLease?: ToolCapabilityLease;
     }
   | {
       type: typeof AgentEventType.ModelResponded;
@@ -93,6 +101,8 @@ export type AgentEvent =
       turn: number;
       correlation: ToolCallCorrelation;
       call: ToolCall;
+      intent?: ToolIntent;
+      environment?: ToolEnvironmentAssessment;
     }
   | {
       type: typeof AgentEventType.ToolCalled;
@@ -100,6 +110,8 @@ export type AgentEvent =
       turn: number;
       call: ToolCall;
       correlation?: ToolCallCorrelation;
+      intent?: ToolIntent;
+      environment?: ToolEnvironmentAssessment;
     }
   | {
       type: typeof AgentEventType.ToolStarted;
@@ -107,6 +119,8 @@ export type AgentEvent =
       turn: number;
       correlation: ToolCallCorrelation;
       call: ToolCall;
+      intent?: ToolIntent;
+      environment?: ToolEnvironmentAssessment;
     }
   | {
       type: typeof AgentEventType.ToolResult;
@@ -115,6 +129,8 @@ export type AgentEvent =
       call: ToolCall;
       result: ToolResult;
       correlation?: ToolCallCorrelation;
+      intent?: ToolIntent;
+      environment?: ToolEnvironmentAssessment;
     }
   | {
       type: typeof AgentEventType.ToolCompleted;
@@ -123,6 +139,8 @@ export type AgentEvent =
       correlation: ToolCallCorrelation;
       call: ToolCall;
       result: ToolResult;
+      intent?: ToolIntent;
+      environment?: ToolEnvironmentAssessment;
     }
   | {
       type: typeof AgentEventType.ToolFailed;
@@ -131,6 +149,8 @@ export type AgentEvent =
       correlation: ToolCallCorrelation;
       call: ToolCall;
       result: ToolResult;
+      intent?: ToolIntent;
+      environment?: ToolEnvironmentAssessment;
     }
   | {
       type: typeof AgentEventType.ToolDenied;
@@ -139,6 +159,8 @@ export type AgentEvent =
       correlation: ToolCallCorrelation;
       call: ToolCall;
       result: ToolResult;
+      intent?: ToolIntent;
+      environment?: ToolEnvironmentAssessment;
     }
   | {
       type: typeof AgentEventType.ToolCancelled;
@@ -147,6 +169,8 @@ export type AgentEvent =
       correlation: ToolCallCorrelation;
       call: ToolCall;
       result: ToolResult;
+      intent?: ToolIntent;
+      environment?: ToolEnvironmentAssessment;
     }
   | {
       type: typeof AgentEventType.ToolTimeout;
@@ -155,6 +179,8 @@ export type AgentEvent =
       correlation: ToolCallCorrelation;
       call: ToolCall;
       result: ToolResult;
+      intent?: ToolIntent;
+      environment?: ToolEnvironmentAssessment;
     }
   | {
       type: typeof AgentEventType.ToolResultBudgeted;
@@ -163,12 +189,15 @@ export type AgentEvent =
       correlation: ToolCallCorrelation;
       call: ToolCall;
       result: BudgetedToolResult;
+      intent?: ToolIntent;
+      environment?: ToolEnvironmentAssessment;
     }
   | {
       type: typeof AgentEventType.ToolVisibilityFiltered;
       runId: string;
       turn: number;
       decision: ToolVisibilityDecision;
+      lease?: ToolCapabilityLease;
     }
   | {
       type: typeof AgentEventType.PermissionRequested;

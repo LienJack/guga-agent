@@ -456,6 +456,10 @@ function visibilityReasonFor(availability: ToolAvailability): NonNullable<ToolVi
       return "available";
     case "missing-backend":
       return "missing-backend";
+    case "missing-credential":
+      return "missing-credential";
+    case "missing-sandbox":
+      return "missing-sandbox";
     case "denied-by-policy":
       return "policy-denied";
     case "outside-workspace":

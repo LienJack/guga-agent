@@ -1,12 +1,18 @@
 import type { ToolCall } from "./messages";
 import type { ToolPermissionMetadata } from "./permissions";
 import type {
+  ToolActionMetadata,
   ToolAvailability,
   ToolAvailabilityResolver,
   ToolBackendRequirement,
+  ToolCredentialBinding,
+  ToolEnvironmentRequirement,
   ToolExecutionMode,
+  ToolMetadataEvalHints,
+  ToolPrincipalSummary,
   ToolRendererMetadata,
   ToolResultBudget,
+  ToolSandboxRequirement,
   ToolSchedulerMetadata,
   ToolSourceMetadata,
   ToolVisibility
@@ -39,6 +45,11 @@ export type ToolResult = ToolSuccess | ToolFailure;
 
 export type ToolRuntimeMetadata = {
   permission?: ToolPermissionMetadata;
+  action?: ToolActionMetadata;
+  principal?: ToolPrincipalSummary;
+  credentials?: readonly ToolCredentialBinding[];
+  sandbox?: ToolSandboxRequirement;
+  environment?: ToolEnvironmentRequirement;
   executionMode?: ToolExecutionMode;
   timeoutMs?: number;
   backend?: ToolBackendRequirement;
@@ -48,6 +59,7 @@ export type ToolRuntimeMetadata = {
   resultBudget?: ToolResultBudget;
   renderer?: ToolRendererMetadata;
   source?: ToolSourceMetadata;
+  eval?: ToolMetadataEvalHints;
   debug?: Record<string, unknown>;
 };
 

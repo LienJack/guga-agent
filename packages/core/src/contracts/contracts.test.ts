@@ -41,13 +41,30 @@ import type {
   SessionBranch,
   SessionStore
 } from "./persistence";
-import type { ToolProjection, ToolResourceScope } from "./tool-runtime";
+import type {
+  ToolActionMetadata,
+  ToolCapabilityLease,
+  ToolCredentialBinding,
+  ToolEnvironmentAssessment,
+  ToolIntent,
+  ToolMetadataEvalHints,
+  ToolPrincipalSummary,
+  ToolProjection,
+  ToolResourceScope,
+  ToolSandboxRequirement
+} from "./tool-runtime";
 import type { ToolDefinition, ToolResult } from "./tools";
 import type { AgentRunOptions, AgentRuntimeOptions } from "./runtime";
 import type {
   DurableEventEnvelope as PublicDurableEventEnvelope,
   EventStore as PublicEventStore,
   ResumeReport as PublicResumeReport
+} from "../index";
+import type {
+  ToolActionMetadata as PublicToolActionMetadata,
+  ToolCredentialBinding as PublicToolCredentialBinding,
+  ToolMetadataEvalHints as PublicToolMetadataEvalHints,
+  ToolSandboxRequirement as PublicToolSandboxRequirement
 } from "../index";
 
 describe("core contracts", () => {
@@ -420,6 +437,123 @@ describe("core contracts", () => {
     expect(tool.runtime?.renderer?.category).toBe("read");
   });
 
+  it("can express Action OS tool metadata while preserving legacy effects", () => {
+    const principal: ToolPrincipalSummary = {
+      kind: "service",
+      id: "github-app-installation",
+      label: "GitHub App installation",
+      scopes: ["repo:read"]
+    };
+    const credential: ToolCredentialBinding = {
+      credentialRef: "credential://github/app-installation",
+      providerId: "github",
+      principal,
+      scopes: ["repo:read"],
+      required: true,
+      modelVisible: false
+    };
+    const sandbox: ToolSandboxRequirement = {
+      isolation: "workspace",
+      workspace: {
+        required: true,
+        writeAccess: "scoped",
+        allowedPaths: ["packages/core"]
+      },
+      network: "restricted",
+      backendKinds: ["local-workspace"],
+      timeoutMs: 30_000,
+      output: { maxBytes: 64_000, allowArtifacts: true }
+    };
+    const action: ToolActionMetadata = {
+      category: "external",
+      risk: "high",
+      label: "Read issue from GitHub",
+      effects: [{
+        kind: "network",
+        access: "read",
+        target: "api.github.com",
+        external: true
+      }],
+      tags: ["mcp", "github"]
+    };
+    const evalHints: ToolMetadataEvalHints = {
+      categories: ["tool-selection"],
+      coveredRisks: ["high"],
+      expectedUseCases: ["Read a GitHub issue when the user asks for repository context"],
+      unsafeUseCases: ["Do not call when no repository or issue is mentioned"],
+      selectionTags: ["github", "read-only"],
+      auditRequirements: ["credential reference present", "network sandbox declared"]
+    };
+    const tool: ToolDefinition = {
+      name: "github_issue_read",
+      description: "Read a GitHub issue through a configured integration",
+      inputSchema: { type: "object", properties: { issue: { type: "number" } }, required: ["issue"] },
+      effect: "external",
+      runtime: {
+        action,
+        principal,
+        credentials: [credential],
+        sandbox,
+        environment: {
+          credentials: [credential],
+          sandbox,
+          backendKinds: ["local-workspace"]
+        },
+        source: {
+          kind: "mcp",
+          namespace: "github",
+          upstreamId: "issues.read",
+          trust: { level: "third-party", reason: "remote MCP server" }
+        },
+        eval: evalHints
+      },
+      execute() {
+        return { ok: true, content: "ok" };
+      }
+    };
+    const serialized = JSON.stringify(tool.runtime);
+
+    expect(tool.effect).toBe("external");
+    expect(tool.runtime?.action?.effects?.[0]?.kind).toBe("network");
+    expect(serialized).toContain("credential://github/app-installation");
+    expect(serialized).not.toContain("ghp_");
+    expect(JSON.parse(serialized)).toMatchObject({
+      action: { category: "external", risk: "high" },
+      sandbox: { isolation: "workspace", network: "restricted" }
+    });
+  });
+
+  it("does not allow raw credential values in credential binding contracts", () => {
+    const credential: PublicToolCredentialBinding = {
+      credentialRef: "credential://env/OPENAI_API_KEY",
+      providerId: "openai",
+      required: true,
+      modelVisible: false
+    };
+    const publicAction: PublicToolActionMetadata = {
+      category: "external",
+      risk: "medium"
+    };
+    const publicSandbox: PublicToolSandboxRequirement = {
+      isolation: "process",
+      network: "restricted"
+    };
+    const publicEval: PublicToolMetadataEvalHints = {
+      categories: ["tool-selection"],
+      coveredRisks: ["medium"]
+    };
+
+    expect(JSON.stringify({ credential, publicAction, publicSandbox, publicEval })).not.toContain("sk-");
+
+    const unsafe = {
+      credentialRef: "credential://env/OPENAI_API_KEY",
+      // @ts-expect-error raw credential material is not part of the public credential binding shape
+      secretValue: "sk-secret"
+    } satisfies PublicToolCredentialBinding;
+
+    expect("secretValue" in unsafe).toBe(true);
+  });
+
   it("can express shell permission, backend, and visibility contracts", () => {
     const tool: ToolDefinition = {
       name: "shell_exec",
@@ -461,6 +595,17 @@ describe("core contracts", () => {
 
   it("can express permission profiles, requests, and remembered decisions", () => {
     const policy: PermissionPolicy = { profile: "headless", timeoutMs: 50 };
+    const intent: ToolIntent = {
+      id: "intent-call-perm",
+      toolName: "shell_exec",
+      toolCallId: "call-perm",
+      action: {
+        category: "execute",
+        risk: "high",
+        effects: [{ kind: "process", access: "execute", target: "workspace shell" }]
+      },
+      inputSummary: "pnpm test"
+    };
     const request: PermissionRequest = {
       runId: "run-perm",
       turn: 1,
@@ -471,8 +616,10 @@ describe("core contracts", () => {
       subject: {
         toolName: "shell_exec",
         effect: "execute",
+        action: intent.action,
         commandSummary: "pnpm test"
-      }
+      },
+      intent
     };
     const decision = {
       action: "deny" as const,
@@ -483,6 +630,7 @@ describe("core contracts", () => {
 
     expect(policy.profile).toBe("headless");
     expect(request.subject.commandSummary).toBe("pnpm test");
+    expect(request.intent?.action?.category).toBe("execute");
     expect(decision.remember).toBe("session");
   });
 
@@ -509,13 +657,43 @@ describe("core contracts", () => {
       attempt: 1,
       batchId: "batch-1"
     };
+    const lease: ToolCapabilityLease = {
+      leaseId: "lease-run-event-2",
+      runId: correlation.runId,
+      turn: correlation.turn,
+      visibleToolNames: ["read_file"],
+      decisions: [{ visible: true, toolName: "read_file", reason: "available" }]
+    };
+    const intent: ToolIntent = {
+      id: "intent-call-event",
+      toolName: call.name,
+      toolCallId: call.id,
+      action: { category: "read", risk: "low" },
+      leaseId: lease.leaseId,
+      correlation
+    };
+    const environment: ToolEnvironmentAssessment = {
+      status: "satisfied",
+      backendKinds: ["local-workspace"]
+    };
     const events: AgentEvent[] = [
+      {
+        type: AgentEventType.ModelRequested,
+        runId: correlation.runId,
+        turn: correlation.turn,
+        providerId: "mock",
+        messages: [],
+        toolNames: ["read_file"],
+        toolLease: lease
+      },
       {
         type: AgentEventType.ToolQueued,
         runId: correlation.runId,
         turn: correlation.turn,
         correlation,
-        call
+        call,
+        intent,
+        environment
       },
       {
         type: AgentEventType.PermissionRequested,
@@ -525,7 +703,8 @@ describe("core contracts", () => {
           ...correlation,
           call,
           profile: "default",
-          subject: { toolName: call.name, effect: "read" }
+          subject: { toolName: call.name, effect: "read" },
+          intent
         }
       },
       {
@@ -534,6 +713,8 @@ describe("core contracts", () => {
         turn: correlation.turn,
         correlation,
         call,
+        intent,
+        environment,
         result: {
           ok: true,
           content: "truncated",
@@ -548,16 +729,19 @@ describe("core contracts", () => {
         type: AgentEventType.ToolVisibilityFiltered,
         runId: correlation.runId,
         turn: correlation.turn,
-        decision: { visible: false, toolName: "shell_exec", reason: "policy-denied" }
+        decision: { visible: false, toolName: "shell_exec", reason: "policy-denied" },
+        lease
       }
     ];
 
     expect(events.map((event) => event.type)).toEqual([
+      AgentEventType.ModelRequested,
       AgentEventType.ToolQueued,
       AgentEventType.PermissionRequested,
       AgentEventType.ToolResultBudgeted,
       AgentEventType.ToolVisibilityFiltered
     ]);
+    expect(events[0]).toMatchObject({ toolLease: { leaseId: lease.leaseId } });
   });
 
   it("can express pre-tool gate allow and deny decisions", () => {
