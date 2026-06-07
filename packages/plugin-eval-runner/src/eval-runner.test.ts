@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AgentEventType, createAgentRuntime } from "@guga-agent/core";
+import { AgentEventType, createAgentRuntime, type ToolDefinition } from "@guga-agent/core";
 import { createEvalRunnerPlugin } from "./plugin-eval-runner";
 import { failingMockFixture, passingMockFixture } from "./fixtures";
 import { runEvalFixture, runEvalSuite } from "./eval-runner";
@@ -61,6 +61,54 @@ describe("plugin-eval-runner", () => {
     });
   });
 
+  it("asserts expected tool calls and event metadata", async () => {
+    await expect(runEvalFixture({
+      id: "tool-selection-pass",
+      input: "Inspect the local context.",
+      runId: "eval-tool-selection-pass",
+      runtime: { builtIns: { capabilities: { tools: [inspectContextTool()] } } },
+      mockResponses: [
+        { type: "tool_calls", toolCalls: [{ id: "inspect-1", name: "inspect_context", input: { topic: "tools" } }] },
+        { type: "final", content: "inspected context" }
+      ],
+      expected: {
+        ok: true,
+        finalAnswerIncludes: "inspected",
+        toolCalls: [
+          { toolName: "inspect_context", actionCategory: "inspect", risk: "low" },
+          { toolName: "inspect_context", eventType: AgentEventType.ToolResult, resultOk: true }
+        ],
+        eventMetadata: [
+          { eventType: AgentEventType.ToolStarted, toolName: "inspect_context", path: "intent.action.category", equals: "inspect" },
+          { eventType: AgentEventType.ToolStarted, toolName: "inspect_context", path: "intent.summary", includes: "Inspect hermetic" }
+        ]
+      }
+    })).resolves.toMatchObject({
+      ok: true,
+      diagnostics: []
+    });
+  });
+
+  it("fails fixtures that emit forbidden tool calls", async () => {
+    await expect(runEvalFixture({
+      id: "tool-selection-forbidden",
+      input: "Answer without calling tools.",
+      runId: "eval-tool-selection-forbidden",
+      runtime: { builtIns: { capabilities: { tools: [inspectContextTool()] } } },
+      mockResponses: [
+        { type: "tool_calls", toolCalls: [{ id: "inspect-1", name: "inspect_context", input: { topic: "unsafe" } }] },
+        { type: "final", content: "called a forbidden tool" }
+      ],
+      expected: {
+        ok: true,
+        forbiddenToolCalls: ["inspect_context"]
+      }
+    })).resolves.toMatchObject({
+      ok: false,
+      diagnostics: [expect.objectContaining({ code: "EVAL_FORBIDDEN_TOOL_CALL" })]
+    });
+  });
+
   it("registers an eval operation descriptor", async () => {
     const runtime = createAgentRuntime({
       plugins: [createEvalRunnerPlugin({ pluginId: "eval" })]
@@ -79,3 +127,33 @@ describe("plugin-eval-runner", () => {
     ]));
   });
 });
+
+function inspectContextTool(): ToolDefinition {
+  return {
+    name: "inspect_context",
+    description: "Inspect a small hermetic context fixture.",
+    inputSchema: {
+      type: "object",
+      properties: { topic: { type: "string" } }
+    },
+    effect: "read",
+    runtime: {
+      action: {
+        category: "inspect",
+        risk: "low",
+        summary: "Inspect hermetic eval context.",
+        tags: ["eval", "tool-action"]
+      },
+      resultBudget: { maxContentChars: 512, strategy: "truncate" },
+      eval: {
+        categories: ["tool-action"],
+        coveredRisks: ["low"],
+        selectionTags: ["inspect-context"]
+      }
+    },
+    execute(input) {
+      const topic = typeof input === "object" && input !== null && "topic" in input ? String(input.topic) : "unknown";
+      return { ok: true, content: `context:${topic}` };
+    }
+  };
+}
