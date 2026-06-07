@@ -445,6 +445,90 @@ describe("ExecutionPipeline", () => {
     });
   });
 
+  it("fails closed before direct execution when environment requirements are unmet", async () => {
+    const registry = new CapabilityRegistry();
+    const execute = vi.fn();
+    registry.registerTool({
+      ...readTool({ name: "external_api", execute }),
+      effect: "external",
+      runtime: {
+        permission: { defaultAction: "allow" },
+        credentials: [{
+          credentialRef: "credential://github/app",
+          providerId: "github",
+          required: true,
+          modelVisible: false
+        }],
+        sandbox: {
+          isolation: "workspace",
+          network: "restricted"
+        }
+      }
+    });
+    const pipeline = new ExecutionPipeline({ registry });
+
+    const result = await pipeline.execute({
+      runId: "run-env-missing",
+      turn: 0,
+      call: { id: "call-env-missing", name: "external_api", input: {} }
+    });
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      reason: "unavailable",
+      result: {
+        ok: false,
+        error: {
+          code: "TOOL_UNAVAILABLE",
+          message: "Required credential unavailable: credential://github/app"
+        }
+      },
+      intent: expect.objectContaining({
+        environment: expect.objectContaining({
+          credentials: [expect.objectContaining({ credentialRef: "credential://github/app" })],
+          sandbox: expect.objectContaining({ isolation: "workspace", network: "restricted" })
+        })
+      })
+    });
+  });
+
+  it("executes direct calls when environment requirements are satisfied", async () => {
+    const registry = new CapabilityRegistry();
+    const execute = vi.fn(() => ({ ok: true as const, content: "external ok" }));
+    const credential = {
+      credentialRef: "credential://github/app",
+      providerId: "github",
+      required: true,
+      modelVisible: false as const
+    };
+    const sandbox = {
+      isolation: "workspace" as const,
+      network: "restricted" as const
+    };
+    registry.registerTool({
+      ...readTool({ name: "external_api", execute }),
+      effect: "external",
+      runtime: {
+        permission: { defaultAction: "allow" },
+        credentials: [credential],
+        sandbox
+      }
+    });
+    const pipeline = new ExecutionPipeline({
+      registry,
+      availabilityContext: { credentials: [credential], sandbox }
+    });
+
+    const result = await pipeline.execute({
+      runId: "run-env-ok",
+      turn: 0,
+      call: { id: "call-env-ok", name: "external_api", input: {} }
+    });
+
+    expect(result.result).toEqual({ ok: true, content: "external ok" });
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
   it("returns a synthetic cancelled result when aborted before execution", async () => {
     const registry = new CapabilityRegistry();
     const controller = new AbortController();

@@ -21,7 +21,7 @@ import { HookKernel } from "../hooks/hook-kernel";
 import { PermissionKernel } from "../permissions/permission-kernel";
 import { CapabilityRegistry } from "../registry/capability-registry";
 import { ResultPolicy } from "./result-policy";
-import { toolVisibilityDecision } from "./tool-projection";
+import { toolEnvironmentRequirementFor, toolVisibilityDecision } from "./tool-projection";
 
 export type ExecutionPipelineOptions = {
   registry: CapabilityRegistry;
@@ -374,7 +374,7 @@ function toolIntentFor(
     risk: riskForEffect(tool.effect),
     label: tool.description
   };
-  const environment = environmentRequirementFor(tool);
+  const environment = toolEnvironmentRequirementFor(tool);
   const scopes = context.scopes ?? [];
 
   return {
@@ -439,20 +439,6 @@ function riskForEffect(effect: ToolDefinition["effect"]): ToolActionRisk {
   }
 }
 
-function environmentRequirementFor(tool: ToolDefinition): ToolIntent["environment"] | undefined {
-  if (tool.runtime?.environment) {
-    return tool.runtime.environment;
-  }
-
-  const backendKinds = tool.runtime?.backend ? [tool.runtime.backend.kind] : undefined;
-  const requirement = {
-    ...(tool.runtime?.credentials ? { credentials: tool.runtime.credentials } : {}),
-    ...(tool.runtime?.sandbox ? { sandbox: tool.runtime.sandbox } : {}),
-    ...(backendKinds ? { backendKinds } : {})
-  };
-  return Object.keys(requirement).length > 0 ? requirement : undefined;
-}
-
 function inputSummaryFor(input: unknown, scopes: readonly ToolResourceScope[]): string {
   const command = commandSummaryFor(input);
   if (command) {
@@ -486,7 +472,7 @@ function permissionRequestFor(
   scopes: ToolResourceScope[],
   intent: ToolIntent
 ): PermissionRequest {
-  const environment = environmentRequirementFor(tool);
+  const environment = toolEnvironmentRequirementFor(tool);
   return {
     runId: options.runId,
     turn: options.turn,

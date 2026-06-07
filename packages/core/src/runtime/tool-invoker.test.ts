@@ -69,6 +69,62 @@ describe("runtime tool invoker", () => {
     });
   });
 
+  it("enforces environment requirements for direct runtime invocation", async () => {
+    const runtime = createAgentRuntime({ builtIns: false });
+    let executed = false;
+    const credential = {
+      credentialRef: "credential://github/app",
+      providerId: "github",
+      required: true,
+      modelVisible: false as const
+    };
+    const sandbox = {
+      isolation: "workspace" as const,
+      network: "restricted" as const
+    };
+    runtime.registerTool({
+      name: "external_api",
+      description: "External API",
+      inputSchema: { type: "object" },
+      effect: "external",
+      runtime: {
+        permission: { defaultAction: "allow" },
+        credentials: [credential],
+        sandbox
+      },
+      execute() {
+        executed = true;
+        return { ok: true, content: "external ok" };
+      }
+    });
+
+    await expect(runtime.invokeTool({
+      runId: "run-env-direct-missing",
+      call: { id: "call-env-direct-missing", name: "external_api", input: {} },
+      source: "host"
+    })).resolves.toMatchObject({
+      reason: "unavailable",
+      result: {
+        ok: false,
+        error: {
+          code: "TOOL_UNAVAILABLE",
+          message: "Required credential unavailable: credential://github/app"
+        }
+      }
+    });
+    expect(executed).toBe(false);
+
+    await expect(runtime.invokeTool({
+      runId: "run-env-direct-ok",
+      call: { id: "call-env-direct-ok", name: "external_api", input: {} },
+      source: "host",
+      availabilityContext: { credentials: [credential], sandbox }
+    })).resolves.toMatchObject({
+      result: { ok: true, content: "external ok" }
+    });
+    expect(executed).toBe(true);
+  });
+
   it("initializes plugin tools before invoking them", async () => {
     const runtime = createAgentRuntime({
       builtIns: false,

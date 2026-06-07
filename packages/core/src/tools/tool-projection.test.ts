@@ -108,4 +108,60 @@ describe("tool projection", () => {
       })
     ]);
   });
+
+  it("fails closed when declared credential or sandbox requirements are not satisfied", () => {
+    const credential = {
+      credentialRef: "credential://github/app",
+      providerId: "github",
+      scopes: ["repo:read"],
+      required: true,
+      modelVisible: false as const,
+      metadata: { token: "ghp_should_not_leak" }
+    };
+    const sandbox = {
+      isolation: "workspace" as const,
+      network: "restricted" as const,
+      workspace: { required: true, writeAccess: "scoped" as const },
+      output: { maxBytes: 1024 }
+    };
+    const tool = {
+      ...createTestTool({ name: "github_issue_read", content: "ok" }),
+      effect: "external" as const,
+      runtime: {
+        credentials: [credential],
+        sandbox,
+        permission: { defaultAction: "allow" as const }
+      }
+    };
+
+    const missingCredential = toolVisibilityDecision(tool);
+    expect(missingCredential).toMatchObject({
+      visible: false,
+      reason: "missing-credential",
+      metadata: {
+        availability: expect.objectContaining({
+          reason: "Required credential unavailable: credential://github/app"
+        })
+      }
+    });
+    expect(JSON.stringify(missingCredential.metadata)).not.toContain("ghp_should_not_leak");
+
+    const missingSandbox = toolVisibilityDecision(tool, { credentials: [credential] });
+    expect(missingSandbox).toMatchObject({
+      visible: false,
+      reason: "missing-sandbox"
+    });
+
+    expect(toolVisibilityDecision(tool, {
+      credentials: [credential],
+      sandbox: {
+        ...sandbox,
+        backendKinds: ["local-workspace"],
+        output: { maxBytes: 4096 }
+      }
+    })).toMatchObject({
+      visible: true,
+      reason: "available"
+    });
+  });
 });
