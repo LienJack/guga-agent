@@ -257,7 +257,9 @@ describe("plugin-tools-delegation", () => {
   it("passes abort signals through to the child runner", async () => {
     const controller = new AbortController();
     const runner = vi.fn(async (request) => {
-      expect(request.signal).toBe(controller.signal);
+      expect(request.signal).toBeInstanceOf(AbortSignal);
+      controller.abort();
+      expect(request.signal?.aborted).toBe(true);
       return { status: "completed" as const, summary: "ok" };
     });
     const tool = createDelegateTaskTool({ childRunner: runner });
@@ -265,6 +267,185 @@ describe("plugin-tools-delegation", () => {
     await tool.execute({ goal: "test" }, { call, signal: controller.signal });
 
     expect(runner).toHaveBeenCalledOnce();
+  });
+
+  it("runs batch child tasks with a bounded concurrency cap and compact settled output", async () => {
+    let active = 0;
+    let maxActive = 0;
+    const runner = vi.fn(async (request) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      return {
+        status: request.taskIndex === 1 ? "failed" as const : "completed" as const,
+        summary: `handled ${request.goal}`,
+        metadata: {
+          secretToken: "do-not-leak",
+          note: request.goal
+        }
+      };
+    });
+    const tool = createDelegateTaskTool({
+      parentRunId: "parent-run",
+      childRunner: runner,
+      toolCatalog: [{ name: "read_file" }],
+      defaultToolAllowlist: ["read_file"]
+    });
+
+    const result = await tool.execute({
+      tasks: [
+        { id: "alpha", goal: "inspect alpha" },
+        { id: "beta", goal: "inspect beta" },
+        { id: "gamma", goal: "inspect gamma" }
+      ],
+      maxConcurrency: 2
+    }, { call });
+
+    expect(result).toMatchObject({
+      ok: true,
+      content: expect.stringContaining("Delegated batch failed."),
+      metadata: {
+        delegation: {
+          mode: "batch",
+          status: "failed",
+          statusCounts: {
+            completed: 2,
+            failed: 1,
+            cancelled: 0,
+            timed_out: 0
+          },
+          children: [
+            expect.objectContaining({ taskIndex: 0, taskId: "alpha", status: "completed" }),
+            expect.objectContaining({ taskIndex: 1, taskId: "beta", status: "failed" }),
+            expect.objectContaining({ taskIndex: 2, taskId: "gamma", status: "completed" })
+          ]
+        }
+      }
+    });
+    expect(result.content).toContain("[0:alpha] completed call-1-child-0");
+    expect(result.content).toContain("[1:beta] failed call-1-child-1");
+    expect(result.content).toContain("[2:gamma] completed call-1-child-2");
+    expect(JSON.stringify(result.metadata)).not.toContain("do-not-leak");
+    expect(maxActive).toBeLessThanOrEqual(2);
+    expect(runner).toHaveBeenCalledTimes(3);
+  });
+
+  it("rejects batches above the configured task cap before running children", async () => {
+    const runner = vi.fn();
+    const tool = createDelegateTaskTool({ childRunner: runner, maxBatchTasks: 2 });
+
+    const result = await tool.execute({
+      tasks: [
+        { goal: "one" },
+        { goal: "two" },
+        { goal: "three" }
+      ]
+    }, { call });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "DELEGATION_INPUT_INVALID",
+        details: [expect.objectContaining({ code: "DELEGATION_TASKS_TOO_MANY" })]
+      }
+    });
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("keeps invalid child output model-visible for batch calls", async () => {
+    const tool = createDelegateTaskTool({
+      childRunner: async (request) => request.taskIndex === 0
+        ? { status: "completed" as const, summary: "" }
+        : { status: "completed" as const, summary: "ok" }
+    });
+
+    const result = await tool.execute({
+      tasks: [
+        { goal: "bad child" },
+        { goal: "good child" }
+      ]
+    }, { call });
+
+    expect(result).toMatchObject({
+      ok: true,
+      metadata: {
+        delegation: {
+          status: "failed",
+          statusCounts: {
+            completed: 1,
+            failed: 1,
+            cancelled: 0,
+            timed_out: 0
+          }
+        }
+      }
+    });
+    expect(result.content).toContain("[0] failed call-1-child-0: Delegate task output is invalid");
+    expect(result.content).toContain("[1] completed call-1-child-1: ok");
+  });
+
+  it("blocks child tools with unsafe capabilities by default", async () => {
+    const tool = createDelegateTaskTool({
+      childRunner: vi.fn(),
+      toolCatalog: [{ name: "clarifier", capabilities: ["user-clarification"] }]
+    });
+
+    const result = await tool.execute({ goal: "ask", toolAllowlist: ["clarifier"] }, { call });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "DELEGATION_RECURSION_BLOCKED",
+        details: { blocked: ["clarifier"] }
+      }
+    });
+  });
+
+  it("enforces per-child timeouts in the delegation plugin", async () => {
+    const tool = createDelegateTaskTool({
+      childRunner: () => new Promise(() => undefined)
+    });
+
+    const result = await tool.execute({ goal: "slow", timeoutMs: 1 }, { call });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "DELEGATION_TIMED_OUT"
+      },
+      metadata: {
+        delegation: {
+          status: "timed_out"
+        }
+      }
+    });
+  });
+
+  it("bounds and redacts child metadata before exposing audit metadata", async () => {
+    const tool = createDelegateTaskTool({
+      maxChildMetadataChars: 80,
+      childRunner: async () => ({
+        status: "completed" as const,
+        summary: "ok",
+        metadata: {
+          apiKey: "secret-value",
+          payload: "x".repeat(1000)
+        }
+      })
+    });
+
+    const result = await tool.execute({ goal: "metadata" }, { call });
+
+    expect(result).toMatchObject({
+      ok: true,
+      metadata: {
+        childMetadata: {
+          truncated: true
+        }
+      }
+    });
+    expect(JSON.stringify(result.metadata)).not.toContain("secret-value");
   });
 
   it("builds deterministic ledgers and delegation prompts", () => {
@@ -280,6 +461,7 @@ describe("plugin-tools-delegation", () => {
         parentToolCallId: "2",
         childRunId: "child-b",
         childSessionId: "session-b",
+        taskIndex: 1,
         agentType: "research",
         goal: "B",
         tools: ["search"],
@@ -292,6 +474,7 @@ describe("plugin-tools-delegation", () => {
         parentToolCallId: "1",
         childRunId: "child-a",
         childSessionId: "session-a",
+        taskIndex: 0,
         agentType: "general",
         goal: "A",
         tools: [],
