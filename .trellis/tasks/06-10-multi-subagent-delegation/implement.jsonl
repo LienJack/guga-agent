@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend runtime quality rules for plugin/runtime changes"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Structured tool failure, cancellation, timeout, and model-visible observation rules"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Structured event/audit guidance for runtime-observable facts"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Search/reuse discipline before adding helpers"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer reasoning for tool/runtime/plugin boundaries"}
+{"file": "docs/research/context-packs/multi-agent.md", "reason": "Local multi-agent reference research and Guga migration recommendations"}
+{"file": "docs/solutions/architecture-patterns/multi-agent-delegation-runtime.md", "reason": "Existing M14 delegation architecture decision"}

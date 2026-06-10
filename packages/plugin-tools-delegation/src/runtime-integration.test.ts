@@ -42,6 +42,56 @@ describe("delegation plugin runtime integration", () => {
     await runtime.dispose();
   });
 
+  it("runs batch delegation through the runtime pipeline", async () => {
+    const childRunner = vi.fn(async (request) => ({
+      status: "completed" as const,
+      summary: `child handled ${request.taskIndex}:${request.goal}`
+    }));
+    const runtime = createAgentRuntime({
+      plugins: [
+        createDelegationPlugin({
+          pluginId: "delegation",
+          childRunner,
+          parentRunId: "parent-run"
+        })
+      ],
+      permissions: {
+        resolver: () => ({ action: "allow", remember: "once", source: "host" })
+      }
+    });
+    runtime.registerProvider(createMockProvider([
+      {
+        type: "tool_calls",
+        toolCalls: [{
+          id: "delegate",
+          name: "delegate_task",
+          input: {
+            tasks: [
+              { goal: "review docs" },
+              { goal: "review tests" }
+            ],
+            maxConcurrency: 2
+          }
+        }]
+      },
+      (request) => ({
+        type: "final",
+        content: request.messages.at(-1)?.role === "tool" ? request.messages.at(-1)!.content : "missing tool result"
+      })
+    ]));
+
+    const result = await runtime.run({ input: "delegate batch", providerId: "mock", runId: "parent-run" });
+
+    expect(result).toMatchObject({
+      ok: true,
+      finalAnswer: expect.stringContaining("Delegated batch completed.")
+    });
+    expect(result.finalAnswer).toContain("[0] completed delegate-child-0: child handled 0:review docs");
+    expect(result.finalAnswer).toContain("[1] completed delegate-child-1: child handled 1:review tests");
+    expect(childRunner).toHaveBeenCalledTimes(2);
+    await runtime.dispose();
+  });
+
   it("filters delegate_task from headless provider projection before backend execution", async () => {
     const childRunner = vi.fn(async () => ({ status: "completed" as const, summary: "no" }));
     const projectedTools: string[][] = [];
