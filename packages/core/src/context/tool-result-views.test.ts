@@ -13,6 +13,7 @@ describe("createToolResultPreview", () => {
 
     expect(preview.llmPreview).toContain("...[middle omitted]...");
     expect(preview.llmPreview).toContain("result-1");
+    expect(preview.uiProjection).toContain("...[middle omitted]...");
     expect(preview.rereadInstruction).toContain("result-1");
   });
 

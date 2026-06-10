@@ -84,6 +84,33 @@ describe("workbench controller", () => {
     expect(client.respondInteraction).toHaveBeenCalledWith("interaction-1", true);
   });
 
+  it("fails closed for unknown permission responses", async () => {
+    const client = fakeClient();
+    const controller = controllerFor(client);
+    controller.applyEvent({
+      type: "permission.requested",
+      seq: 1,
+      occurredAt: "2026-05-28T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      requestId: "permission-1",
+      callId: "call-1",
+      toolName: "shell",
+      input: { command: "rm -rf tmp" },
+      reason: "Delete generated files"
+    });
+
+    await expect(controller.submitText("maybe")).resolves.toEqual({
+      ok: false,
+      error: "Permission response must be allow or deny."
+    });
+    expect(client.respondPermission).not.toHaveBeenCalled();
+    expect(controller.state.pendingPermission).toMatchObject({
+      requestId: "permission-1",
+      toolName: "shell"
+    });
+  });
+
   it("locks host-writing submissions while disconnected but allows reload after the replay seq", async () => {
     const replayEvents = [
       {
@@ -152,6 +179,12 @@ describe("workbench controller", () => {
     expect(client.listRunEvents).toHaveBeenCalledWith("run-1");
     expect(client.streamRunEvents).toHaveBeenLastCalledWith("run-1", expect.objectContaining({ afterSeq: 3 }));
     expect(controller.state.disconnected).toBeUndefined();
+    expect(controller.state.continuity).toMatchObject({
+      status: "stream-reconnected",
+      title: "Reloaded host events",
+      detail: "Replayed through seq 3",
+      retainedFacts: expect.arrayContaining(["last seq 3"])
+    });
     expect(controller.state.transcriptBlocks).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "user", text: "hello" }),
       expect.objectContaining({ kind: "assistant", text: "safe replay" })

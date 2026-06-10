@@ -33,6 +33,30 @@ export function defaultContextPolicy(pluginId: string): ContextPolicy {
     },
     metadata: {
       compaction: DEFAULT_COMPACTION_POLICY,
+      attentionOS: {
+        sourceCategories: [
+          ContextSourceKind.SystemPrompt,
+          ContextSourceKind.DeveloperPrompt,
+          ContextSourceKind.History,
+          ContextSourceKind.PendingTurn,
+          ContextSourceKind.ResourceFile,
+          ContextSourceKind.SkillBody,
+          ContextSourceKind.PlanTodo,
+          ContextSourceKind.StateProjection,
+          ContextSourceKind.AccountableTrace,
+          ContextSourceKind.MemoryCandidate,
+          ContextSourceKind.ToolResultPreview,
+          ContextSourceKind.ArtifactReference,
+          ContextSourceKind.CompactionSummary,
+          ContextSourceKind.HostContext,
+          ContextSourceKind.ActiveTool,
+          ContextSourceKind.PermissionMode
+        ],
+        observesFacts: true,
+        mutatesFacts: false,
+        promotesMemoryCandidates: false,
+        reinjectionAuthority: "below-system-and-developer"
+      },
       futureSplitPoints: ["basic", "tool-results", "truncation", "compaction", "reinjection"]
     }
   };
@@ -84,7 +108,7 @@ export function defaultContextHooks(pluginId: string): ContextHookRegistration[]
           phase: HookPhase.ContextAssemble,
           pluginId,
           sourceIds: context.sources?.map((source) => source.id) ?? [],
-          reason: "default context policy observed source assembly"
+          reason: "default context policy observed Attention OS source assembly without mutating facts"
         };
       }
     },
@@ -99,7 +123,7 @@ export function defaultContextHooks(pluginId: string): ContextHookRegistration[]
           phase: HookPhase.ContextBudget,
           pluginId,
           sourceIds: context.projection?.sourceDescriptors.map((source) => source.id) ?? [],
-          reason: "default thresholds are active",
+          reason: "default thresholds and Attention OS source semantics are active",
           metadata: DEFAULT_COMPACTION_POLICY
         };
       }

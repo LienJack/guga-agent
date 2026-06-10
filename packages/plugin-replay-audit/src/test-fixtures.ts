@@ -56,7 +56,7 @@ export function durableEvent(payload: AgentEvent, options: {
   return createDurableEventEnvelope(input);
 }
 
-export function projectionFixture(): ModelInputProjection {
+export function projectionFixture(options: { attentionSources?: boolean } = {}): ModelInputProjection {
   return {
     id: "projection-1",
     runId: "run-1",
@@ -71,16 +71,19 @@ export function projectionFixture(): ModelInputProjection {
         return { ok: true, content: "not used during replay" };
       }
     }],
-    sourceDescriptors: [{
-      id: "source-history",
-      kind: ContextSourceKind.History,
-      priority: ContextSourcePriority.High,
-      provenance: { origin: "core" },
-      tokenEstimate: { status: "known", tokens: 3 },
-      modelVisible: true,
-      messageIndexes: [0],
-      references: [{ type: "host-reference", id: "turn-0", label: "turn 0" }]
-    }],
+    sourceDescriptors: [
+      {
+        id: "source-history",
+        kind: ContextSourceKind.History,
+        priority: ContextSourcePriority.High,
+        provenance: { origin: "core" },
+        tokenEstimate: { status: "known", tokens: 3 },
+        modelVisible: true,
+        messageIndexes: [0],
+        references: [{ type: "host-reference", id: "turn-0", label: "turn 0" }]
+      },
+      ...(options.attentionSources ? attentionSourceFixtures() : [])
+    ],
     budget: {
       reservedOutputTokens: 10,
       estimatedInputTokens: 3,
@@ -114,6 +117,83 @@ export function projectionFixture(): ModelInputProjection {
       inputVersion: "projection-v1"
     }
   };
+}
+
+function attentionSourceFixtures(): ModelInputProjection["sourceDescriptors"] {
+  return [
+    {
+      id: "source-state",
+      kind: ContextSourceKind.StateProjection,
+      priority: ContextSourcePriority.High,
+      provenance: { origin: "core" },
+      tokenEstimate: { status: "estimated", tokens: 4 },
+      modelVisible: false,
+      references: [{ type: "message", id: "message-0", label: "objective source" }],
+      metadata: {
+        ontology: ContextSourceKind.StateProjection,
+        sensitivity: "internal",
+        confidence: "high",
+        scope: "run",
+        intendedUsage: ["compaction-continuity", "audit"],
+        generatedFromSourceIds: ["message-0"],
+        items: [{
+          kind: "objective",
+          label: "current objective",
+          sensitivity: "internal",
+          confidence: "high",
+          scope: "run",
+          intendedUsage: ["compaction-continuity"],
+          sourceRefs: [{ type: "message", id: "message-0" }]
+        }]
+      }
+    },
+    {
+      id: "source-trace",
+      kind: ContextSourceKind.AccountableTrace,
+      priority: ContextSourcePriority.Medium,
+      provenance: { origin: "core" },
+      tokenEstimate: { status: "estimated", tokens: 3 },
+      modelVisible: false,
+      metadata: {
+        ontology: ContextSourceKind.AccountableTrace,
+        sensitivity: "internal",
+        confidence: "medium",
+        scope: "run",
+        intendedUsage: ["audit", "replay"],
+        generatedFromDecisionIds: ["decision-1"],
+        generatedFromSourceIds: [],
+        items: [{
+          kind: "decision",
+          label: "context decision",
+          sensitivity: "internal",
+          confidence: "medium",
+          scope: "run",
+          intendedUsage: ["audit"],
+          sourceRefs: [{ type: "host-reference", id: "decision-1" }]
+        }]
+      }
+    },
+    {
+      id: "source-memory-candidate",
+      kind: ContextSourceKind.MemoryCandidate,
+      priority: ContextSourcePriority.Low,
+      provenance: { origin: "core" },
+      tokenEstimate: { status: "estimated", tokens: 1 },
+      modelVisible: false,
+      metadata: {
+        ontology: ContextSourceKind.MemoryCandidate,
+        sensitivity: "sensitive",
+        confidence: "medium",
+        scope: "session",
+        intendedUsage: ["memory-review", "audit"],
+        rawCandidateText: "raw candidate text must not appear in replay output",
+        candidates: [{
+          candidateId: "candidate-1",
+          rawCandidateTextIncluded: false
+        }]
+      }
+    }
+  ];
 }
 
 export function artifactReferenceFixture(): ArtifactReference {

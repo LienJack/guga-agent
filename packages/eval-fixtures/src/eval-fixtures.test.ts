@@ -11,9 +11,10 @@ describe("eval-fixtures", () => {
   it("builds a complete cross-module manifest", () => {
     expect(validateFlywheelEvalFixtures(flywheelEvalFixtures)).toEqual([]);
     expect(createFlywheelEvalManifest(flywheelEvalFixtures)).toEqual({
-      fixtureCount: 6,
+      fixtureCount: 8,
       categories: [
         { category: "capability-discovery", count: 1, fixtureIds: ["m6-capability-discovery-summary"] },
+        { category: "tool-action", count: 2, fixtureIds: ["m6-tool-action-inspect-context", "m6-tool-action-negative-no-unsafe-call"] },
         { category: "host-protocol", count: 1, fixtureIds: ["m7-host-protocol-event-stream"] },
         { category: "production-ops", count: 1, fixtureIds: ["m8-production-ops-health"] },
         { category: "code-agent", count: 2, fixtureIds: ["m9-code-agent-task-boundary", "m9-code-task-verification-gate"] },
@@ -43,6 +44,7 @@ describe("eval-fixtures", () => {
       "Fixture broken must include at least one tag",
       "Fixture broken must describe covered risk",
       "Fixture broken must use a stable runId",
+      "Missing fixture category: tool-action",
       "Missing fixture category: host-protocol",
       "Missing fixture category: production-ops",
       "Missing fixture category: code-agent",
@@ -53,7 +55,7 @@ describe("eval-fixtures", () => {
   it("runs all fixtures through the hermetic eval runner", async () => {
     await expect(runEvalSuite([...flywheelEvalFixtures])).resolves.toMatchObject({
       ok: true,
-      passed: 6,
+      passed: 8,
       failed: 0
     });
   });

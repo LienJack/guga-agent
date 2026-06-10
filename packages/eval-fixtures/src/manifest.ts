@@ -2,6 +2,7 @@ import type { EvalFixture } from "@guga-agent/plugin-eval-runner";
 
 export type EvalFixtureCategory =
   | "capability-discovery"
+  | "tool-action"
   | "host-protocol"
   | "production-ops"
   | "code-agent"
@@ -38,6 +39,7 @@ export type FlywheelEvalManifest = {
 
 const categoryOrder: EvalFixtureCategory[] = [
   "capability-discovery",
+  "tool-action",
   "host-protocol",
   "production-ops",
   "code-agent",

@@ -57,14 +57,47 @@ describe("CompactionService", () => {
       metadata: expect.objectContaining({ degradedTo: "local-skeleton" })
     });
   });
+
+  it("uses state and trace descriptors to preserve continuity fields in the local summary", () => {
+    const projection = projectionFixture({
+      messages: [
+        { role: "user", content: "finish M4 without promoting summaries to system authority?" },
+        { role: "user", content: "Next, run replay tests." }
+      ],
+      extraSources: [
+        stateDescriptor(),
+        traceDescriptor()
+      ]
+    });
+
+    const output = new CompactionService().compact({ projection, trigger: "provider-overflow" });
+
+    expect(output.result.summary).toMatchObject({
+      objective: "finish M4 without promoting summaries to system authority?",
+      userConstraints: ["finish M4 without promoting summaries to system authority?"],
+      unresolvedQuestions: ["finish M4 without promoting summaries to system authority?"],
+      nextSteps: ["Next, run replay tests."],
+      completedWork: expect.arrayContaining(["tool returned observation"])
+    });
+    expect(output.result.quality).toMatchObject({
+      continuitySourceIds: ["state-current", "trace-current"],
+      retainedSourceCount: expect.any(Number),
+      compactedSourceCount: expect.any(Number)
+    });
+  });
 });
 
-function projectionFixture(options: { retainedTokens?: number; historyTokens?: number } = {}): ModelInputProjection {
+function projectionFixture(options: {
+  retainedTokens?: number;
+  historyTokens?: number;
+  messages?: ModelInputProjection["messages"];
+  extraSources?: ModelInputProjection["sourceDescriptors"];
+} = {}): ModelInputProjection {
   return {
     id: "projection-1",
     runId: "run-1",
     turn: 0,
-    messages: [{ role: "user", content: "finish M4" }],
+    messages: options.messages ?? [{ role: "user", content: "finish M4" }],
     tools: [],
     sourceDescriptors: [
       {
@@ -83,7 +116,8 @@ function projectionFixture(options: { retainedTokens?: number; historyTokens?: n
         provenance: { origin: "core" },
         tokenEstimate: { status: "estimated", tokens: options.historyTokens ?? 100 },
         modelVisible: true
-      }
+      },
+      ...(options.extraSources ?? [])
     ],
     budget: {
       contextWindow: 120,
@@ -110,5 +144,71 @@ function projectionFixture(options: { retainedTokens?: number; historyTokens?: n
       sourceIds: ["pending", "old-history"]
     },
     policyDecisions: []
+  };
+}
+
+function stateDescriptor(): ModelInputProjection["sourceDescriptors"][number] {
+  return {
+    id: "state-current",
+    kind: ContextSourceKind.StateProjection,
+    priority: ContextSourcePriority.High,
+    provenance: { origin: "core" },
+    tokenEstimate: { status: "estimated", tokens: 4 },
+    modelVisible: false,
+    metadata: {
+      ontology: ContextSourceKind.StateProjection,
+      sensitivity: "internal",
+      confidence: "high",
+      scope: "run",
+      intendedUsage: ["compaction-continuity"],
+      generatedFromSourceIds: ["message-0", "message-1"],
+      items: [
+        stateItem("objective", "current objective", "message-0"),
+        stateItem("constraint", "user constraint", "message-0"),
+        stateItem("open_question", "open question", "message-0"),
+        stateItem("next_step", "next step", "message-1")
+      ]
+    }
+  };
+}
+
+function traceDescriptor(): ModelInputProjection["sourceDescriptors"][number] {
+  return {
+    id: "trace-current",
+    kind: ContextSourceKind.AccountableTrace,
+    priority: ContextSourcePriority.Medium,
+    provenance: { origin: "core" },
+    tokenEstimate: { status: "estimated", tokens: 3 },
+    modelVisible: false,
+    metadata: {
+      ontology: ContextSourceKind.AccountableTrace,
+      sensitivity: "internal",
+      confidence: "medium",
+      scope: "run",
+      intendedUsage: ["audit"],
+      generatedFromSourceIds: ["message-0"],
+      generatedFromDecisionIds: [],
+      items: [{
+        kind: "observation",
+        label: "tool returned observation",
+        sensitivity: "internal",
+        confidence: "medium",
+        scope: "run",
+        intendedUsage: ["audit"],
+        sourceRefs: [{ type: "message", id: "message-0" }]
+      }]
+    }
+  };
+}
+
+function stateItem(kind: string, label: string, messageId: string) {
+  return {
+    kind,
+    label,
+    sensitivity: "internal",
+    confidence: "high",
+    scope: "run",
+    intendedUsage: ["compaction-continuity"],
+    sourceRefs: [{ type: "message", id: messageId }]
   };
 }

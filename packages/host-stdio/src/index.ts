@@ -63,6 +63,40 @@ export function hostEventToPiCompatibleEvents(event: HostEvent): PiCompatibleEve
       return [{ type: "auto_retry_start", session_id: event.sessionId, run_id: event.runId, attempt: event.attempt, reason: event.reason }];
     case "retry.completed":
       return [{ type: "auto_retry_end", session_id: event.sessionId, run_id: event.runId, attempt: event.attempt }];
+    case "task.created":
+      return [{
+        type: "task_update",
+        session_id: event.sessionId,
+        run_id: event.runId,
+        task_id: event.taskId,
+        status: event.state,
+        objective: event.objective,
+        plan: event.plan
+      }];
+    case "task.phase_changed":
+      return [{
+        type: "task_update",
+        session_id: event.sessionId,
+        run_id: event.runId,
+        task_id: event.taskId,
+        from: event.from,
+        status: event.to,
+        attempt: event.attempt,
+        active_run_id: event.activeRunId,
+        plan: event.plan
+      }];
+    case "task.completed":
+      return [{ type: "task_end", session_id: event.sessionId, run_id: event.runId, task_id: event.taskId, status: "completed", evidence: event.evidence }];
+    case "task.blocked":
+      return [{ type: "task_end", session_id: event.sessionId, run_id: event.runId, task_id: event.taskId, status: "blocked", reason: event.reason }];
+    case "task.failed":
+      return [{ type: "task_end", session_id: event.sessionId, run_id: event.runId, task_id: event.taskId, status: "failed", reason: event.reason }];
+    case "task.cancelled":
+      return [{ type: "task_end", session_id: event.sessionId, run_id: event.runId, task_id: event.taskId, status: "cancelled", actor: event.actor, reason: event.reason }];
+    case "verification.started":
+      return [{ type: "verification_update", session_id: event.sessionId, run_id: event.runId, task_id: event.taskId, status: "running", attempt: event.attempt }];
+    case "verification.completed":
+      return [{ type: "verification_update", session_id: event.sessionId, run_id: event.runId, task_id: event.taskId, status: event.attempt.status, attempt: event.attempt }];
     case "context.compacted":
       return [{ type: "compaction_end", session_id: event.sessionId, run_id: event.runId, boundary_id: event.boundaryId, summary: event.summary }];
     case "interaction.requested":

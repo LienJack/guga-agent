@@ -356,6 +356,50 @@ describe("HostRuntime", () => {
       source: "host",
       status: "registered"
     });
+    const platform = host.getOperationalStatus().platform;
+    expect(platform.surfaces).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "tool",
+        status: "available",
+        capabilityNames: expect.arrayContaining(["echo"])
+      }),
+      expect.objectContaining({
+        kind: "memory",
+        status: "unavailable",
+        reason: "No memory capabilities are registered"
+      }),
+      expect.objectContaining({
+        kind: "compact",
+        status: "unavailable",
+        reason: "Host compaction control is not implemented yet"
+      })
+    ]));
+    expect(platform).toMatchObject({
+      memory: {
+        state: "unavailable",
+        source: "host",
+        reason: "No memory capabilities are registered",
+        capabilityNames: [],
+        policy: {
+          autoInject: false,
+          autoWrite: false,
+          reason: "Memory must be injected by explicit policy; automatic writes are outside the first-stage TUI parity scope"
+        }
+      },
+      agents: {
+        state: "unavailable",
+        source: "host",
+        reason: "No delegation capabilities are registered",
+        capabilityNames: [],
+        coordinatorReady: false
+      },
+      compact: {
+        state: "unavailable",
+        source: "host",
+        reason: "Host compaction control is not implemented yet",
+        allowedActions: []
+      }
+    });
   });
 
   it("cancels an active run through the host controller", async () => {

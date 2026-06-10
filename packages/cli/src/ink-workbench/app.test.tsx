@@ -132,12 +132,129 @@ describe("Ink workbench app", () => {
       runId: "run-1",
       requestId: "permission-1",
       callId: "call-1",
-      toolName: "shell"
+      toolName: "shell",
+      input: { command: "rm -rf tmp" },
+      reason: "Delete generated files"
     });
     await tick();
 
-    expect(lastFrame()).toContain("Permission: type allow or deny");
+    expect(lastFrame()).toContain("Permission pending: shell");
+    expect(lastFrame()).toContain("Risk: high risk");
+    expect(lastFrame()).toContain("run run-1 | call call-1 | once");
+    expect(lastFrame()).toContain("type allow or deny; unknown input is denied");
     expect(lastFrame()).toContain("waiting-for-permission");
+  });
+
+  it("renders code task progress from controller state", async () => {
+    const controller = controllerFor(fakeClient());
+    const { lastFrame } = render(<InkWorkbenchApp controller={controller} />);
+
+    controller.applyEvent({
+      type: "task.created",
+      seq: 1,
+      occurredAt: "2026-05-28T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      taskId: "task-1",
+      rootRunId: "run-1",
+      cwd: "/repo",
+      objective: "implement feature",
+      state: "executing",
+      plan: {
+        summary: "implement feature",
+        files: [{ path: "src/feature.ts", action: "modify", reason: "feature code" }],
+        checks: [{ command: "pnpm test", cwd: "/repo", required: true, reason: "focused test" }],
+        assumptions: [],
+        risks: [],
+        ledgerItems: [
+          {
+            id: "item-1",
+            title: "Edit feature",
+            status: "done",
+            evidence: [],
+            changedFiles: ["src/feature.ts"],
+            verificationAttemptIds: [],
+            risks: []
+          },
+          {
+            id: "item-2",
+            title: "Run tests",
+            status: "in-progress",
+            evidence: [],
+            changedFiles: [],
+            verificationAttemptIds: [],
+            risks: []
+          }
+        ]
+      }
+    });
+    controller.applyEvent({
+      type: "verification.started",
+      seq: 2,
+      occurredAt: "2026-05-28T00:00:01.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      taskId: "task-1",
+      attempt: {
+        id: "verify-1",
+        taskId: "task-1",
+        sessionId: "session-1",
+        runId: "run-1",
+        command: "pnpm test",
+        cwd: "/repo",
+        required: true,
+        status: "running",
+        reason: "focused test"
+      }
+    });
+    await tick();
+
+    expect(lastFrame()).toContain("Task executing | 1/2 settled");
+    expect(lastFrame()).toContain("implement feature");
+    expect(lastFrame()).toContain("current item-2");
+    expect(lastFrame()).toContain("verify running: pnpm test");
+    expect(lastFrame()).toContain("item-2 in-progress - Run tests");
+  });
+
+  it("renders platform status panels from slash inspection commands", async () => {
+    const client = fakeClient();
+    const controller = controllerFor(client);
+    const { lastFrame } = render(<InkWorkbenchApp controller={controller} />);
+
+    await controller.executeSlash("/status");
+    await tick();
+
+    expect(client.getOperationalStatus).toHaveBeenCalled();
+    expect(lastFrame()).toContain("Operational status | providers=1 tools=1 operations=1 runs=0 tokens=12");
+    expect(lastFrame()).toContain("Tools: available runtime");
+    expect(lastFrame()).toContain("capabilities fs_write");
+    expect(lastFrame()).toContain("Compaction: unavailable host");
+    expect(lastFrame()).toContain("Host compaction control is not implemented yet");
+  });
+
+  it("renders context continuity after compaction events", async () => {
+    const controller = controllerFor(fakeClient());
+    const { lastFrame } = render(<InkWorkbenchApp controller={controller} />);
+
+    controller.applyEvent({
+      type: "context.compacted",
+      seq: 1,
+      occurredAt: "2026-05-28T00:00:00.000Z",
+      sessionId: "session-1",
+      runId: "run-1",
+      boundaryId: "compact-1",
+      trigger: "auto",
+      summary: {
+        objective: "ship platform TUI",
+        nextSteps: ["run CLI tests"]
+      }
+    });
+    await tick();
+
+    expect(lastFrame()).toContain("Context compacted");
+    expect(lastFrame()).toContain("auto at compact-1");
+    expect(lastFrame()).toContain("objective ship platform TUI");
+    expect(lastFrame()).toContain("next run CLI tests");
   });
 
   it("routes pending permission input before an open slash palette", async () => {
@@ -353,7 +470,47 @@ function fakeClient(): HostClient {
     listProviderHealth: vi.fn(async () => []),
     listAuditSummaries: vi.fn(async () => []),
     getMetricsSnapshot: vi.fn(),
-    getOperationalStatus: vi.fn()
+    getOperationalStatus: vi.fn(async () => operationalStatus())
+  };
+}
+
+function operationalStatus() {
+  return {
+    updatedAt: "2026-05-28T00:00:00.000Z",
+    capabilities: [
+      { type: "tool", name: "fs_write", source: "plugin", status: "registered" },
+      { type: "operation", name: "provider.health", source: "plugin", status: "registered" }
+    ],
+    platform: {
+      surfaces: [
+        { kind: "tool", name: "Tools", status: "available", source: "runtime", actions: ["inspect"], capabilityNames: ["fs_write"] },
+        { kind: "compact", name: "Compaction", status: "unavailable", source: "host", actions: ["inspect"], reason: "Host compaction control is not implemented yet" }
+      ],
+      memory: {
+        state: "unavailable",
+        source: "host",
+        reason: "No memory capabilities are registered",
+        capabilityNames: [],
+        policy: { autoInject: false, autoWrite: false }
+      },
+      agents: {
+        state: "unavailable",
+        source: "host",
+        reason: "No delegation capabilities are registered",
+        capabilityNames: [],
+        coordinatorReady: false
+      },
+      compact: {
+        state: "unavailable",
+        source: "host",
+        reason: "Host compaction control is not implemented yet",
+        allowedActions: []
+      }
+    },
+    health: [{ providerId: "mock", status: "healthy", checkedAt: "2026-05-28T00:00:00.000Z", diagnostics: [] }],
+    audit: [],
+    metrics: { updatedAt: "2026-05-28T00:00:00.000Z", counters: { "usage.total_tokens": 12 } },
+    diagnostics: []
   };
 }
 

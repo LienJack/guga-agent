@@ -52,6 +52,20 @@ describe("AgentLoop", () => {
       AgentEventType.ModelResponded,
       AgentEventType.RunFinished
     ]);
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ToolQueued,
+      intent: expect.objectContaining({
+        toolName: "echo",
+        leaseId: expect.stringMatching(/^tool-lease-/)
+      })
+    }));
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ToolCompleted,
+      intent: expect.objectContaining({
+        toolName: "echo",
+        leaseId: expect.stringMatching(/^tool-lease-/)
+      })
+    }));
   });
 
   it("creates a projection before each provider request", async () => {
@@ -79,17 +93,49 @@ describe("AgentLoop", () => {
         messages: [{ role: "user", content: "Use echo" }],
         sourceDescriptors: expect.arrayContaining([
           expect.objectContaining({ kind: "pending_turn" }),
-          expect.objectContaining({ kind: "active_tool", metadata: { toolName: "echo" } })
+          expect.objectContaining({ kind: "active_tool", metadata: expect.objectContaining({ toolName: "echo" }) }),
+          expect.objectContaining({ kind: "state_projection", modelVisible: false })
         ])
       }
     });
     expect(projections[1]).toMatchObject({
       projection: {
         sourceDescriptors: expect.arrayContaining([
-          expect.objectContaining({ kind: "tool_result_preview", provenance: expect.objectContaining({ toolCallId: "call-1" }) })
+          expect.objectContaining({ kind: "tool_result_preview", provenance: expect.objectContaining({ toolCallId: "call-1" }) }),
+          expect.objectContaining({ kind: "accountable_trace", modelVisible: false })
+        ]),
+        policyDecisions: expect.arrayContaining([
+          expect.objectContaining({ id: expect.stringMatching(/^attention-derived-/), kind: "annotation" })
         ])
       }
     });
+  });
+
+  it("keeps derived attention sources out of provider messages while recording them before provider input commit", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = durableEventBus();
+    registry.registerProvider(createMockProvider([
+      (request) => ({
+        type: "final",
+        content: request.messages.map((message) => message.content).join("\n")
+      })
+    ]));
+
+    const result = await new AgentLoop({ registry, eventBus }).run({
+      input: "Continue the plan.",
+      providerId: "mock",
+      runId: "run-attention-projection"
+    });
+
+    expect(result).toMatchObject({ ok: true, finalAnswer: "Continue the plan." });
+    const projectionIndex = eventBus.events.findIndex((event) =>
+      event.type === AgentEventType.ContextProjectionCreated &&
+      event.projection.sourceDescriptors.some((source) => source.kind === ContextSourceKind.StateProjection)
+    );
+    const providerInputIndex = eventBus.events.findIndex((event) => event.type === AgentEventType.ProviderInputCommitted);
+
+    expect(projectionIndex).toBeGreaterThanOrEqual(0);
+    expect(projectionIndex).toBeLessThan(providerInputIndex);
   });
 
   it("returns tool failures to the provider as observations", async () => {
@@ -206,11 +252,25 @@ describe("AgentLoop", () => {
     expect(result).toMatchObject({ ok: true, finalAnswer: "visible" });
     expect(result.events).toContainEqual(expect.objectContaining({
       type: AgentEventType.ToolVisibilityFiltered,
-      decision: expect.objectContaining({ toolName: "dynamic-denied", reason: "policy-denied" })
+      decision: expect.objectContaining({ toolName: "dynamic-denied", reason: "policy-denied" }),
+      lease: expect.objectContaining({
+        visibleToolNames: ["visible"],
+        decisions: expect.arrayContaining([
+          expect.objectContaining({ toolName: "hidden", reason: "hidden" }),
+          expect.objectContaining({ toolName: "missing-backend", reason: "missing-backend" }),
+          expect.objectContaining({ toolName: "dynamic-denied", reason: "policy-denied" }),
+          expect.objectContaining({ toolName: "headless-denied", reason: "policy-denied" })
+        ])
+      })
     }));
     expect(result.events).toContainEqual(expect.objectContaining({
       type: AgentEventType.ToolVisibilityFiltered,
       decision: expect.objectContaining({ toolName: "headless-denied", reason: "policy-denied" })
+    }));
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ModelRequested,
+      toolNames: ["visible"],
+      toolLease: expect.objectContaining({ visibleToolNames: ["visible"] })
     }));
   });
 
@@ -697,6 +757,72 @@ describe("AgentLoop", () => {
     expect(seenProviderMessages).toHaveLength(1);
     expect(String(result.finalAnswer)).toContain("Compaction summary");
     expect(String(result.finalAnswer)).toContain("Host context survived compaction");
+  });
+
+  it("does not reinject hook-provided memory candidate sources as active context", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const hookKernel = new HookKernel({ eventBus });
+    registry.registerProvider(createMockProvider([
+      (request) => ({ type: "final", content: request.messages.map((message) => message.content).join("\n") })
+    ]));
+    registry.registerModel({ providerId: "mock", modelId: "mock", contextWindow: 60, maxOutputTokens: 10 });
+    hookKernel.registerHook("context-plugin", 0, {
+      id: "discover-large-history",
+      phase: HookPhase.ResourcesDiscover,
+      effect: HookEffect.Patch,
+      handler() {
+        return {
+          id: "large-history",
+          kind: "source-contribution",
+          phase: HookPhase.ResourcesDiscover,
+          sourceIds: ["large-resource"],
+          metadata: {
+            sources: [sourceDescriptor("large-resource", ContextSourceKind.ResourceFile, 80)]
+          }
+        };
+      }
+    });
+    hookKernel.registerHook("context-plugin", 0, {
+      id: "reinject-memory-candidate",
+      phase: HookPhase.ContextReinject,
+      effect: HookEffect.Patch,
+      handler() {
+        return {
+          id: "memory-candidate-reinject",
+          kind: "reinjection",
+          phase: HookPhase.ContextReinject,
+          sourceIds: ["candidate-1"],
+          reason: "memory candidate should stay candidate-only",
+          metadata: {
+            reinjectionSources: [{
+              id: "candidate-1",
+              kind: ContextSourceKind.MemoryCandidate,
+              priority: ContextSourcePriority.High,
+              content: "candidate text should not be reinjected",
+              runtimeContextId: "run-memory-reinject"
+            }]
+          }
+        };
+      }
+    });
+
+    const result = await new AgentLoop({ registry, eventBus, hookKernel }).run({
+      input: "hello",
+      providerId: "mock",
+      modelId: "mock",
+      runId: "run-memory-reinject",
+      maxTurns: 3
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(result.finalAnswer).not.toContain("candidate text should not be reinjected");
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ContextReinjected,
+      sources: expect.not.arrayContaining([
+        expect.objectContaining({ id: "candidate-1" })
+      ])
+    }));
   });
 
   it("honors context.compact.after gate denials after compaction is recorded", async () => {

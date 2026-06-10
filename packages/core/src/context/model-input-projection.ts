@@ -7,6 +7,7 @@ import {
 } from "../contracts/context";
 import type { CoreMessage } from "../contracts/messages";
 import type { ModelIdentifier, ModelMetadata, ModelPurpose } from "../contracts/provider";
+import type { ToolCapabilityLease } from "../contracts/tool-runtime";
 import type { ToolDefinition } from "../contracts/tools";
 import { ContextBudgeter, estimateMessageTokens, estimateTextTokens } from "./context-budgeter";
 import { orderContextSources } from "./context-source-ordering";
@@ -23,6 +24,7 @@ export type AssembleModelInputProjectionOptions = {
   turn: number;
   messages: readonly CoreMessage[];
   tools: readonly ToolDefinition[];
+  toolLease?: ToolCapabilityLease;
   model?: Partial<ModelIdentifier> & {
     purpose?: ModelPurpose;
     metadata?: ModelMetadata;
@@ -56,7 +58,7 @@ export class ModelInputProjector {
         metadata: decision
       }));
     const sources = orderContextSources([
-      ...sourceDescriptorsFor(messages, tools),
+      ...sourceDescriptorsFor(messages, tools, options.toolLease),
       ...(options.additionalSources ? [...options.additionalSources] : [])
     ]);
     const budget = this.budgeter.estimate({
@@ -79,6 +81,7 @@ export class ModelInputProjector {
       turn: options.turn,
       messages,
       tools,
+      ...(options.toolLease ? { toolLease: options.toolLease } : {}),
       sourceDescriptors: sources,
       budget,
       pressure,
@@ -92,11 +95,15 @@ export class ModelInputProjector {
   }
 }
 
-function sourceDescriptorsFor(messages: readonly CoreMessage[], tools: readonly ToolDefinition[]): ContextSourceDescriptor[] {
+function sourceDescriptorsFor(
+  messages: readonly CoreMessage[],
+  tools: readonly ToolDefinition[],
+  toolLease?: ToolCapabilityLease
+): ContextSourceDescriptor[] {
   const lastMessageIndex = messages.length - 1;
   const descriptors = messages.map((message, index) => messageSource(message, index, lastMessageIndex));
   for (const tool of tools) {
-    descriptors.push(toolSource(tool));
+    descriptors.push(toolSource(tool, toolLease));
   }
   return descriptors;
 }
@@ -181,10 +188,17 @@ function reinjectedKind(content: string): ContextSourceKind | undefined {
   if (content.startsWith("[Reinjected permission_mode:")) {
     return ContextSourceKind.PermissionMode;
   }
+  if (content.startsWith("[Reinjected state_projection:")) {
+    return ContextSourceKind.StateProjection;
+  }
+  if (content.startsWith("[Reinjected accountable_trace:")) {
+    return ContextSourceKind.AccountableTrace;
+  }
   return undefined;
 }
 
-function toolSource(tool: ToolDefinition): ContextSourceDescriptor {
+function toolSource(tool: ToolDefinition, toolLease?: ToolCapabilityLease): ContextSourceDescriptor {
+  const visibility = toolLease?.decisions.find((decision) => decision.toolName === tool.name);
   return {
     id: `tool-${tool.name}`,
     kind: ContextSourceKind.ActiveTool,
@@ -194,7 +208,11 @@ function toolSource(tool: ToolDefinition): ContextSourceDescriptor {
       ...(tool.runtime?.source?.pluginId ? { pluginId: tool.runtime.source.pluginId } : {}),
       metadata: {
         effect: tool.effect,
-        renderer: tool.runtime?.renderer
+        renderer: tool.runtime?.renderer,
+        ...(tool.runtime?.action ? { action: tool.runtime.action } : {}),
+        ...(tool.runtime?.source ? { source: tool.runtime.source } : {}),
+        ...(toolLease ? { leaseId: toolLease.leaseId } : {}),
+        ...(visibility ? { visibility } : {})
       }
     },
     tokenEstimate: {
@@ -207,7 +225,8 @@ function toolSource(tool: ToolDefinition): ContextSourceDescriptor {
     contentHash: simpleContentHash(`${tool.name}:${tool.description}:${JSON.stringify(tool.inputSchema)}`),
     modelVisible: true,
     metadata: {
-      toolName: tool.name
+      toolName: tool.name,
+      ...(toolLease ? { leaseId: toolLease.leaseId } : {})
     }
   };
 }

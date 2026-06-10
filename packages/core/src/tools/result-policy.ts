@@ -1,5 +1,12 @@
 import { AgentEventType } from "../contracts/events";
-import type { BudgetedToolResult, ToolCallCorrelation, ToolResultBudget } from "../contracts/tool-runtime";
+import type {
+  BudgetedToolResult,
+  ToolCallCorrelation,
+  ToolEvidenceRedaction,
+  ToolEvidenceVerifier,
+  ToolResultBudget,
+  ToolResultEvidence
+} from "../contracts/tool-runtime";
 import type { ToolCall } from "../contracts/messages";
 import type { ToolFailure, ToolResult } from "../contracts/tools";
 import type { ToolDefinition } from "../contracts/tools";
@@ -66,9 +73,26 @@ export class ResultPolicy {
       reference
     });
 
-    const result = budget.strategy === "reference"
-      ? referenceResult(options.result, reference, content.length, preview.llmPreview, preview.notice, preview.rereadInstruction)
-      : truncateResult(options.result, maxContentChars, content.length, preview.llmPreview, preview.notice, reference, preview.rereadInstruction);
+    const strategy = budget.strategy ?? "truncate";
+    const redaction = defaultRedaction();
+    const verifier = defaultVerifier();
+    const audit = auditMetadata(strategy, reference, redaction, verifier);
+    const evidence = evidenceFor({
+      strategy,
+      reference,
+      originalContentChars: content.length,
+      preview: preview.llmPreview,
+      uiProjection: preview.uiProjection,
+      notice: preview.notice,
+      omittedContentChars: Math.max(0, content.length - maxContentChars),
+      redaction,
+      verifier,
+      auditMetadata: audit
+    });
+
+    const result = strategy === "reference"
+      ? referenceResult(options.result, reference, content.length, preview.llmPreview, preview.uiProjection, preview.notice, preview.rereadInstruction, audit, evidence, redaction, verifier)
+      : truncateResult(options.result, maxContentChars, content.length, preview.llmPreview, preview.uiProjection, preview.notice, reference, preview.rereadInstruction, audit, evidence, redaction, verifier);
 
     this.eventBus.publish({
       type: AgentEventType.ToolResultBudgeted,
@@ -120,9 +144,14 @@ function truncateResult(
   maxContentChars: number,
   originalContentChars: number,
   previewContent: string,
+  uiProjection: string,
   notice: string,
   reference: ToolResultReference,
-  rereadInstruction: string | undefined
+  rereadInstruction: string | undefined,
+  audit: Record<string, unknown>,
+  evidence: ToolResultEvidence,
+  redaction: ToolEvidenceRedaction,
+  verifier: ToolEvidenceVerifier
 ): BudgetedToolResult {
   if (result.ok) {
     return {
@@ -137,8 +166,12 @@ function truncateResult(
         omittedContentChars: Math.max(0, originalContentChars - maxContentChars),
         view: {
           llmPreview: previewContent,
-          auditMetadata: auditMetadata("truncate", reference)
-        }
+          uiProjection,
+          auditMetadata: audit
+        },
+        evidence,
+        redaction,
+        verifier
       }
     };
   }
@@ -163,8 +196,12 @@ function truncateResult(
       omittedContentChars: Math.max(0, originalContentChars - maxContentChars),
       view: {
         llmPreview: previewContent,
-        auditMetadata: auditMetadata("truncate", reference)
-      }
+        uiProjection,
+        auditMetadata: audit
+      },
+      evidence,
+      redaction,
+      verifier
     }
   };
 }
@@ -174,8 +211,13 @@ function referenceResult(
   reference: ToolResultReference,
   originalContentChars: number,
   previewContent: string,
+  uiProjection: string,
   previewNotice: string,
-  rereadInstruction: string | undefined
+  rereadInstruction: string | undefined,
+  audit: Record<string, unknown>,
+  evidence: ToolResultEvidence,
+  redaction: ToolEvidenceRedaction,
+  verifier: ToolEvidenceVerifier
 ): BudgetedToolResult {
   const notice = `Tool output stored as reference: ${reference.id}`;
 
@@ -192,8 +234,12 @@ function referenceResult(
         omittedContentChars: originalContentChars,
         view: {
           llmPreview: previewContent,
-          auditMetadata: auditMetadata("reference", reference)
-        }
+          uiProjection,
+          auditMetadata: audit
+        },
+        evidence,
+        redaction,
+        verifier
       }
     };
   }
@@ -216,17 +262,68 @@ function referenceResult(
       omittedContentChars: originalContentChars,
       view: {
         llmPreview: previewContent,
-        auditMetadata: auditMetadata("reference", reference)
-      }
+        uiProjection,
+        auditMetadata: audit
+      },
+      evidence,
+      redaction,
+      verifier
     }
   };
 }
 
-function auditMetadata(strategy: "truncate" | "reference", reference: ToolResultReference): Record<string, unknown> {
+function evidenceFor(options: {
+  strategy: "truncate" | "reference";
+  reference: ToolResultReference;
+  originalContentChars: number;
+  preview: string;
+  uiProjection: string;
+  notice: string;
+  omittedContentChars: number;
+  redaction: ToolEvidenceRedaction;
+  verifier: ToolEvidenceVerifier;
+  auditMetadata: Record<string, unknown>;
+}): ToolResultEvidence {
+  const contentHash = contentHashFor(options.reference);
+  return {
+    raw: {
+      source: options.reference.type,
+      available: true,
+      reference: options.reference,
+      ...(contentHash ? { contentHash } : {}),
+      originalContentChars: options.originalContentChars
+    },
+    model: {
+      preview: options.preview,
+      notice: options.notice,
+      omittedContentChars: options.omittedContentChars
+    },
+    ui: {
+      projection: options.uiProjection,
+      reference: options.reference
+    },
+    audit: {
+      metadata: options.auditMetadata,
+      reference: options.reference,
+      redaction: options.redaction,
+      verifier: options.verifier
+    }
+  };
+}
+
+function auditMetadata(
+  strategy: "truncate" | "reference",
+  reference: ToolResultReference,
+  redaction: ToolEvidenceRedaction,
+  verifier: ToolEvidenceVerifier
+): Record<string, unknown> {
   return {
     strategy,
     referenceType: reference.type,
     providerRawPersistence: "descriptor-only",
+    rawAvailable: true,
+    redaction,
+    verifier,
     ...(reference.artifact
       ? {
           artifact: {
@@ -241,4 +338,20 @@ function auditMetadata(strategy: "truncate" | "reference", reference: ToolResult
         }
       : {})
   };
+}
+
+function contentHashFor(reference: ToolResultReference): string | undefined {
+  if (reference.artifact) {
+    return reference.artifact.contentHash.value;
+  }
+  const hash = reference.metadata?.contentHash;
+  return typeof hash === "string" ? hash : undefined;
+}
+
+function defaultRedaction(): ToolEvidenceRedaction {
+  return { state: "none" };
+}
+
+function defaultVerifier(): ToolEvidenceVerifier {
+  return { status: "unverified" };
 }

@@ -13,6 +13,7 @@ export type ToolResultPreviewOptions = {
 
 export type ToolResultPreview = {
   llmPreview: string;
+  uiProjection: string;
   omitted: boolean;
   notice: string;
   rereadInstruction?: string;
@@ -34,6 +35,7 @@ export function createToolResultPreview(options: ToolResultPreviewOptions): Tool
 
   return {
     llmPreview: omitted ? `${previewContent}\n\n[${notice}]` : previewContent,
+    uiProjection: omitted ? previewContent : options.content,
     omitted,
     notice,
     ...(rereadInstruction ? { rereadInstruction } : {})

@@ -20,7 +20,7 @@ import type { ModelPurpose } from "./provider";
 import type { ProviderRouterPolicy } from "./provider-router";
 import type { ResumeReportResult } from "../persistence/resume-report";
 import type { ToolDefinition } from "./tools";
-import type { RuntimeToolInvokeOptions, ToolRuntimeResult } from "./tool-runtime";
+import type { RuntimeToolInvokeOptions, ToolAvailabilityContext, ToolRuntimeResult } from "./tool-runtime";
 
 export type AgentRuntimeBuiltInsOptions = false | {
   capabilities?: {
@@ -73,6 +73,7 @@ export type AgentRuntimeOptions = {
   plugins?: LocalPlugin[];
   builtIns?: AgentRuntimeBuiltInsOptions;
   permissions?: PermissionPolicy;
+  availabilityContext?: ToolAvailabilityContext;
   routerPolicy?: ProviderRouterPolicy;
   session?: AgentSessionIdentity;
   stores?: {

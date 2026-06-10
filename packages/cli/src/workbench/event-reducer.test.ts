@@ -209,6 +209,41 @@ describe("workbench event reducer", () => {
     });
   });
 
+  it("projects context compaction as continuity state with retained facts", () => {
+    const state = reduceHostEvent(initialState(), event({
+      type: "context.compacted",
+      boundaryId: "compact-1",
+      trigger: "auto",
+      summary: {
+        objective: "implement task progress",
+        completedWork: ["wired reducer"],
+        nextSteps: ["run CLI tests"],
+        keyFilesAndSymbols: ["packages/cli/src/workbench/views.ts"]
+      }
+    }));
+    const view = createWorkbenchViewModel(state);
+
+    expect(state.continuity).toMatchObject({
+      status: "context-compacted",
+      title: "Context compacted",
+      detail: "auto at compact-1",
+      retainedFacts: expect.arrayContaining([
+        "objective implement task progress",
+        "completed wired reducer",
+        "next run CLI tests",
+        "file packages/cli/src/workbench/views.ts"
+      ])
+    });
+    expect(view.continuity).toMatchObject({
+      title: "Context compacted",
+      facts: expect.arrayContaining(["next run CLI tests"])
+    });
+    expect(view.transcript[0]).toMatchObject({
+      title: "Context compacted: auto",
+      detail: expect.stringContaining("implement task progress")
+    });
+  });
+
   it("updates permission request status when it resolves", () => {
     const requested = reduceHostEvent(initialState(), event({
       type: "permission.requested",
@@ -235,7 +270,10 @@ describe("workbench event reducer", () => {
     });
     expect(createWorkbenchViewModel(requested).pendingPermission).toMatchObject({
       title: "Permission pending: filesystem.write",
-      detail: "Write file"
+      detail: "Write file",
+      riskLabel: "high risk",
+      scopeLabel: "run run-1 | call call-1 | once",
+      responseHint: "type allow or deny; unknown input is denied"
     });
     expect(state.runStatus).toBe("running");
     expect(state.pendingPermission).toBeUndefined();
@@ -548,7 +586,39 @@ describe("workbench event reducer", () => {
         from: "executing",
         to: "verifying",
         activeRunId: "run-1",
-        attempt: 1
+        attempt: 1,
+        plan: {
+          summary: "implement feature",
+          files: [{ path: "src/feature.ts", action: "modify", reason: "feature code" }],
+          checks: [{ command: "pnpm test", cwd: "/repo", required: true, reason: "focused test" }],
+          assumptions: [],
+          risks: [],
+          ledgerItems: [
+            {
+              id: "item-1",
+              title: "implement feature",
+              status: "verified",
+              evidence: [{
+                kind: "diff",
+                id: "diff-1",
+                summary: "updated feature",
+                changedFiles: ["src/feature.ts"]
+              }],
+              changedFiles: ["src/feature.ts"],
+              verificationAttemptIds: ["verify-1"],
+              risks: []
+            },
+            {
+              id: "item-2",
+              title: "wire tests",
+              status: "in-progress",
+              evidence: [],
+              changedFiles: [],
+              verificationAttemptIds: [],
+              risks: []
+            }
+          ]
+        }
       }),
       event({
         type: "verification.completed",
@@ -583,15 +653,101 @@ describe("workbench event reducer", () => {
     expect(state.activeTask).toMatchObject({
       taskId: "task-1",
       phase: "completed",
+      plan: {
+        ledgerItems: expect.arrayContaining([
+          expect.objectContaining({ id: "item-1", status: "verified" }),
+          expect.objectContaining({ id: "item-2", status: "in-progress" })
+        ])
+      },
       lastVerification: { id: "verify-1", status: "passed" },
       completionEvidence: { passingVerificationAttemptIds: ["verify-1"] }
     });
     expect(state.activeTask?.ledgerSummary).toMatchObject({
-      total: 1,
-      pending: 1,
-      currentItemId: "item-1"
+      total: 2,
+      verified: 1,
+      inProgress: 1,
+      currentItemId: "item-2"
     });
-    expect(view.statusBar.taskLabel).toBe("task completed 0/1 attempt 1");
+    expect(view.statusBar.taskLabel).toBe("task completed 1/2 attempt 1");
+    expect(view.taskProgress).toMatchObject({
+      phaseLabel: "phase completed attempt 1",
+      progressLabel: "1/2 settled",
+      currentItemLabel: "current item-2",
+      verificationLabel: "passed: pnpm test",
+      completionLabel: "completed with 1 passing verification",
+      items: [
+        expect.objectContaining({
+          id: "item-1",
+          status: "verified",
+          detail: expect.stringContaining("files src/feature.ts")
+        }),
+        expect.objectContaining({
+          id: "item-2",
+          isCurrent: true
+        })
+      ]
+    });
+  });
+
+  it("keeps terminal reasons visible for blocked code tasks", () => {
+    const state = reduceHostEvents(initialState(), [
+      event({
+        type: "task.created",
+        taskId: "task-1",
+        rootRunId: "run-1",
+        cwd: "/repo",
+        objective: "implement feature",
+        state: "created",
+        plan: {
+          summary: "implement feature",
+          files: [],
+          checks: [],
+          assumptions: [],
+          risks: [],
+          ledgerItems: [{
+            id: "item-1",
+            title: "need approval",
+            status: "blocked",
+            evidence: [],
+            changedFiles: [],
+            verificationAttemptIds: [],
+            risks: [],
+            blocker: {
+              code: "PERMISSION_REQUIRED",
+              message: "Need write approval",
+              recoverable: true
+            }
+          }]
+        }
+      }),
+      event({
+        type: "task.blocked",
+        seq: 2,
+        taskId: "task-1",
+        reason: {
+          code: "PERMISSION_REQUIRED",
+          message: "Need write approval",
+          recoverable: true
+        }
+      })
+    ]);
+    const view = createWorkbenchViewModel(state);
+
+    expect(state.activeTask?.terminalReason).toMatchObject({
+      code: "PERMISSION_REQUIRED",
+      message: "Need write approval"
+    });
+    expect(view.statusBar.taskLabel).toBe("task blocked 0/1 attempt 0");
+    expect(view.taskProgress).toMatchObject({
+      blockedReason: "Need write approval",
+      items: [
+        expect.objectContaining({
+          id: "item-1",
+          isBlocked: true,
+          detail: expect.stringContaining("blocked Need write approval")
+        })
+      ]
+    });
   });
 });
 

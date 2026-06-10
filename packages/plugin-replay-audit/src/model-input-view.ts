@@ -1,4 +1,4 @@
-import { AgentEventType, type AgentEvent, type DurableEventEnvelope, type JsonValue, type ProviderInputRecord, type ReplayDiagnostic, type ReplayModelInputResult } from "@guga-agent/core";
+import { AgentEventType, summarizeContextSourceMetadata, type AgentEvent, type DurableEventEnvelope, type JsonValue, type ProviderInputRecord, type ReplayDiagnostic, type ReplayModelInputResult } from "@guga-agent/core";
 
 export type ModelInputViewResult = ReplayModelInputResult;
 
@@ -57,12 +57,22 @@ export function buildModelInputView(events: readonly DurableEventEnvelope[], req
         effect: tool.effect
       })),
       sourceDescriptors: projection.sourceDescriptors.map(({ metadata: _metadata, ...descriptor }) => structuredClone(descriptor)),
+      ...sourceMetadataSummariesFor(projection),
       policyDecisions: structuredClone(projection.policyDecisions),
       ...(committedPayload.projectionHash ?? projection.hash ? { projectionHash: committedPayload.projectionHash ?? projection.hash } : {}),
       artifactRefs: committed.artifactRefs ?? []
     },
     diagnostics: []
   };
+}
+
+function sourceMetadataSummariesFor(
+  projection: Extract<AgentEvent, { type: typeof AgentEventType.ContextProjectionCreated }>["projection"]
+): Pick<ProviderInputRecord, "sourceMetadataSummaries"> | Record<string, never> {
+  const summaries = projection.sourceDescriptors
+    .map((source) => summarizeContextSourceMetadata(source))
+    .filter((summary): summary is NonNullable<typeof summary> => summary !== undefined);
+  return summaries.length > 0 ? { sourceMetadataSummaries: summaries } : {};
 }
 
 function projectionEvents(events: readonly DurableEventEnvelope[]): Map<string, Extract<AgentEvent, { type: typeof AgentEventType.ContextProjectionCreated }>["projection"]> {

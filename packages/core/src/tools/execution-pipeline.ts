@@ -7,10 +7,13 @@ import type { PermissionRequest } from "../contracts/permissions";
 import type {
   ToolAvailability,
   ToolAvailabilityContext,
+  ToolActionMetadata,
+  ToolActionRisk,
   ToolCallCorrelation,
+  ToolCapabilityLease,
+  ToolIntent,
   ToolResourceScope,
-  ToolRuntimeResult,
-  ToolVisibilityDecision
+  ToolRuntimeResult
 } from "../contracts/tool-runtime";
 import type { ToolDefinition, ToolExecutionContext, ToolResult } from "../contracts/tools";
 import { EventBus } from "../events/event-bus";
@@ -18,6 +21,7 @@ import { HookKernel } from "../hooks/hook-kernel";
 import { PermissionKernel } from "../permissions/permission-kernel";
 import { CapabilityRegistry } from "../registry/capability-registry";
 import { ResultPolicy } from "./result-policy";
+import { toolEnvironmentRequirementFor, toolVisibilityDecision } from "./tool-projection";
 
 export type ExecutionPipelineOptions = {
   registry: CapabilityRegistry;
@@ -36,6 +40,7 @@ export type ExecuteToolCallOptions = {
   batchId?: string;
   source?: ToolCallCorrelation["source"];
   taskId?: string;
+  toolLease?: ToolCapabilityLease;
   signal?: AbortSignal;
   availabilityContext?: ToolAvailabilityContext;
 };
@@ -59,12 +64,17 @@ export class ExecutionPipeline {
 
   async execute(options: ExecuteToolCallOptions): Promise<ToolRuntimeResult> {
     const correlation = correlationFor(options);
+    const tool = this.registry.getTool(options.call.name);
+    const queuedIntent = tool
+      ? toolIntentFor(options.call, tool, correlation, intentContextFor(options))
+      : missingToolIntentFor(options.call, correlation, options.toolLease);
     this.eventBus.publish({
       type: AgentEventType.ToolQueued,
       runId: options.runId,
       turn: options.turn,
       correlation,
-      call: options.call
+      call: options.call,
+      intent: queuedIntent
     });
 
     if (options.signal?.aborted) {
@@ -72,11 +82,12 @@ export class ExecutionPipeline {
         options.call,
         correlation,
         this.resultPolicy.synthetic("cancelled", "Tool call was cancelled before execution"),
-        "cancelled"
+        "cancelled",
+        undefined,
+        queuedIntent
       );
     }
 
-    const tool = this.registry.getTool(options.call.name);
     if (this.hookKernel) {
       const gateResult = await this.hookKernel.runPreToolGate({
         runId: options.runId,
@@ -99,19 +110,20 @@ export class ExecutionPipeline {
             pluginId: gateResult.deniedBy.pluginId
           }),
           "hook_blocked",
-          tool
+          tool,
+          queuedIntent
         );
       }
     }
 
     if (!tool) {
       const result = failure("TOOL_NOT_FOUND", `Tool not registered: ${options.call.name}`, { toolCall: options.call });
-      return this.finish(options.call, correlation, result, "missing_tool");
+      return this.finish(options.call, correlation, result, "missing_tool", undefined, queuedIntent);
     }
 
     const unavailable = toolUnavailableResult(tool, options.availabilityContext ?? this.availabilityContext);
     if (unavailable) {
-      return this.finish(options.call, correlation, unavailable, "unavailable", tool);
+      return this.finish(options.call, correlation, unavailable, "unavailable", tool, queuedIntent);
     }
 
     const callHook = await this.runToolHook(HookPhase.ToolCallBefore, {
@@ -121,18 +133,21 @@ export class ExecutionPipeline {
       input: options.call.input,
       correlation
     });
+    const preValidationIntent = toolIntentFor(callHook.call, tool, correlation, intentContextFor(options));
     if (callHook.block) {
-      return this.finish(callHook.call, correlation, blocked(callHook.block.reason, callHook.block.metadata), "hook_blocked", tool);
+      return this.finish(callHook.call, correlation, blocked(callHook.block.reason, callHook.block.metadata), "hook_blocked", tool, preValidationIntent);
     }
 
     const patchedCall = callHook.call;
     const validationFailure = validateInput(tool, patchedCall.input);
     if (validationFailure) {
-      return this.finish(patchedCall, correlation, validationFailure, "schema_invalid", tool);
+      return this.finish(patchedCall, correlation, validationFailure, "schema_invalid", tool, preValidationIntent);
     }
+    const scopes = scopesFor(tool, patchedCall);
+    const intent = toolIntentFor(patchedCall, tool, correlation, intentContextFor(options, scopes));
 
     const permission = await this.permissionKernel.resolve({
-      request: permissionRequestFor(options, patchedCall, tool, correlation),
+      request: permissionRequestFor(options, patchedCall, tool, correlation, scopes, intent),
       tool,
       ...(options.signal ? { signal: options.signal } : {})
     });
@@ -146,7 +161,8 @@ export class ExecutionPipeline {
           : permission.result.error.code === "TOOL_PERMISSION_CANCELLED"
             ? "cancelled"
             : "permission_denied",
-        tool
+        tool,
+        intent
       );
     }
 
@@ -158,7 +174,8 @@ export class ExecutionPipeline {
       correlation
     });
     if (executeBeforeHook.block) {
-      return this.finish(executeBeforeHook.call, correlation, blocked(executeBeforeHook.block.reason, executeBeforeHook.block.metadata), "hook_blocked", tool);
+      const blockedIntent = toolIntentFor(executeBeforeHook.call, tool, correlation, intentContextFor(options, scopes));
+      return this.finish(executeBeforeHook.call, correlation, blocked(executeBeforeHook.block.reason, executeBeforeHook.block.metadata), "hook_blocked", tool, blockedIntent);
     }
     if (executeBeforeHook.inputPatched) {
       return this.finish(
@@ -166,7 +183,8 @@ export class ExecutionPipeline {
         correlation,
         blocked("tool.execute.before hooks cannot patch input after permission resolution"),
         "hook_blocked",
-        tool
+        tool,
+        intent
       );
     }
 
@@ -176,7 +194,8 @@ export class ExecutionPipeline {
       runId: options.runId,
       turn: options.turn,
       correlation,
-      call: executableCall
+      call: executableCall,
+      intent
     }, {
       idempotencyKey: durableToolKey(correlation, "tool.started")
     });
@@ -186,7 +205,8 @@ export class ExecutionPipeline {
         correlation,
         failure("TOOL_PERSISTENCE_UNAVAILABLE", "Tool execution start marker could not be durably recorded", start),
         "exception",
-        tool
+        tool,
+        intent
       );
     }
 
@@ -201,7 +221,8 @@ export class ExecutionPipeline {
       result: rawResult
     });
     if (afterHook.block) {
-      return this.finish(afterHook.call, correlation, blocked(afterHook.block.reason, afterHook.block.metadata), "hook_blocked", tool);
+      const blockedIntent = toolIntentFor(afterHook.call, tool, correlation, intentContextFor(options, scopes));
+      return this.finish(afterHook.call, correlation, blocked(afterHook.block.reason, afterHook.block.metadata), "hook_blocked", tool, blockedIntent);
     }
     const resultHook = await this.runToolHook(HookPhase.ToolResultBefore, {
       options,
@@ -212,11 +233,12 @@ export class ExecutionPipeline {
       result: applyAnnotations(rawResult, [...afterHook.annotations])
     });
     if (resultHook.block) {
-      return this.finish(resultHook.call, correlation, blocked(resultHook.block.reason, resultHook.block.metadata), "hook_blocked", tool);
+      const blockedIntent = toolIntentFor(resultHook.call, tool, correlation, intentContextFor(options, scopes));
+      return this.finish(resultHook.call, correlation, blocked(resultHook.block.reason, resultHook.block.metadata), "hook_blocked", tool, blockedIntent);
     }
 
     const annotatedResult = applyAnnotations(rawResult, [...afterHook.annotations, ...resultHook.annotations]);
-    return this.finish(resultHook.call, correlation, annotatedResult, executionReason, tool);
+    return this.finish(resultHook.call, correlation, annotatedResult, executionReason, tool, intent);
   }
 
   private async runToolHook(
@@ -277,7 +299,8 @@ export class ExecutionPipeline {
     correlation: ToolCallCorrelation,
     result: ToolResult,
     reason?: ToolRuntimeResult["reason"],
-    tool?: ToolDefinition
+    tool?: ToolDefinition,
+    intent?: ToolIntent
   ): Promise<ToolRuntimeResult> {
     const budgeted = this.resultPolicy.apply({
       call,
@@ -292,7 +315,8 @@ export class ExecutionPipeline {
       turn: correlation.turn,
       call,
       correlation,
-      result: budgeted
+      result: budgeted,
+      ...(intent ? { intent } : {})
     });
     const terminalEvent = {
       type: budgeted.ok ? AgentEventType.ToolCompleted : lifecycleFailureType(reason),
@@ -300,7 +324,8 @@ export class ExecutionPipeline {
       turn: correlation.turn,
       correlation,
       call,
-      result: budgeted
+      result: budgeted,
+      ...(intent ? { intent } : {})
     } as const;
     const terminal = await this.eventBus.publishDurable(terminalEvent, {
       idempotencyKey: durableToolKey(correlation, "tool.terminal")
@@ -314,9 +339,9 @@ export class ExecutionPipeline {
           durableResult: terminal
         }
       };
-      return { call, correlation, result: uncertain, reason: reason ?? "exception" };
+      return { call, correlation, result: uncertain, ...(intent ? { intent } : {}), reason: reason ?? "exception" };
     }
-    return { call, correlation, result: budgeted, ...(reason ? { reason } : {}) };
+    return { call, correlation, result: budgeted, ...(intent ? { intent } : {}), ...(reason ? { reason } : {}) };
   }
 }
 
@@ -338,13 +363,116 @@ function correlationFor(options: ExecuteToolCallOptions): ToolCallCorrelation {
   };
 }
 
+function toolIntentFor(
+  call: ToolCall,
+  tool: ToolDefinition,
+  correlation: ToolCallCorrelation,
+  context: { lease?: ToolCapabilityLease; scopes?: readonly ToolResourceScope[] } = {}
+): ToolIntent {
+  const action: ToolActionMetadata = tool.runtime?.action ?? {
+    category: actionCategoryForEffect(tool.effect),
+    risk: riskForEffect(tool.effect),
+    label: tool.description
+  };
+  const environment = toolEnvironmentRequirementFor(tool);
+  const scopes = context.scopes ?? [];
+
+  return {
+    id: `intent-${correlation.runId}-${correlation.turn}-${call.id}-${correlation.attempt}`,
+    toolName: tool.name,
+    toolCallId: call.id,
+    action,
+    summary: action.summary ?? action.label ?? `${tool.effect} tool ${tool.name}`,
+    inputSummary: inputSummaryFor(call.input, scopes),
+    ...(scopes.length > 0 ? { resourceScopes: scopes } : {}),
+    ...(tool.runtime?.principal ? { principal: tool.runtime.principal } : {}),
+    ...(tool.runtime?.credentials ? { credentials: tool.runtime.credentials } : {}),
+    ...(environment ? { environment } : {}),
+    ...(context.lease ? { leaseId: context.lease.leaseId } : {}),
+    correlation
+  };
+}
+
+function missingToolIntentFor(
+  call: ToolCall,
+  correlation: ToolCallCorrelation,
+  lease?: ToolCapabilityLease
+): ToolIntent {
+  return {
+    id: `intent-${correlation.runId}-${correlation.turn}-${call.id}-${correlation.attempt}`,
+    toolName: call.name,
+    toolCallId: call.id,
+    action: {
+      category: "custom",
+      risk: "high",
+      label: `Unregistered tool ${call.name}`
+    },
+    summary: `Model requested unregistered tool ${call.name}`,
+    inputSummary: inputSummaryFor(call.input, []),
+    ...(lease ? { leaseId: lease.leaseId } : {}),
+    correlation
+  };
+}
+
+function actionCategoryForEffect(effect: ToolDefinition["effect"]): NonNullable<ToolIntent["action"]>["category"] {
+  switch (effect) {
+    case "read":
+      return "read";
+    case "write":
+      return "write";
+    case "execute":
+      return "execute";
+    case "external":
+      return "external";
+  }
+}
+
+function riskForEffect(effect: ToolDefinition["effect"]): ToolActionRisk {
+  switch (effect) {
+    case "read":
+      return "low";
+    case "write":
+      return "medium";
+    case "execute":
+    case "external":
+      return "high";
+  }
+}
+
+function inputSummaryFor(input: unknown, scopes: readonly ToolResourceScope[]): string {
+  const command = commandSummaryFor(input);
+  if (command) {
+    return command;
+  }
+  if (scopes.length > 0) {
+    return scopes.map(scopeSummary).join(", ");
+  }
+  if (!input || typeof input !== "object") {
+    return String(input ?? "");
+  }
+  const keys = Object.keys(input as Record<string, unknown>).slice(0, 8);
+  return keys.length > 0 ? `input keys: ${keys.join(", ")}` : "empty object input";
+}
+
+function intentContextFor(
+  options: Pick<ExecuteToolCallOptions, "toolLease">,
+  scopes?: readonly ToolResourceScope[]
+): { lease?: ToolCapabilityLease; scopes?: readonly ToolResourceScope[] } {
+  return {
+    ...(options.toolLease ? { lease: options.toolLease } : {}),
+    ...(scopes ? { scopes } : {})
+  };
+}
+
 function permissionRequestFor(
   options: ExecuteToolCallOptions,
   call: ToolCall,
   tool: ToolDefinition,
-  correlation: ToolCallCorrelation
+  correlation: ToolCallCorrelation,
+  scopes: ToolResourceScope[],
+  intent: ToolIntent
 ): PermissionRequest {
-  const scopes = scopesFor(tool, call);
+  const environment = toolEnvironmentRequirementFor(tool);
   return {
     runId: options.runId,
     turn: options.turn,
@@ -356,9 +484,14 @@ function permissionRequestFor(
     subject: {
       toolName: tool.name,
       effect: tool.effect,
+      ...(intent.action ? { action: intent.action } : {}),
+      ...(tool.runtime?.principal ? { principal: tool.runtime.principal } : {}),
+      ...(tool.runtime?.credentials ? { credentials: tool.runtime.credentials } : {}),
+      ...(environment ? { environment } : {}),
       ...(scopes.length > 0 ? { scopes, resourceSummary: scopes.map(scopeSummary).join(", ") } : {}),
       ...(tool.runtime?.permission?.scope === "command" ? { commandSummary: commandSummaryFor(call.input) } : {})
     },
+    intent,
     ...((correlation.source || correlation.taskId)
       ? {
           metadata: {
@@ -393,46 +526,6 @@ function commandSummaryFor(input: unknown): string {
   return command.length > 120 ? `${command.slice(0, 117)}...` : command;
 }
 
-export function toolVisibilityDecision(
-  tool: ToolDefinition,
-  context: ToolAvailabilityContext = {}
-): ToolVisibilityDecision {
-  if (tool.runtime?.visibility === "hidden" || tool.runtime?.visibility === "runtime-only") {
-    return { visible: false, toolName: tool.name, reason: "hidden", metadata: { visibility: tool.runtime.visibility } };
-  }
-
-  const availability = availabilityFor(tool, context);
-  if (availability.status !== "available") {
-    return {
-      visible: false,
-      toolName: tool.name,
-      reason: visibilityReasonFor(availability),
-      metadata: { availability }
-    };
-  }
-
-  const profileAction = context.profile ? tool.runtime?.permission?.profileActions?.[context.profile] : undefined;
-  if (profileAction === "deny" || tool.runtime?.permission?.defaultAction === "deny") {
-    return {
-      visible: false,
-      toolName: tool.name,
-      reason: "policy-denied",
-      metadata: { permission: tool.runtime?.permission }
-    };
-  }
-
-  if ((context.profile === "headless" || context.profile === "background") && permissionDefaultAction(tool) === "ask") {
-    return {
-      visible: false,
-      toolName: tool.name,
-      reason: "policy-denied",
-      metadata: { permission: tool.runtime?.permission, profile: context.profile }
-    };
-  }
-
-  return { visible: true, toolName: tool.name, reason: "available" };
-}
-
 function toolUnavailableResult(tool: ToolDefinition, context: ToolAvailabilityContext): ToolResult | undefined {
   const decision = toolVisibilityDecision(tool, context);
   if (!decision.visible) {
@@ -440,36 +533,6 @@ function toolUnavailableResult(tool: ToolDefinition, context: ToolAvailabilityCo
     return failure("TOOL_UNAVAILABLE", availability?.status === "available" || !availability ? `Tool is not model-visible: ${tool.name}` : availability.reason, decision.metadata);
   }
   return undefined;
-}
-
-function availabilityFor(tool: ToolDefinition, context: ToolAvailabilityContext): ToolAvailability {
-  const availability = tool.runtime?.availability;
-  if (!availability) {
-    return { status: "available" };
-  }
-  return typeof availability === "function" ? availability(context) : availability;
-}
-
-function visibilityReasonFor(availability: ToolAvailability): NonNullable<ToolVisibilityDecision["reason"]> {
-  switch (availability.status) {
-    case "available":
-      return "available";
-    case "missing-backend":
-      return "missing-backend";
-    case "denied-by-policy":
-      return "policy-denied";
-    case "outside-workspace":
-      return "outside-workspace";
-    case "disabled":
-      return "disabled";
-  }
-}
-
-function permissionDefaultAction(tool: ToolDefinition): "allow" | "ask" | "deny" {
-  if (tool.runtime?.permission?.defaultAction) {
-    return tool.runtime.permission.defaultAction;
-  }
-  return tool.effect === "read" ? "allow" : "ask";
 }
 
 async function executeTool(call: ToolCall, tool: ToolDefinition, signal?: AbortSignal): Promise<ToolResult> {

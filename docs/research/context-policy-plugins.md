@@ -1,10 +1,12 @@
 # Context Policy Plugins
 
-Guga builds model input through a `ModelInputProjection` before every provider request. The projection is an immutable envelope around provider-visible `CoreMessage[]` and `ToolDefinition[]`, plus source descriptors, token estimates, pressure decisions, policy decisions, and a projection hash.
+Guga builds model input through a `ModelInputProjection` before every provider request. The projection is an immutable envelope around provider-visible `CoreMessage[]` and `ToolDefinition[]`, plus source descriptors, token estimates, pressure decisions, policy decisions, safe derived-source summaries, and a projection hash.
 
 ## Source Hierarchy
 
-System and developer instructions are protected. Pending user turns, unresolved tool rounds, recent tail, active tools, permission mode, host context, active resources, plans, skills, tool result previews, artifact references, and compaction summaries are represented as typed context sources. Compaction summaries are historical task context; they must not become system or developer instructions.
+System and developer instructions are protected. Pending user turns, unresolved tool rounds, recent tail, active tools, permission mode, host context, active resources, plans, skills, tool result previews, artifact references, state projections, accountable traces, memory candidates, and compaction summaries are represented as typed context sources.
+
+Raw events, tool results, artifact references, and compaction boundaries remain facts. State projections, accountable traces, memory candidates, and summaries are derived context surfaces. Compaction summaries and reinjected state/trace context are historical/task context; they must not become system or developer instructions. Memory candidates remain candidate-only unless a future memory policy explicitly promotes them.
 
 ## Hook Safety
 
@@ -22,7 +24,7 @@ Hooks return typed contributions, patches, gates, reinjection decisions, or anno
 
 ## Default Policy
 
-`@guga-agent/plugin-context-default` registers the first-party default context policy. It proves host apps can replace context behavior through plugin registration without changing `AgentLoop`.
+`@guga-agent/plugin-context-default` registers the first-party default context policy. It proves host apps can replace context behavior through plugin registration without changing `AgentLoop`. The default policy observes and annotates Attention OS sources; it does not mutate durable facts, conversation state, artifact evidence, or the final provider request.
 
 Default compaction thresholds:
 
@@ -38,11 +40,11 @@ Default compaction thresholds:
 
 ## Summary Contract
 
-Compaction summaries preserve eight structured fields: objective, completed work, current blockers, next steps, key files and symbols, tool result references, unresolved questions, and user constraints. Every compact result also records iteration number, parent summary reference when present, preprocessing flags, stripped round ids, and degradation mode.
+Compaction summaries preserve eight structured fields: objective, completed work, current blockers, next steps, key files and symbols, tool result references, unresolved questions, and user constraints. The local skeleton uses state and trace source references when available, while avoiding raw tool/artifact content. Every compact result also records iteration number, parent summary reference when present, retained and compacted source ids, preprocessing flags, stripped round ids, degradation mode, and quality/continuity metadata.
 
 ## Ledger
 
-The M4 ledger is deliberately narrow. It records projection descriptors, source references, policy decisions, compaction boundaries, and projection hashes. It does not store raw artifact content and does not implement session resume; those remain M5 responsibilities.
+The M4 ledger is deliberately narrow. It records projection descriptors, source references, policy decisions, compaction boundaries, projection hashes, and safe source metadata summaries such as ontology, sensitivity, confidence, scope, intended usage, item kinds, and memory-candidate counts. It does not store raw artifact content, raw tool output, or raw memory candidate text.
 
 ## Future Split Points
 

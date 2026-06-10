@@ -41,4 +41,41 @@ describe("ReinjectionService", () => {
       metadata: { rejected: true, reason: "stale runtime context" }
     });
   });
+
+  it("allows current state and trace continuity as non-critical reinjection descriptors", () => {
+    const service = new ReinjectionService({ runtimeContextId: "runtime-1" });
+    const descriptors = service.descriptorsFor([
+      {
+        id: "state-current",
+        kind: ContextSourceKind.StateProjection,
+        priority: ContextSourcePriority.High,
+        content: "State continuity",
+        runtimeContextId: "runtime-1"
+      },
+      {
+        id: "trace-current",
+        kind: ContextSourceKind.AccountableTrace,
+        priority: ContextSourcePriority.Medium,
+        content: "Trace continuity",
+        runtimeContextId: "runtime-1"
+      }
+    ]);
+
+    expect(descriptors).toEqual([
+      expect.objectContaining({
+        id: "state-current",
+        kind: ContextSourceKind.StateProjection,
+        priority: ContextSourcePriority.High,
+        modelVisible: true,
+        protected: false
+      }),
+      expect.objectContaining({
+        id: "trace-current",
+        kind: ContextSourceKind.AccountableTrace,
+        priority: ContextSourcePriority.Medium,
+        modelVisible: true,
+        protected: false
+      })
+    ]);
+  });
 });

@@ -1,9 +1,11 @@
 export type {
+  EvalEventMetadataExpectation,
   EvalExpectation,
   EvalFixture,
   EvalResult,
   EvalRunnerOptions,
-  EvalSuiteResult
+  EvalSuiteResult,
+  EvalToolCallExpectation
 } from "./eval-runner";
 export {
   runEvalFixture,

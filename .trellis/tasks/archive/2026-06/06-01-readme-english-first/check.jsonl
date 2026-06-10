@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Verify docs remain English-first and aligned with repository documentation guidance."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Shared thinking guide index required for check context."}

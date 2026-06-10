@@ -90,6 +90,7 @@ function reduceKnownHostEvent(state: WorkbenchState, event: HostEvent): Workbenc
           state: event.state,
           phase: event.state,
           attempt: 0,
+          ...(event.plan ? { plan: event.plan } : {}),
           ...(event.plan ? ledgerSummaryPatch(event.plan) : {}),
           firstSeq: event.seq,
           lastSeq: event.seq,
@@ -113,6 +114,7 @@ function reduceKnownHostEvent(state: WorkbenchState, event: HostEvent): Workbenc
           phase: event.to,
           attempt: event.attempt,
           ...(event.activeRunId ? { activeRunId: event.activeRunId } : {}),
+          ...(event.plan ? { plan: event.plan } : {}),
           ...(event.plan ? ledgerSummaryPatch(event.plan) : {}),
           lastSeq: event.seq,
           occurredAt: event.occurredAt
@@ -169,6 +171,7 @@ function reduceKnownHostEvent(state: WorkbenchState, event: HostEvent): Workbenc
                 ...state.activeTask,
                 state: event.type === "task.blocked" ? "blocked" : event.type === "task.failed" ? "failed" : "cancelled",
                 phase: event.type === "task.blocked" ? "blocked" : event.type === "task.failed" ? "failed" : "cancelled",
+                ...(event.type === "task.cancelled" ? {} : { terminalReason: event.reason }),
                 lastSeq: event.seq,
                 occurredAt: event.occurredAt
               }
@@ -533,7 +536,16 @@ function reduceKnownHostEvent(state: WorkbenchState, event: HostEvent): Workbenc
         occurredAt: event.occurredAt
       });
     case "context.compacted":
-      return withTranscriptBlock(baseEventState(state, event), {
+      return withTranscriptBlock({
+        ...baseEventState(state, event),
+        continuity: {
+          status: "context-compacted",
+          title: "Context compacted",
+          detail: `${event.trigger} at ${event.boundaryId}`,
+          actionHint: "Summary was projected back into the visible run state; durable task facts remain authoritative.",
+          retainedFacts: compactRetainedFacts(event.summary)
+        }
+      }, {
         id: `context:${event.boundaryId}`,
         kind: "context",
         sessionId: event.sessionId,
@@ -556,10 +568,32 @@ export function reduceHostEvents(state: WorkbenchState, events: readonly HostEve
 
 export function reduceWorkbenchAction(state: WorkbenchState, action: WorkbenchAction): WorkbenchState {
   switch (action.type) {
-    case "ui.clear":
+    case "ui.clear": {
+      const { platformPanel: _platformPanel, ...nextState } = state;
+      return {
+        ...nextState,
+        clearedThroughSeq: state.lastSeq
+      };
+    }
+    case "platform.panel":
       return {
         ...state,
-        clearedThroughSeq: state.lastSeq
+        platformPanel: action.panel,
+        ...(action.statusText ? { statusText: action.statusText } : {})
+      };
+    case "session.continuity":
+      return {
+        ...state,
+        continuity: {
+          status: action.status,
+          title: sessionContinuityTitle(action.status),
+          detail: action.detail ?? `${action.sessionId}${action.branchId ? ` ${action.branchId}` : ""}`,
+          actionHint: "Session context switched; future input applies to the selected session branch.",
+          retainedFacts: [
+            `session ${action.sessionId}`,
+            ...(action.branchId ? [`branch ${action.branchId}`] : [])
+          ]
+        }
       };
     case "stream.error":
       return withDisconnected(state, {
@@ -583,6 +617,13 @@ export function reduceWorkbenchAction(state: WorkbenchState, action: WorkbenchAc
       const { disconnected: _disconnected, ...nextState } = state;
       return {
         ...nextState,
+        continuity: {
+          status: "stream-reconnected",
+          title: "Reloaded host events",
+          detail: `Replayed through seq ${state.lastSeq}`,
+          actionHint: "Input is unlocked; pending task, queue, permission and transcript state were rebuilt from host events.",
+          retainedFacts: continuityFacts(state)
+        },
         statusText: state.runStatus === "running" ? "Running" : state.statusText
       };
     }
@@ -776,11 +817,19 @@ function withDisconnected(
   state: WorkbenchState,
   disconnected: Omit<NonNullable<WorkbenchState["disconnected"]>, "lockHint">
 ): WorkbenchState {
+  const lockHint = "Input is locked while the host stream is disconnected. Run /reload to replay, or exit the workbench.";
   return {
     ...state,
     disconnected: {
       ...disconnected,
-      lockHint: "Input is locked while the host stream is disconnected. Run /reload to replay, or exit the workbench."
+      lockHint
+    },
+    continuity: {
+      status: disconnected.reason === "replay-unavailable" ? "replay-unavailable" : "stream-disconnected",
+      title: disconnected.reason === "replay-unavailable" ? "Replay unavailable" : "Stream disconnected",
+      detail: disconnected.message,
+      actionHint: lockHint,
+      retainedFacts: continuityFacts(state)
     },
     statusText: `Disconnected: ${disconnected.message}`
   };
@@ -790,6 +839,30 @@ function replayUnavailableMessage(afterSeq: number | undefined): string {
   return afterSeq === undefined
     ? "Host event replay is unavailable."
     : `Host event replay is unavailable after seq ${afterSeq}.`;
+}
+
+function sessionContinuityTitle(status: Extract<NonNullable<WorkbenchState["continuity"]>["status"], "session-created" | "session-resumed" | "session-forked">): string {
+  switch (status) {
+    case "session-created":
+      return "Session created";
+    case "session-resumed":
+      return "Session resumed";
+    case "session-forked":
+      return "Session forked";
+  }
+}
+
+function continuityFacts(state: WorkbenchState): string[] {
+  return [
+    `last seq ${state.lastSeq}`,
+    state.activeTask ? `task ${state.activeTask.phase}: ${state.activeTask.objective}` : undefined,
+    state.activeTask?.ledgerSummary
+      ? `task ledger ${state.activeTask.ledgerSummary.done + state.activeTask.ledgerSummary.verified}/${state.activeTask.ledgerSummary.total}`
+      : undefined,
+    state.pendingPermission ? `pending permission ${state.pendingPermission.toolName}` : undefined,
+    state.pendingInteraction ? `pending interaction ${state.pendingInteraction.request.kind}` : undefined,
+    state.queue.pendingCount > 0 ? `queued input ${state.queue.pendingCount}` : undefined
+  ].filter((fact): fact is string => Boolean(fact));
 }
 
 function usageCost(current: number | undefined, next: number | undefined): { costUsd?: number } {
@@ -839,6 +912,24 @@ function contextSummary(summary: Extract<HostEvent, { type: "context.compacted" 
     ...(summary.nextSteps ?? [])
   ].filter((part): part is string => Boolean(part));
   return parts.length > 0 ? { summary: parts.join(" ") } : {};
+}
+
+function compactRetainedFacts(summary: Extract<HostEvent, { type: "context.compacted" }>["summary"]): string[] {
+  if (summary === undefined) {
+    return [];
+  }
+  if (typeof summary === "string") {
+    return [summary];
+  }
+  return [
+    summary.objective ? `objective ${summary.objective}` : undefined,
+    ...(summary.completedWork ?? []).map((item) => `completed ${item}`),
+    ...(summary.currentBlockers ?? []).map((item) => `blocker ${item}`),
+    ...(summary.nextSteps ?? []).map((item) => `next ${item}`),
+    ...(summary.keyFilesAndSymbols ?? []).map((item) => `file ${item}`),
+    ...(summary.unresolvedQuestions ?? []).map((item) => `question ${item}`),
+    ...(summary.userConstraints ?? []).map((item) => `constraint ${item}`)
+  ].filter((fact): fact is string => Boolean(fact));
 }
 
 function isAbortError(code: string): boolean {
