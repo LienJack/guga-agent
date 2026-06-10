@@ -85,13 +85,15 @@ Workbench 的底部输入框会保留可见光标和输入回显。提交后的 
 /abort
 ```
 
-`/tools`、`/mcp`、`/skills` 和 `/permissions` 展示 host capability 的 source、status、namespace、owner、reason 和 trust 信息。`/compact` 当前是保留命令；它会明确显示未实现，而不是伪装成已支持。
+`/status`、`/tools`、`/mcp`、`/skills`、`/permissions` 和 `/tasks` 会投影为结构化 workbench panel。它们展示 host capability/status/task facts 的 source、status、namespace、owner、reason、trust、availability 和 unavailable/degraded 原因。`/compact` 当前是保留命令；它会明确显示未实现，而不是伪装成已支持。
 
-Permission 和 interaction prompt 会临时接管输入焦点。它们不会清掉你正在输入的 prompt 或 running input 草稿；完成响应后，原草稿会回到输入框。
+Permission 和 interaction prompt 会临时接管输入焦点。Permission overlay 会显示 tool、run/call scope、reason/input 摘要和保守 risk label；未知审批输入会 fail closed，不会调用 allow/deny API。它们不会清掉你正在输入的 prompt 或 running input 草稿；完成响应后，原草稿会回到输入框。
+
+Continuity panel 会显示 context compaction、stream disconnect/reload、session resume/fork/new 的恢复状态。它只展示 typed host events/resources 投影出的保留事实，例如 compact summary 的 objective/next steps、reload 后的 replay seq、当前 task ledger 或 pending permission。
 
 Transcript 会区分 user、assistant、reasoning/status、tool、permission、interaction、queue、abort、error、artifact、context 和 retry。Reasoning/status 只来自 host 明确暴露的 `message.reasoning_delta`，不会展示隐藏 chain-of-thought。
 
-Autonomous code-task state is also projected from typed host events. The workbench tracks active task phase, ledger progress, current ledger item, verification status and completion evidence through `task.*` and `verification.*` events instead of inferring progress from assistant text. `/tasks` is the first long-task inspection surface and shows ledger progress when the host provides it.
+Autonomous code-task state is also projected from typed host events. The workbench tracks active task phase, ledger progress, current ledger item, changed files, verification status, blockers and completion evidence through `task.*` and `verification.*` events instead of inferring progress from assistant text. `/tasks` is the long-task inspection surface and shows ledger progress when the host provides it. SDK/local-server/stdio adapters expose the same platform/task/verification/compaction facts so non-TUI clients do not need to scrape terminal output.
 
 ## Configuration
 

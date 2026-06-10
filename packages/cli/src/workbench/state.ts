@@ -1,9 +1,13 @@
 import type {
+  CapabilityResource,
   CodeTaskCompletionEvidenceResource,
+  CodeTaskPlanResource,
   CodeTaskResource,
   CodeTaskStateResource,
+  CodeTaskTerminalReasonResource,
   HostErrorPayload,
   InteractionRequest,
+  OperationalStatusResource,
   QueuedRunInputSummaryResource,
   VerificationAttemptResource
 } from "@guga-agent/host-protocol";
@@ -84,12 +88,52 @@ export type ActiveTaskProjection = {
   phase: CodeTaskStateResource;
   attempt: number;
   activeRunId?: string;
+  plan?: CodeTaskPlanResource;
   ledgerSummary?: CodeTaskResource["ledgerSummary"];
   lastVerification?: VerificationAttemptResource;
   completionEvidence?: CodeTaskCompletionEvidenceResource;
+  terminalReason?: CodeTaskTerminalReasonResource;
   firstSeq: number;
   lastSeq: number;
   occurredAt: string;
+};
+
+export type PlatformPanelProjection =
+  | {
+      kind: "status";
+      command: string;
+      title: string;
+      status: OperationalStatusResource;
+      summary: string;
+    }
+  | {
+      kind: "capabilities";
+      command: string;
+      title: string;
+      capabilities: CapabilityResource[];
+      emptyReason: string;
+    }
+  | {
+      kind: "tasks";
+      command: string;
+      title: string;
+      tasks: CodeTaskResource[];
+      emptyReason: string;
+    };
+
+export type ContinuityProjection = {
+  status:
+    | "context-compacted"
+    | "stream-disconnected"
+    | "stream-reconnected"
+    | "replay-unavailable"
+    | "session-created"
+    | "session-resumed"
+    | "session-forked";
+  title: string;
+  detail: string;
+  actionHint?: string;
+  retainedFacts: string[];
 };
 
 type TranscriptBlockBase<Kind extends string> = {
@@ -202,6 +246,8 @@ export type WorkbenchState = {
   pendingPermission?: PendingPermissionProjection;
   pendingInteraction?: PendingInteractionProjection;
   activeTask?: ActiveTaskProjection;
+  platformPanel?: PlatformPanelProjection;
+  continuity?: ContinuityProjection;
   queue: QueueSummary;
   usage: WorkbenchUsage;
   lastSeq: number;
@@ -211,6 +257,18 @@ export type WorkbenchState = {
 export type WorkbenchAction =
   | {
       type: "ui.clear";
+    }
+  | {
+      type: "platform.panel";
+      panel: PlatformPanelProjection;
+      statusText?: string;
+    }
+  | {
+      type: "session.continuity";
+      status: "session-created" | "session-resumed" | "session-forked";
+      sessionId: string;
+      branchId?: string;
+      detail?: string;
     }
   | {
       type: "stream.error";

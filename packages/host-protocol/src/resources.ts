@@ -20,6 +20,7 @@ export type HostProtocolFeature =
   | "interactions"
   | "sessions"
   | "operations"
+  | "platform-surfaces"
   | "sse-replay";
 
 export const HOST_PROTOCOL_VERSION = "1";
@@ -37,6 +38,7 @@ export const HOST_PROTOCOL_FEATURES: HostProtocolFeature[] = [
   "interactions",
   "sessions",
   "operations",
+  "platform-surfaces",
   "sse-replay"
 ];
 
@@ -396,6 +398,90 @@ export type CapabilityResource = {
   trust?: TrustDescriptorResource;
 };
 
+export type PlatformSurfaceKindResource =
+  | "model"
+  | "profile"
+  | "session"
+  | "tool"
+  | "mcp"
+  | "skill"
+  | "permission"
+  | "memory"
+  | "agent"
+  | "status"
+  | "compact"
+  | "abort"
+  | "resume"
+  | "fork"
+  | "task";
+
+export type PlatformSurfaceStatusResource =
+  | "available"
+  | "unavailable"
+  | "restricted"
+  | "degraded";
+
+export type PlatformSurfaceActionResource =
+  | "inspect"
+  | "select"
+  | "execute"
+  | "resume"
+  | "fork"
+  | "abort"
+  | "compact";
+
+export type PlatformSurfaceResource = {
+  kind: PlatformSurfaceKindResource;
+  name: string;
+  status: PlatformSurfaceStatusResource;
+  source: "host" | "runtime" | "profile" | "plugin" | "mcp" | "adapter";
+  reason?: string;
+  capabilityNames?: string[];
+  actions: PlatformSurfaceActionResource[];
+  trust?: TrustDescriptorResource;
+};
+
+export type MemoryInjectionStateResource =
+  | "unavailable"
+  | "available"
+  | "retrieved"
+  | "injected"
+  | "blocked";
+
+export type MemoryStatusResource = {
+  state: MemoryInjectionStateResource;
+  source: "host" | "plugin" | "policy";
+  reason?: string;
+  capabilityNames: string[];
+  policy?: {
+    autoInject: boolean;
+    autoWrite: boolean;
+    reason?: string;
+  };
+};
+
+export type AgentDelegationStatusResource = {
+  state: "unavailable" | "available" | "running" | "blocked";
+  source: "host" | "plugin";
+  reason?: string;
+  capabilityNames: string[];
+  coordinatorReady: boolean;
+};
+
+export type CompactStatusResource = {
+  state: "unavailable" | "available" | "requested" | "running" | "completed" | "failed" | "degraded";
+  source: "host" | "runtime";
+  reason?: string;
+  allowedActions: Array<"compact" | "retry" | "resume" | "reload">;
+};
+
+export type PlatformStatusResource = {
+  surfaces: PlatformSurfaceResource[];
+  memory: MemoryStatusResource;
+  agents: AgentDelegationStatusResource;
+  compact: CompactStatusResource;
+};
+
 export type CapabilityScopeResource = {
   kind: string;
   access?: string;
@@ -471,6 +557,7 @@ export type MetricsSnapshotResource = {
 export type OperationalStatusResource = {
   updatedAt: string;
   capabilities: CapabilityResource[];
+  platform: PlatformStatusResource;
   health: ProviderHealthResource[];
   audit: AuditSummaryResource[];
   metrics: MetricsSnapshotResource;
