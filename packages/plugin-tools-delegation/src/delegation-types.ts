@@ -5,13 +5,31 @@ export type DelegationStatus = "completed" | "failed" | "cancelled" | "timed_out
 
 export type DelegationAgentType = "general" | "research" | "code" | "review" | (string & {});
 
-export type DelegateTaskInput = {
+export type DelegationBlockedCapability =
+  | "delegation"
+  | "user-clarification"
+  | "memory-mutation"
+  | "user-presentation";
+
+export type DelegateChildTaskInput = {
+  id?: string;
   goal: string;
   context?: string;
   agentType?: DelegationAgentType;
   toolAllowlist?: string[];
   maxTurns?: number;
   timeoutMs?: number;
+};
+
+export type DelegateTaskInput = {
+  goal?: string;
+  context?: string;
+  agentType?: DelegationAgentType;
+  toolAllowlist?: string[];
+  maxTurns?: number;
+  timeoutMs?: number;
+  tasks?: DelegateChildTaskInput[];
+  maxConcurrency?: number;
 };
 
 export type DelegationEventCount = {
@@ -24,18 +42,43 @@ export type DelegateTaskOutput = {
   summary: string;
   childRunId: string;
   childSessionId: string;
+  taskIndex?: number;
+  taskId?: string;
   events?: DelegationEventCount[];
   metadata?: Record<string, unknown>;
 };
 
+export type DelegationChildOutcome = DelegateTaskOutput & {
+  taskIndex: number;
+  goal: string;
+  tools: string[];
+  agentType: DelegationAgentType;
+  maxTurns: number;
+  timeoutMs: number;
+  contextProvided: boolean;
+  failureCode?: string;
+  diagnostics?: DelegationValidationDiagnostic[];
+};
+
+export type DelegateTaskBatchOutput = {
+  status: DelegationStatus;
+  summary: string;
+  childResults: DelegationChildOutcome[];
+  statusCounts: Record<DelegationStatus, number>;
+  eventCounts: DelegationEventCount[];
+};
+
 export type DelegationToolCatalogItem = {
   name: string;
+  capabilities?: DelegationBlockedCapability[];
 };
 
 export type DelegationChildRunRequest = {
   input: string;
   goal: string;
   context?: string;
+  taskIndex: number;
+  taskId?: string;
   agentType: DelegationAgentType;
   tools: string[];
   maxTurns: number;
@@ -69,6 +112,8 @@ export type DelegationRunRecord = {
   parentToolCallId: string;
   childRunId: string;
   childSessionId: string;
+  taskIndex: number;
+  taskId?: string;
   agentType: DelegationAgentType;
   goal: string;
   tools: string[];
@@ -89,19 +134,29 @@ export type DelegateTaskToolOptions = {
   toolName?: string;
   description?: string;
   toolCatalog?: DelegationToolCatalogItem[];
+  resolveToolCatalog?: () => readonly DelegationToolCatalogItem[];
   defaultAgentType?: DelegationAgentType;
   defaultMaxTurns?: number;
   defaultTimeoutMs?: number;
+  defaultMaxConcurrency?: number;
+  maxBatchTasks?: number;
+  maxInputChars?: number;
+  maxChildMetadataChars?: number;
   defaultToolAllowlist?: string[];
   blockedToolNames?: string[];
+  blockedCapabilities?: DelegationBlockedCapability[];
   createChildRunId?: (input: {
     parentRunId: string;
     parentToolCallId: string;
+    taskIndex: number;
+    taskId?: string;
     agentType: DelegationAgentType;
   }) => string;
   createChildSessionId?: (input: {
     parentRunId: string;
     childRunId: string;
+    taskIndex: number;
+    taskId?: string;
     agentType: DelegationAgentType;
   }) => string;
 };

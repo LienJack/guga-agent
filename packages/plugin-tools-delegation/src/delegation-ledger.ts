@@ -1,4 +1,5 @@
 import type {
+  DelegateTaskBatchOutput,
   DelegateTaskOutput,
   DelegationEventCount,
   DelegationLedger,
@@ -28,6 +29,32 @@ export function renderDelegationResult(output: DelegateTaskOutput): string {
     `Child session: ${output.childSessionId}`,
     `Summary: ${output.summary}${eventSummary}`
   ].join("\n");
+}
+
+export function renderDelegationBatchResult(output: DelegateTaskBatchOutput): string {
+  const counts = statuses
+    .filter((status) => output.statusCounts[status] > 0)
+    .map((status) => `${status}=${output.statusCounts[status]}`)
+    .join(", ");
+  const children = output.childResults
+    .map((child) => {
+      const taskLabel = child.taskId ? `${child.taskIndex}:${child.taskId}` : String(child.taskIndex);
+      return `- [${taskLabel}] ${child.status} ${child.childRunId}: ${child.summary}`;
+    })
+    .join("\n");
+  const eventSummary = output.eventCounts.length > 0
+    ? `\nEvents: ${output.eventCounts.map((event) => `${event.type}=${event.count}`).join(", ")}`
+    : "";
+
+  return [
+    `Delegated batch ${output.status}.`,
+    `Children: ${output.childResults.length}`,
+    `Statuses: ${counts || "none"}`,
+    `Summary: ${output.summary}`,
+    "Results:",
+    children,
+    eventSummary.trimEnd()
+  ].filter(Boolean).join("\n");
 }
 
 export function validateDelegationOutput(output: unknown): DelegationValidationDiagnostic[] {
@@ -67,15 +94,23 @@ export function sortEventCounts(events: readonly DelegationEventCount[]): Delega
   return [...events].sort((left, right) => left.type.localeCompare(right.type));
 }
 
+export function countDelegationStatuses(records: readonly Pick<DelegationRunRecord, "status">[]): Record<DelegationStatus, number> {
+  return countStatuses(records);
+}
+
+export function mergeDelegationEventCounts(events: readonly DelegationEventCount[]): DelegationEventCount[] {
+  return mergeEventCounts(events);
+}
+
 function compareRunRecords(left: DelegationRunRecord, right: DelegationRunRecord): number {
   return (
-    left.parentRunId.localeCompare(right.parentRunId) ||
-    left.parentToolCallId.localeCompare(right.parentToolCallId) ||
+    left.taskIndex - right.taskIndex ||
+    (left.taskId ?? "").localeCompare(right.taskId ?? "") ||
     left.childRunId.localeCompare(right.childRunId)
   );
 }
 
-function countStatuses(records: readonly DelegationRunRecord[]): Record<DelegationStatus, number> {
+function countStatuses(records: readonly Pick<DelegationRunRecord, "status">[]): Record<DelegationStatus, number> {
   return Object.fromEntries(statuses.map((status) => [status, records.filter((record) => record.status === status).length])) as Record<DelegationStatus, number>;
 }
 

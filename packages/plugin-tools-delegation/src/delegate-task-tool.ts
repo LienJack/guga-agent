@@ -1,25 +1,85 @@
 import type { LocalPlugin, ToolDefinition, ToolResult } from "@guga-agent/core";
+import { runDelegationBatch, type NormalizedDelegationTask } from "./delegation-batch-runner";
+import {
+  createDelegationLedger,
+  renderDelegationBatchResult,
+  renderDelegationResult
+} from "./delegation-ledger";
 import {
   DEFAULT_DELEGATE_TASK_TOOL_NAME,
   LEGACY_DELEGATE_TASK_TOOL_NAME,
-  type DelegateTaskInput,
+  type DelegateChildTaskInput,
+  type DelegateTaskBatchOutput,
   type DelegateTaskOutput,
   type DelegateTaskToolOptions,
   type DelegationAgentType,
+  type DelegationBlockedCapability,
+  type DelegationChildOutcome,
+  type DelegationRunRecord,
+  type DelegationStatus,
+  type DelegationToolCatalogItem,
   type DelegationValidationDiagnostic
 } from "./delegation-types";
-import { renderDelegationResult, sortEventCounts, validateDelegationOutput } from "./delegation-ledger";
 
 const defaultMaxTurns = 4;
 const defaultTimeoutMs = 600_000;
+const defaultMaxConcurrency = 3;
+const defaultMaxBatchTasks = 3;
+const defaultMaxInputChars = 60_000;
+const defaultMaxChildMetadataChars = 8_000;
+
+const defaultBlockedCapabilities: DelegationBlockedCapability[] = [
+  "delegation",
+  "user-clarification",
+  "memory-mutation",
+  "user-presentation"
+];
+
+const defaultBlockedToolNames = [
+  DEFAULT_DELEGATE_TASK_TOOL_NAME,
+  LEGACY_DELEGATE_TASK_TOOL_NAME,
+  "ask_user",
+  "ask_clarification",
+  "ask_user_question",
+  "clarify",
+  "question",
+  "request_user_input",
+  "memory",
+  "memory_write",
+  "memory_delete",
+  "memory.add",
+  "save_memory",
+  "present",
+  "present_files",
+  "respond_to_user",
+  "send_message"
+];
+
+type ParsedDelegationInput = {
+  mode: "single" | "batch";
+  tasks: DelegateChildTaskInput[];
+  maxConcurrency: number;
+};
+
+type ParseLimits = {
+  maxBatchTasks: number;
+  maxInputChars: number;
+  defaultMaxConcurrency: number;
+};
+
+type ToolSelectionFailure = {
+  ok: false;
+  code: string;
+  message: string;
+  details: unknown;
+};
 
 export function createDelegateTaskTool(options: DelegateTaskToolOptions): ToolDefinition {
   const toolName = options.toolName ?? DEFAULT_DELEGATE_TASK_TOOL_NAME;
-  const blockedToolNames = new Set([toolName, DEFAULT_DELEGATE_TASK_TOOL_NAME, LEGACY_DELEGATE_TASK_TOOL_NAME, ...(options.blockedToolNames ?? [])]);
 
   return {
     name: toolName,
-    description: options.description ?? "Delegate one self-contained task to an isolated child agent and return a compact result.",
+    description: options.description ?? "Delegate one or more self-contained tasks to isolated child agents and return compact results.",
     effect: "external",
     inputSchema: delegateTaskInputSchema,
     runtime: {
@@ -28,6 +88,30 @@ export function createDelegateTaskTool(options: DelegateTaskToolOptions): ToolDe
         profileActions: { headless: "deny", background: "deny", "trusted-session": "allow" },
         scope: "resource",
         prompt: { title: "Delegate task" }
+      },
+      action: {
+        category: "delegate",
+        risk: "high",
+        effects: [{
+          kind: "delegation",
+          access: "execute",
+          target: "child-agent",
+          external: true,
+          metadata: {
+            defaultAgentType: options.defaultAgentType ?? "general",
+            defaultMaxTurns: options.defaultMaxTurns ?? defaultMaxTurns,
+            defaultTimeoutMs: options.defaultTimeoutMs ?? defaultTimeoutMs,
+            defaultMaxConcurrency: options.defaultMaxConcurrency ?? defaultMaxConcurrency,
+            maxBatchTasks: options.maxBatchTasks ?? defaultMaxBatchTasks
+          }
+        }],
+        tags: ["agent-delegation", "child-agent"]
+      },
+      principal: { kind: "agent", label: "Child agent" },
+      eval: {
+        categories: ["tool-action", "delegation"],
+        coveredRisks: ["high"],
+        auditRequirements: ["Record parent run, parent tool call, child run, child session, child tools, status, and result evidence."]
       },
       executionMode: "interactive",
       scheduler: {
@@ -45,28 +129,6 @@ export function createDelegateTaskTool(options: DelegateTaskToolOptions): ToolDe
         maxContentChars: 12_000,
         strategy: "truncate"
       },
-      action: {
-        category: "delegate",
-        risk: "high",
-        label: "Delegate task",
-        summary: "Run an isolated child agent with a scoped context and tool allowance.",
-        effects: [{
-          kind: "delegation",
-          access: "execute",
-          target: "child-agent",
-          external: true,
-          metadata: {
-            defaultMaxTurns: options.defaultMaxTurns ?? defaultMaxTurns,
-            defaultTimeoutMs: options.defaultTimeoutMs ?? defaultTimeoutMs,
-            defaultAgentType: options.defaultAgentType ?? "general"
-          }
-        }],
-        tags: ["delegation", "child-agent", "agent-runtime"]
-      },
-      principal: {
-        kind: "agent",
-        label: "Child agent"
-      },
       renderer: {
         category: "custom",
         label: "Delegate task",
@@ -81,135 +143,73 @@ export function createDelegateTaskTool(options: DelegateTaskToolOptions): ToolDe
         kind: "custom",
         description: "Delegation backend"
       },
-      eval: {
-        categories: ["tool-action", "delegation"],
-        coveredRisks: ["high"],
-        expectedUseCases: ["Use for self-contained subtasks that benefit from isolated agent execution."],
-        unsafeUseCases: ["Do not delegate recursively or grant tools unavailable to the parent runtime."],
-        selectionTags: ["delegate", "child-agent"],
-        auditRequirements: ["Record parent/child run correlation, child tool allowance, budget, timeout, and compact event summary."]
-      },
       availability: { status: "available" },
       visibility: "model"
     },
     async execute(input, context): Promise<ToolResult> {
-      const parsed = parseDelegateTaskInput(input);
+      const parentRunId = resolveParentRunId(options);
+      const parentToolCallId = context.call.id;
+      const maxBatchTasks = positiveIntegerOption(options.maxBatchTasks, defaultMaxBatchTasks);
+      const maxInputChars = positiveIntegerOption(options.maxInputChars, defaultMaxInputChars);
+      const maxChildMetadataChars = positiveIntegerOption(options.maxChildMetadataChars, defaultMaxChildMetadataChars);
+      const configuredMaxConcurrency = positiveIntegerOption(options.defaultMaxConcurrency, defaultMaxConcurrency);
+
+      const catalogResult = resolveToolCatalog(options);
+      if (!catalogResult.ok) {
+        return failure(catalogResult.code, catalogResult.message, catalogResult.details);
+      }
+
+      const configDiagnostics = validateDelegationConfig({
+        ...options,
+        toolCatalog: [...catalogResult.catalog]
+      });
+      if (configDiagnostics.length > 0) {
+        return failure("DELEGATION_CONFIG_INVALID", "Delegate task configuration is invalid", configDiagnostics);
+      }
+
+      const parsed = parseDelegateTaskInput(input, {
+        maxBatchTasks,
+        maxInputChars,
+        defaultMaxConcurrency: configuredMaxConcurrency
+      });
       if (!parsed.ok) {
         return failure("DELEGATION_INPUT_INVALID", "Delegate task input is invalid", parsed.diagnostics);
       }
 
-      const parentRunId = resolveParentRunId(options);
-      const parentToolCallId = context.call.id;
-      const agentType = parsed.input.agentType ?? options.defaultAgentType ?? "general";
-      const childRunId = options.createChildRunId?.({ parentRunId, parentToolCallId, agentType }) ?? `${sanitizeId(parentToolCallId)}-child`;
-      const childSessionId = options.createChildSessionId?.({ parentRunId, childRunId, agentType }) ?? `${sanitizeId(parentRunId)}/child/${childRunId}`;
-      const toolSelection = selectChildTools(parsed.input, options, blockedToolNames);
-      if (!toolSelection.ok) {
-        return failure(toolSelection.code, toolSelection.message, toolSelection.details);
+      const blockedToolNames = createBlockedToolNameSet(toolName, options.blockedToolNames);
+      const blockedCapabilities = createBlockedCapabilitySet(options.blockedCapabilities);
+      const normalized = normalizeDelegationTasks({
+        parsed: parsed.input,
+        options,
+        catalog: catalogResult.catalog,
+        blockedToolNames,
+        blockedCapabilities,
+        parentRunId,
+        parentToolCallId
+      });
+      if (!normalized.ok) {
+        return failure(normalized.code, normalized.message, normalized.details);
       }
-      const childBudget = {
-        maxTurns: parsed.input.maxTurns ?? options.defaultMaxTurns ?? defaultMaxTurns,
-        timeoutMs: parsed.input.timeoutMs ?? options.defaultTimeoutMs ?? defaultTimeoutMs
-      };
-      const baseMetadata = {
+
+      const outcomes = await runDelegationBatch({
+        tasks: normalized.tasks,
+        childRunner: options.childRunner,
         parentRunId,
         parentToolCallId,
-        childRunId,
-        childSessionId,
-        agentType,
-        tools: toolSelection.tools,
-        allowance: {
-          tools: toolSelection.tools,
-          context: parsed.input.context ? "provided" : "none"
-        },
-        budget: childBudget,
-        timeoutMs: childBudget.timeoutMs,
-        trace: {
-          parentRunId,
-          parentToolCallId,
-          childRunId,
-          childSessionId
-        },
-        evidence: {
-          source: "delegation",
-          rawSource: childSessionId,
-          verifier: { status: "unverified" },
-          redaction: { state: "none" },
-          summary: "Child output is compacted before returning to the parent model."
-        }
-      };
+        maxConcurrency: parsed.input.mode === "single" ? 1 : parsed.input.maxConcurrency,
+        ...(context.signal ? { parentSignal: context.signal } : {}),
+        maxChildMetadataChars
+      });
 
-      try {
-        const childResult = await options.childRunner({
-          input: buildDelegationInput(parsed.input, agentType, toolSelection.tools),
-          goal: parsed.input.goal,
-          ...(parsed.input.context ? { context: parsed.input.context } : {}),
-          agentType,
-          tools: toolSelection.tools,
-          maxTurns: childBudget.maxTurns,
-          timeoutMs: childBudget.timeoutMs,
-          parentRunId,
-          parentToolCallId,
-          childRunId,
-          childSessionId,
-          ...(context.signal ? { signal: context.signal } : {})
-        });
-        const rawOutput: DelegateTaskOutput = {
-          status: childResult.status,
-          summary: childResult.summary,
-          childRunId,
-          childSessionId,
-          events: childResult.events ?? [],
-          ...(childResult.metadata ? { metadata: childResult.metadata } : {})
-        };
-        const diagnostics = validateDelegationOutput(rawOutput);
-        if (diagnostics.length > 0) {
-          return failure("DELEGATION_OUTPUT_INVALID", "Delegate task output is invalid", diagnostics);
+      if (parsed.input.mode === "single") {
+        const outcome = outcomes[0];
+        if (!outcome) {
+          return failure("DELEGATION_RUNNER_FAILED", "Delegation runner produced no result");
         }
-        const output = {
-          ...rawOutput,
-          events: sortEventCounts(rawOutput.events ?? [])
-        };
-        const metadata = {
-          ...(output.metadata ? { childMetadata: output.metadata } : {}),
-          delegation: {
-            ...baseMetadata,
-            status: output.status,
-            events: output.events
-          }
-        };
-        if (output.status === "completed") {
-          return {
-            ok: true,
-            content: renderDelegationResult(output),
-            metadata
-          };
-        }
-        return {
-          ok: false,
-          error: { code: `DELEGATION_${output.status.toUpperCase()}`, message: output.summary },
-          metadata
-        };
-      } catch (error) {
-        if (context.signal?.aborted || isAbortError(error)) {
-          return {
-            ok: false,
-            error: {
-              code: "DELEGATION_CANCELLED",
-              message: "Delegation was cancelled",
-              details: error
-            },
-            metadata: {
-              delegation: {
-                ...baseMetadata,
-                status: "cancelled",
-                events: []
-              }
-            }
-          };
-        }
-        return failure("DELEGATION_RUNNER_FAILED", error instanceof Error ? error.message : "Delegation runner failed", error);
+        return singleDelegationResult(outcome, parentRunId, parentToolCallId);
       }
+
+      return batchDelegationResult(outcomes, parentRunId, parentToolCallId);
     }
   };
 }
@@ -236,7 +236,7 @@ export function createDelegationPlugin(options: DelegationPluginOptions): LocalP
   };
 }
 
-export function buildDelegationInput(input: DelegateTaskInput, agentType: DelegationAgentType, tools: readonly string[]): string {
+export function buildDelegationInput(input: DelegateChildTaskInput, agentType: DelegationAgentType, tools: readonly string[]): string {
   const sections = [
     `Agent type: ${agentType}`,
     `Goal:\n${input.goal.trim()}`,
@@ -250,6 +250,7 @@ export function validateDelegationConfig(options: DelegateTaskToolOptions): Dele
   const diagnostics: DelegationValidationDiagnostic[] = [];
   const toolName = options.toolName ?? DEFAULT_DELEGATE_TASK_TOOL_NAME;
   const catalogNames = new Set<string>();
+  const catalogByName = new Map<string, DelegationToolCatalogItem>();
   for (const [index, tool] of (options.toolCatalog ?? []).entries()) {
     if (!tool.name.trim()) {
       diagnostics.push({ code: "DELEGATION_CATALOG_TOOL_NAME_EMPTY", message: "Tool catalog item name is required", path: `toolCatalog[${index}].name` });
@@ -258,73 +259,210 @@ export function validateDelegationConfig(options: DelegateTaskToolOptions): Dele
       diagnostics.push({ code: "DELEGATION_CATALOG_DUPLICATE_TOOL", message: `Tool catalog contains duplicate tool: ${tool.name}`, path: `toolCatalog[${index}].name` });
     }
     catalogNames.add(tool.name);
+    catalogByName.set(tool.name, tool);
   }
-  const blockedToolNames = new Set([toolName, DEFAULT_DELEGATE_TASK_TOOL_NAME, LEGACY_DELEGATE_TASK_TOOL_NAME, ...(options.blockedToolNames ?? [])]);
-  const blockedDefaults = (options.defaultToolAllowlist ?? []).filter((tool) => blockedToolNames.has(tool));
+
+  validatePositiveOption(options.defaultMaxTurns, "defaultMaxTurns", diagnostics);
+  validatePositiveOption(options.defaultTimeoutMs, "defaultTimeoutMs", diagnostics);
+  validatePositiveOption(options.defaultMaxConcurrency, "defaultMaxConcurrency", diagnostics);
+  validatePositiveOption(options.maxBatchTasks, "maxBatchTasks", diagnostics);
+  validatePositiveOption(options.maxInputChars, "maxInputChars", diagnostics);
+  validatePositiveOption(options.maxChildMetadataChars, "maxChildMetadataChars", diagnostics);
+
+  const blockedToolNames = createBlockedToolNameSet(toolName, options.blockedToolNames);
+  const blockedCapabilities = createBlockedCapabilitySet(options.blockedCapabilities);
+  const blockedDefaults = (options.defaultToolAllowlist ?? []).filter((tool) => {
+    const catalogItem = catalogByName.get(tool);
+    return isBlockedToolName(tool, blockedToolNames) || hasBlockedCapability(catalogItem, blockedCapabilities);
+  });
   if (blockedDefaults.length > 0) {
-    diagnostics.push({ code: "DELEGATION_DEFAULT_ALLOWLIST_RECURSIVE", message: `Default allowlist cannot include delegation tool(s): ${blockedDefaults.join(", ")}`, path: "defaultToolAllowlist" });
+    diagnostics.push({ code: "DELEGATION_DEFAULT_ALLOWLIST_RECURSIVE", message: `Default allowlist cannot include blocked child tool(s): ${blockedDefaults.join(", ")}`, path: "defaultToolAllowlist" });
   }
   return diagnostics;
 }
 
-function parseDelegateTaskInput(input: unknown): { ok: true; input: DelegateTaskInput } | { ok: false; diagnostics: DelegationValidationDiagnostic[] } {
+function parseDelegateTaskInput(input: unknown, limits: ParseLimits):
+  | { ok: true; input: ParsedDelegationInput }
+  | { ok: false; diagnostics: DelegationValidationDiagnostic[] } {
   const diagnostics: DelegationValidationDiagnostic[] = [];
+  const serializedLength = safeSerializedLength(input);
+  if (serializedLength > limits.maxInputChars) {
+    diagnostics.push({ code: "DELEGATION_INPUT_TOO_LARGE", message: `Delegate task input exceeds ${limits.maxInputChars} characters` });
+  }
   if (!isRecord(input)) {
-    return { ok: false, diagnostics: [{ code: "DELEGATION_INPUT_NOT_OBJECT", message: "Delegate task input must be an object" }] };
+    diagnostics.push({ code: "DELEGATION_INPUT_NOT_OBJECT", message: "Delegate task input must be an object" });
+    return { ok: false, diagnostics };
   }
-  const goal = input.goal;
-  if (typeof goal !== "string" || !goal.trim()) {
-    diagnostics.push({ code: "DELEGATION_GOAL_REQUIRED", message: "Delegate task goal is required", path: "goal" });
+
+  const hasTasks = Object.hasOwn(input, "tasks");
+  const hasGoal = Object.hasOwn(input, "goal");
+  if (hasTasks) {
+    if (hasGoal) {
+      diagnostics.push({ code: "DELEGATION_INPUT_MODE_AMBIGUOUS", message: "Use either root goal or tasks, not both", path: "goal" });
+    }
+    for (const field of ["context", "agentType", "toolAllowlist", "maxTurns", "timeoutMs"]) {
+      if (Object.hasOwn(input, field)) {
+        diagnostics.push({ code: "DELEGATION_BATCH_ROOT_FIELD_INVALID", message: `Batch input field ${field} belongs on each task`, path: field });
+      }
+    }
+    if (!Array.isArray(input.tasks) || input.tasks.length === 0) {
+      diagnostics.push({ code: "DELEGATION_TASKS_REQUIRED", message: "Batch delegation requires a non-empty tasks array", path: "tasks" });
+    } else if (input.tasks.length > limits.maxBatchTasks) {
+      diagnostics.push({ code: "DELEGATION_TASKS_TOO_MANY", message: `Batch delegation supports at most ${limits.maxBatchTasks} tasks`, path: "tasks" });
+    }
+
+    const maxConcurrency = parsePositiveInteger(input.maxConcurrency, "maxConcurrency", diagnostics);
+    const tasks = Array.isArray(input.tasks)
+      ? input.tasks.map((task, index) => parseChildTask(task, `tasks[${index}]`, diagnostics)).filter((task): task is DelegateChildTaskInput => !!task)
+      : [];
+
+    if (diagnostics.length > 0) {
+      return { ok: false, diagnostics };
+    }
+    return {
+      ok: true,
+      input: {
+        mode: "batch",
+        tasks,
+        maxConcurrency: maxConcurrency ?? limits.defaultMaxConcurrency
+      }
+    };
   }
-  if (input.context !== undefined && typeof input.context !== "string") {
-    diagnostics.push({ code: "DELEGATION_CONTEXT_INVALID", message: "Delegate task context must be a string", path: "context" });
+
+  if (Object.hasOwn(input, "maxConcurrency")) {
+    diagnostics.push({ code: "DELEGATION_MAX_CONCURRENCY_WITHOUT_TASKS", message: "maxConcurrency is only valid with tasks", path: "maxConcurrency" });
   }
-  if (input.agentType !== undefined && (typeof input.agentType !== "string" || !input.agentType.trim())) {
-    diagnostics.push({ code: "DELEGATION_AGENT_TYPE_INVALID", message: "Delegate task agentType must be a non-empty string", path: "agentType" });
-  }
-  if (input.toolAllowlist !== undefined && (!Array.isArray(input.toolAllowlist) || input.toolAllowlist.some((item) => typeof item !== "string" || !item.trim()))) {
-    diagnostics.push({ code: "DELEGATION_TOOL_ALLOWLIST_INVALID", message: "Delegate task toolAllowlist must contain non-empty strings", path: "toolAllowlist" });
-  }
-  const maxTurns = input.maxTurns;
-  if (maxTurns !== undefined && (typeof maxTurns !== "number" || !Number.isInteger(maxTurns) || maxTurns < 1)) {
-    diagnostics.push({ code: "DELEGATION_MAX_TURNS_INVALID", message: "Delegate task maxTurns must be a positive integer", path: "maxTurns" });
-  }
-  const timeoutMs = input.timeoutMs;
-  if (timeoutMs !== undefined && (typeof timeoutMs !== "number" || !Number.isInteger(timeoutMs) || timeoutMs < 1)) {
-    diagnostics.push({ code: "DELEGATION_TIMEOUT_INVALID", message: "Delegate task timeoutMs must be a positive integer", path: "timeoutMs" });
-  }
-  if (diagnostics.length > 0) {
+  const task = parseChildTask(input, "$", diagnostics);
+  if (diagnostics.length > 0 || !task) {
     return { ok: false, diagnostics };
   }
   return {
     ok: true,
     input: {
-      goal: (goal as string).trim(),
-      ...(typeof input.context === "string" ? { context: input.context } : {}),
-      ...(typeof input.agentType === "string" ? { agentType: input.agentType } : {}),
-      ...(Array.isArray(input.toolAllowlist) ? { toolAllowlist: input.toolAllowlist.map((tool) => tool.trim()) } : {}),
-      ...(typeof input.maxTurns === "number" ? { maxTurns: input.maxTurns } : {}),
-      ...(typeof input.timeoutMs === "number" ? { timeoutMs: input.timeoutMs } : {})
+      mode: "single",
+      tasks: [task],
+      maxConcurrency: 1
     }
   };
 }
 
-function selectChildTools(input: DelegateTaskInput, options: DelegateTaskToolOptions, blockedToolNames: ReadonlySet<string>):
-  | { ok: true; tools: string[] }
-  | { ok: false; code: string; message: string; details: unknown } {
-  const catalog = new Set((options.toolCatalog ?? []).map((tool) => tool.name));
+function parseChildTask(input: unknown, path: string, diagnostics: DelegationValidationDiagnostic[]): DelegateChildTaskInput | undefined {
+  if (!isRecord(input)) {
+    diagnostics.push({ code: "DELEGATION_TASK_NOT_OBJECT", message: "Delegation task must be an object", path });
+    return undefined;
+  }
+  const allowedFields = new Set(["id", "goal", "context", "agentType", "toolAllowlist", "maxTurns", "timeoutMs"]);
+  for (const key of Object.keys(input)) {
+    if (!allowedFields.has(key)) {
+      diagnostics.push({ code: "DELEGATION_TASK_FIELD_UNKNOWN", message: `Delegation task field is not allowed: ${key}`, path: `${path}.${key}` });
+    }
+  }
+
+  const goal = input.goal;
+  if (typeof goal !== "string" || !goal.trim()) {
+    diagnostics.push({ code: "DELEGATION_GOAL_REQUIRED", message: "Delegate task goal is required", path: `${path}.goal` });
+  }
+  const id = input.id;
+  if (id !== undefined && (typeof id !== "string" || !id.trim())) {
+    diagnostics.push({ code: "DELEGATION_TASK_ID_INVALID", message: "Delegation task id must be a non-empty string", path: `${path}.id` });
+  }
+  if (input.context !== undefined && typeof input.context !== "string") {
+    diagnostics.push({ code: "DELEGATION_CONTEXT_INVALID", message: "Delegate task context must be a string", path: `${path}.context` });
+  }
+  if (input.agentType !== undefined && (typeof input.agentType !== "string" || !input.agentType.trim())) {
+    diagnostics.push({ code: "DELEGATION_AGENT_TYPE_INVALID", message: "Delegate task agentType must be a non-empty string", path: `${path}.agentType` });
+  }
+  if (input.toolAllowlist !== undefined && (!Array.isArray(input.toolAllowlist) || input.toolAllowlist.some((item) => typeof item !== "string" || !item.trim()))) {
+    diagnostics.push({ code: "DELEGATION_TOOL_ALLOWLIST_INVALID", message: "Delegate task toolAllowlist must contain non-empty strings", path: `${path}.toolAllowlist` });
+  }
+  const maxTurns = parsePositiveInteger(input.maxTurns, `${path}.maxTurns`, diagnostics);
+  const timeoutMs = parsePositiveInteger(input.timeoutMs, `${path}.timeoutMs`, diagnostics);
+  if (typeof goal !== "string" || !goal.trim()) {
+    return undefined;
+  }
+
+  return {
+    ...(typeof id === "string" ? { id: id.trim() } : {}),
+    goal: goal.trim(),
+    ...(typeof input.context === "string" ? { context: input.context } : {}),
+    ...(typeof input.agentType === "string" ? { agentType: input.agentType.trim() as DelegationAgentType } : {}),
+    ...(Array.isArray(input.toolAllowlist) ? { toolAllowlist: input.toolAllowlist.map((tool) => tool.trim()) } : {}),
+    ...(typeof maxTurns === "number" ? { maxTurns } : {}),
+    ...(typeof timeoutMs === "number" ? { timeoutMs } : {})
+  };
+}
+
+function normalizeDelegationTasks(input: {
+  parsed: ParsedDelegationInput;
+  options: DelegateTaskToolOptions;
+  catalog: readonly DelegationToolCatalogItem[];
+  blockedToolNames: ReadonlySet<string>;
+  blockedCapabilities: ReadonlySet<DelegationBlockedCapability>;
+  parentRunId: string;
+  parentToolCallId: string;
+}): { ok: true; tasks: NormalizedDelegationTask[] } | ToolSelectionFailure {
+  const tasks: NormalizedDelegationTask[] = [];
+  for (const [taskIndex, task] of input.parsed.tasks.entries()) {
+    const agentType = task.agentType ?? input.options.defaultAgentType ?? "general";
+    const toolSelection = selectChildTools(task, input.options, input.catalog, input.blockedToolNames, input.blockedCapabilities);
+    if (!toolSelection.ok) {
+      return toolSelection;
+    }
+
+    const childIdInput = {
+      parentRunId: input.parentRunId,
+      parentToolCallId: input.parentToolCallId,
+      taskIndex,
+      ...(task.id ? { taskId: task.id } : {}),
+      agentType
+    };
+    const childRunId = input.options.createChildRunId?.(childIdInput)
+      ?? defaultChildRunId(input.parentToolCallId, taskIndex, input.parsed.mode);
+    const childSessionId = input.options.createChildSessionId?.({
+      parentRunId: input.parentRunId,
+      childRunId,
+      taskIndex,
+      ...(task.id ? { taskId: task.id } : {}),
+      agentType
+    }) ?? `${sanitizeId(input.parentRunId)}/child/${childRunId}`;
+
+    tasks.push({
+      taskIndex,
+      ...(task.id ? { taskId: task.id } : {}),
+      goal: task.goal,
+      ...(task.context ? { context: task.context } : {}),
+      agentType,
+      tools: toolSelection.tools,
+      maxTurns: task.maxTurns ?? input.options.defaultMaxTurns ?? defaultMaxTurns,
+      timeoutMs: task.timeoutMs ?? input.options.defaultTimeoutMs ?? defaultTimeoutMs,
+      childRunId,
+      childSessionId,
+      input: buildDelegationInput(task, agentType, toolSelection.tools)
+    });
+  }
+  return { ok: true, tasks };
+}
+
+function selectChildTools(
+  input: DelegateChildTaskInput,
+  options: DelegateTaskToolOptions,
+  catalog: readonly DelegationToolCatalogItem[],
+  blockedToolNames: ReadonlySet<string>,
+  blockedCapabilities: ReadonlySet<DelegationBlockedCapability>
+): { ok: true; tools: string[] } | ToolSelectionFailure {
+  const catalogByName = new Map(catalog.map((tool) => [tool.name, tool]));
   const requested = input.toolAllowlist ?? options.defaultToolAllowlist ?? [];
   const unique = [...new Set(requested)];
-  const blocked = unique.filter((tool) => blockedToolNames.has(tool));
+  const blocked = unique.filter((tool) => isBlockedToolName(tool, blockedToolNames) || hasBlockedCapability(catalogByName.get(tool), blockedCapabilities));
   if (blocked.length > 0) {
     return {
       ok: false,
       code: "DELEGATION_RECURSION_BLOCKED",
-      message: `Child tool allowlist includes blocked delegation tool(s): ${blocked.join(", ")}`,
+      message: `Child tool allowlist includes blocked tool(s): ${blocked.join(", ")}`,
       details: { blocked }
     };
   }
-  const unavailable = unique.filter((tool) => !catalog.has(tool));
+  const unavailable = unique.filter((tool) => !catalogByName.has(tool));
   if (unavailable.length > 0) {
     return {
       ok: false,
@@ -336,13 +474,246 @@ function selectChildTools(input: DelegateTaskInput, options: DelegateTaskToolOpt
   return { ok: true, tools: unique.sort((left, right) => left.localeCompare(right)) };
 }
 
+function singleDelegationResult(outcome: DelegationChildOutcome, parentRunId: string, parentToolCallId: string): ToolResult {
+  if (outcome.failureCode === "DELEGATION_OUTPUT_INVALID") {
+    return failure("DELEGATION_OUTPUT_INVALID", "Delegate task output is invalid", outcome.diagnostics);
+  }
+  if (outcome.failureCode === "DELEGATION_RUNNER_FAILED") {
+    return failure("DELEGATION_RUNNER_FAILED", outcome.summary);
+  }
+
+  const output: DelegateTaskOutput = {
+    status: outcome.status,
+    summary: outcome.summary,
+    childRunId: outcome.childRunId,
+    childSessionId: outcome.childSessionId,
+    taskIndex: outcome.taskIndex,
+    ...(outcome.taskId ? { taskId: outcome.taskId } : {}),
+    events: outcome.events ?? [],
+    ...(outcome.metadata ? { metadata: outcome.metadata } : {})
+  };
+  const metadata = singleDelegationMetadata(outcome, parentRunId, parentToolCallId);
+
+  if (outcome.status === "completed") {
+    return {
+      ok: true,
+      content: renderDelegationResult(output),
+      metadata
+    };
+  }
+  return {
+    ok: false,
+    error: { code: `DELEGATION_${outcome.status.toUpperCase()}`, message: outcome.summary },
+    metadata
+  };
+}
+
+function batchDelegationResult(outcomes: readonly DelegationChildOutcome[], parentRunId: string, parentToolCallId: string): ToolResult {
+  const records = outcomes.map((outcome) => runRecordForOutcome(outcome, parentRunId, parentToolCallId));
+  const ledger = createDelegationLedger(records);
+  const output: DelegateTaskBatchOutput = {
+    status: aggregateBatchStatus(ledger.statusCounts, outcomes.length),
+    summary: summarizeBatch(ledger.statusCounts, outcomes.length),
+    childResults: [...outcomes].sort((left, right) => left.taskIndex - right.taskIndex),
+    statusCounts: ledger.statusCounts,
+    eventCounts: ledger.eventCounts
+  };
+  const childMetadata = collectChildMetadata(outcomes);
+
+  return {
+    ok: true,
+    content: renderDelegationBatchResult(output),
+    metadata: {
+      ...(childMetadata ? { childMetadata } : {}),
+      delegation: {
+        parentRunId,
+        parentToolCallId,
+        mode: "batch",
+        status: output.status,
+        statusCounts: output.statusCounts,
+        events: output.eventCounts,
+        children: ledger.records.map((record) => ({
+          taskIndex: record.taskIndex,
+          ...(record.taskId ? { taskId: record.taskId } : {}),
+          childRunId: record.childRunId,
+          childSessionId: record.childSessionId,
+          agentType: record.agentType,
+          tools: record.tools,
+          status: record.status,
+          evidence: delegationEvidence(record.childSessionId)
+        }))
+      }
+    }
+  };
+}
+
+function singleDelegationMetadata(outcome: DelegationChildOutcome, parentRunId: string, parentToolCallId: string): Record<string, unknown> {
+  return {
+    ...(outcome.metadata ? { childMetadata: outcome.metadata } : {}),
+    delegation: {
+      parentRunId,
+      parentToolCallId,
+      childRunId: outcome.childRunId,
+      childSessionId: outcome.childSessionId,
+      taskIndex: outcome.taskIndex,
+      ...(outcome.taskId ? { taskId: outcome.taskId } : {}),
+      agentType: outcome.agentType,
+      status: outcome.status,
+      tools: outcome.tools,
+      allowance: {
+        tools: outcome.tools,
+        context: outcome.contextProvided ? "provided" : "none"
+      },
+      budget: {
+        maxTurns: outcome.maxTurns,
+        timeoutMs: outcome.timeoutMs
+      },
+      timeoutMs: outcome.timeoutMs,
+      trace: {
+        parentRunId,
+        parentToolCallId,
+        childRunId: outcome.childRunId,
+        childSessionId: outcome.childSessionId
+      },
+      evidence: delegationEvidence(outcome.childSessionId),
+      events: outcome.events ?? []
+    }
+  };
+}
+
+function runRecordForOutcome(outcome: DelegationChildOutcome, parentRunId: string, parentToolCallId: string): DelegationRunRecord {
+  return {
+    parentRunId,
+    parentToolCallId,
+    childRunId: outcome.childRunId,
+    childSessionId: outcome.childSessionId,
+    taskIndex: outcome.taskIndex,
+    ...(outcome.taskId ? { taskId: outcome.taskId } : {}),
+    agentType: outcome.agentType,
+    goal: outcome.goal,
+    tools: outcome.tools,
+    status: outcome.status,
+    summary: outcome.summary,
+    events: outcome.events ?? []
+  };
+}
+
+function aggregateBatchStatus(statusCounts: Record<DelegationStatus, number>, total: number): DelegationStatus {
+  if (total > 0 && statusCounts.completed === total) {
+    return "completed";
+  }
+  if (total > 0 && statusCounts.cancelled === total) {
+    return "cancelled";
+  }
+  if (total > 0 && statusCounts.timed_out === total) {
+    return "timed_out";
+  }
+  return "failed";
+}
+
+function summarizeBatch(statusCounts: Record<DelegationStatus, number>, total: number): string {
+  if (total > 0 && statusCounts.completed === total) {
+    return `All ${total} delegated child task${total === 1 ? "" : "s"} completed.`;
+  }
+  const counts = (Object.entries(statusCounts) as Array<[DelegationStatus, number]>)
+    .filter(([, count]) => count > 0)
+    .map(([status, count]) => `${status}=${count}`)
+    .join(", ");
+  return `${statusCounts.completed}/${total} delegated child tasks completed; ${counts}.`;
+}
+
+function collectChildMetadata(outcomes: readonly DelegationChildOutcome[]): Record<string, unknown> | undefined {
+  const entries = outcomes
+    .filter((outcome) => outcome.metadata)
+    .map((outcome) => [childMetadataKey(outcome), outcome.metadata]);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function childMetadataKey(outcome: DelegationChildOutcome): string {
+  return outcome.taskId ? `${outcome.taskIndex}:${outcome.taskId}` : String(outcome.taskIndex);
+}
+
+function delegationEvidence(rawSource: string): Record<string, unknown> {
+  return {
+    source: "delegation",
+    rawSource,
+    verifier: { status: "unverified" },
+    redaction: { state: "none" }
+  };
+}
+
+function resolveToolCatalog(options: DelegateTaskToolOptions):
+  | { ok: true; catalog: readonly DelegationToolCatalogItem[] }
+  | ToolSelectionFailure {
+  try {
+    return { ok: true, catalog: options.resolveToolCatalog?.() ?? options.toolCatalog ?? [] };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "DELEGATION_CATALOG_UNAVAILABLE",
+      message: error instanceof Error ? error.message : "Delegation tool catalog is unavailable",
+      details: error
+    };
+  }
+}
+
 function resolveParentRunId(options: DelegateTaskToolOptions): string {
   const resolved = typeof options.parentRunId === "function" ? options.parentRunId() : options.parentRunId;
   return resolved?.trim() || "unknown-parent-run";
 }
 
+function defaultChildRunId(parentToolCallId: string, taskIndex: number, mode: "single" | "batch"): string {
+  const base = `${sanitizeId(parentToolCallId)}-child`;
+  return mode === "single" ? base : `${base}-${taskIndex}`;
+}
+
 function sanitizeId(value: string): string {
   return value.trim().replace(/[^a-zA-Z0-9_.:-]+/g, "-") || "delegation";
+}
+
+function createBlockedToolNameSet(toolName: string, configured: readonly string[] | undefined): Set<string> {
+  return new Set([toolName, ...defaultBlockedToolNames, ...(configured ?? [])]);
+}
+
+function createBlockedCapabilitySet(configured: readonly DelegationBlockedCapability[] | undefined): Set<DelegationBlockedCapability> {
+  return new Set([...defaultBlockedCapabilities, ...(configured ?? [])]);
+}
+
+function isBlockedToolName(toolName: string, blockedToolNames: ReadonlySet<string>): boolean {
+  return blockedToolNames.has(toolName.trim());
+}
+
+function hasBlockedCapability(tool: DelegationToolCatalogItem | undefined, blockedCapabilities: ReadonlySet<DelegationBlockedCapability>): boolean {
+  return (tool?.capabilities ?? []).some((capability) => blockedCapabilities.has(capability));
+}
+
+function parsePositiveInteger(input: unknown, path: string, diagnostics: DelegationValidationDiagnostic[]): number | undefined {
+  if (input === undefined) {
+    return undefined;
+  }
+  if (typeof input !== "number" || !Number.isInteger(input) || input < 1) {
+    diagnostics.push({ code: "DELEGATION_POSITIVE_INTEGER_INVALID", message: "Value must be a positive integer", path });
+    return undefined;
+  }
+  return input;
+}
+
+function validatePositiveOption(input: number | undefined, path: string, diagnostics: DelegationValidationDiagnostic[]): void {
+  if (input !== undefined && (!Number.isInteger(input) || input < 1)) {
+    diagnostics.push({ code: "DELEGATION_CONFIG_POSITIVE_INTEGER_INVALID", message: `${path} must be a positive integer`, path });
+  }
+}
+
+function positiveIntegerOption(input: number | undefined, fallback: number): number {
+  return input !== undefined && Number.isInteger(input) && input >= 1 ? input : fallback;
+}
+
+function safeSerializedLength(input: unknown): number {
+  try {
+    return JSON.stringify(input)?.length ?? 0;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {
@@ -353,21 +724,24 @@ function delegationResourceValue(input: unknown): string {
   if (!isRecord(input)) {
     return "invalid";
   }
+  if (Array.isArray(input.tasks)) {
+    return JSON.stringify({
+      mode: "batch",
+      tasks: input.tasks.slice(0, defaultMaxBatchTasks).map((task) => isRecord(task) && typeof task.goal === "string" ? task.goal.trim().slice(0, 200) : "invalid"),
+      maxConcurrency: typeof input.maxConcurrency === "number" ? input.maxConcurrency : undefined
+    });
+  }
   const goal = typeof input.goal === "string" ? input.goal.trim() : "";
   const agentType = typeof input.agentType === "string" ? input.agentType.trim() : "general";
   const tools = Array.isArray(input.toolAllowlist)
     ? input.toolAllowlist.filter((tool): tool is string => typeof tool === "string").map((tool) => tool.trim()).sort()
     : [];
   return JSON.stringify({
+    mode: "single",
     agentType,
     goal: goal.slice(0, 200),
     tools
   });
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError" ||
-    error instanceof Error && (error.name === "AbortError" || error.message.toLowerCase().includes("abort"));
 }
 
 function failure(code: string, message: string, details?: unknown): ToolResult {
@@ -383,17 +757,15 @@ function failure(code: string, message: string, details?: unknown): ToolResult {
 
 const delegateTaskInputSchema = {
   type: "object",
-  required: ["goal"],
   additionalProperties: false,
   properties: {
     goal: { type: "string" },
     context: { type: "string" },
     agentType: { type: "string" },
-    toolAllowlist: {
-      type: "array",
-      items: { type: "string" }
-    },
+    toolAllowlist: { type: "array" },
     maxTurns: { type: "number" },
-    timeoutMs: { type: "number" }
+    timeoutMs: { type: "number" },
+    tasks: { type: "array" },
+    maxConcurrency: { type: "number" }
   }
 } as const;
