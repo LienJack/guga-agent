@@ -426,6 +426,7 @@ export type ProviderInputRecord = {
   messages: CoreMessage[];
   tools: ProviderToolDescriptorRecord[];
   sourceDescriptors: ProjectionLedgerEntry["sourceDescriptors"];
+  sourceMetadataSummaries?: ProjectionLedgerEntry["sourceMetadataSummaries"];
   policyDecisions: ContextPolicyDecision[];
   projectionHash?: ModelInputProjection["hash"];
   artifactRefs?: ArtifactReference[];

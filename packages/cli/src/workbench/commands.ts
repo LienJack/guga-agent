@@ -2,6 +2,7 @@ import type { CapabilityResource, CodeTaskResource } from "@guga-agent/host-prot
 import type { HostClient } from "@guga-agent/host-sdk";
 import type { CliConfig } from "../config";
 import type { CliHostStorageDiagnostics } from "../host-factory";
+import type { PlatformPanelProjection } from "./state";
 import { formatModelOption, listModelOptions, selectModelOrThrow, selectProfileOrThrow } from "./model-control";
 import {
   listProviderAuthStatus,
@@ -103,11 +104,12 @@ export type WorkbenchCommandAction =
 
 export type WorkbenchCommandResult =
   | {
-      ok: true;
-      action: WorkbenchCommandAction;
-      message: string;
-      data?: unknown;
-    }
+	      ok: true;
+	      action: WorkbenchCommandAction;
+	      message: string;
+	      data?: unknown;
+	      panel?: PlatformPanelProjection;
+	    }
   | {
       ok: false;
       error: string;
@@ -255,49 +257,62 @@ export async function executeWorkbenchCommand(
         return commandOk("session-tree", formatSessionTree(tree), tree);
       });
     }
-    case "/tasks": {
-      if (!context.activeSessionId) {
-        return commandError("/tasks requires an active session.", []);
-      }
-      return executeHostCommand(async () => {
-        const tasks = await context.client.listSessionTasks(context.activeSessionId ?? "");
-        return commandOk("tasks", formatCodeTasks(tasks), tasks);
-      });
-    }
-    case "/status": {
-      return executeHostCommand(async () => {
-        const status = await context.client.getOperationalStatus();
-        return commandOk("status", summarizeStatusWithStorage(summarizeOperationalStatus(status), context.storage), status);
-      });
-    }
+	    case "/tasks": {
+	      if (!context.activeSessionId) {
+	        return commandError("/tasks requires an active session.", []);
+	      }
+	      return executeHostCommand(async () => {
+	        const tasks = await context.client.listSessionTasks(context.activeSessionId ?? "");
+	        return commandOk("tasks", formatCodeTasks(tasks), tasks, {
+	          kind: "tasks",
+	          command: "/tasks",
+	          title: "Code tasks",
+	          tasks,
+	          emptyReason: "No code tasks are recorded for this session."
+	        });
+	      });
+	    }
+	    case "/status": {
+	      return executeHostCommand(async () => {
+	        const status = await context.client.getOperationalStatus();
+	        const summary = summarizeStatusWithStorage(summarizeOperationalStatus(status), context.storage);
+	        return commandOk("status", summary, status, {
+	          kind: "status",
+	          command: "/status",
+	          title: "Operational status",
+	          status,
+	          summary
+	        });
+	      });
+	    }
     case "/permissions": {
-      return executeHostCommand(async () => {
-        const capabilities = await context.client.listCapabilities();
-        const permissionRelevant = capabilities.filter(isPermissionRelevantCapability);
-        return commandOk("permissions", formatCapabilities(permissionRelevant), permissionRelevant);
-      });
-    }
+	      return executeHostCommand(async () => {
+	        const capabilities = await context.client.listCapabilities();
+	        const permissionRelevant = capabilities.filter(isPermissionRelevantCapability);
+	        return commandOk("permissions", formatCapabilities(permissionRelevant), permissionRelevant, capabilityPanel("/permissions", "Permissions", permissionRelevant));
+	      });
+	    }
     case "/mcp": {
-      return executeHostCommand(async () => {
-        const capabilities = await context.client.listCapabilities();
-        const mcp = capabilities.filter((capability) => capability.ownerPluginId?.includes("mcp") || capability.source === "mcp");
-        return commandOk("mcp", formatCapabilities(mcp), mcp);
-      });
-    }
+	      return executeHostCommand(async () => {
+	        const capabilities = await context.client.listCapabilities();
+	        const mcp = capabilities.filter((capability) => capability.ownerPluginId?.includes("mcp") || capability.source === "mcp");
+	        return commandOk("mcp", formatCapabilities(mcp), mcp, capabilityPanel("/mcp", "MCP capabilities", mcp));
+	      });
+	    }
     case "/tools": {
-      return executeHostCommand(async () => {
-        const capabilities = await context.client.listCapabilities();
-        const tools = capabilities.filter((capability) => capability.type === "tool");
-        return commandOk("tools", formatCapabilities(tools), tools);
-      });
-    }
+	      return executeHostCommand(async () => {
+	        const capabilities = await context.client.listCapabilities();
+	        const tools = capabilities.filter((capability) => capability.type === "tool");
+	        return commandOk("tools", formatCapabilities(tools), tools, capabilityPanel("/tools", "Tools", tools));
+	      });
+	    }
     case "/skills": {
-      return executeHostCommand(async () => {
-        const capabilities = await context.client.listCapabilities();
-        const skills = capabilities.filter((capability) => capability.type === "skill");
-        return commandOk("skills", formatCapabilities(skills), skills);
-      });
-    }
+	      return executeHostCommand(async () => {
+	        const capabilities = await context.client.listCapabilities();
+	        const skills = capabilities.filter((capability) => capability.type === "skill");
+	        return commandOk("skills", formatCapabilities(skills), skills, capabilityPanel("/skills", "Skills", skills));
+	      });
+	    }
     case "/follow": {
       if (!context.activeRunId) {
         return commandError("/follow requires an active run.", []);
@@ -343,13 +358,15 @@ export async function executeWorkbenchCommand(
 function commandOk(
   action: WorkbenchCommandAction,
   message: string,
-  data?: unknown
+  data?: unknown,
+  panel?: PlatformPanelProjection
 ): WorkbenchCommandResult {
   return {
     ok: true,
     action,
     message,
-    ...(data !== undefined ? { data } : {})
+    ...(data !== undefined ? { data } : {}),
+    ...(panel !== undefined ? { panel } : {})
   };
 }
 
@@ -390,6 +407,20 @@ function formatCapability(capability: CapabilityResource): string {
   const reason = capability.reason ? ` reason=${capability.reason}` : "";
   const trust = capability.trust ? ` trust=${capability.trust.level}` : "";
   return `${capability.type}:${capability.name} ${capability.status} (${sourceParts.join(" ")})${reason}${trust}`;
+}
+
+function capabilityPanel(
+  command: "/permissions" | "/mcp" | "/tools" | "/skills",
+  title: string,
+  capabilities: CapabilityResource[]
+): PlatformPanelProjection {
+  return {
+    kind: "capabilities",
+    command,
+    title,
+    capabilities,
+    emptyReason: "No matching capabilities."
+  };
 }
 
 function formatSessionTree(tree: { activeBranchId: string; branches: Array<{ id: string; parentBranchId?: string; summary?: string; lastRunId?: string; lastRunStatus?: string }> }): string {

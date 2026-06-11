@@ -144,7 +144,18 @@ describe("workbench slash commands", () => {
     await expect(executeWorkbenchCommand(parseWorkbenchInput("/status"), ctx)).resolves.toMatchObject({
       ok: true,
       action: "status",
-      message: "providers=1 tools=1 operations=1 runs=1 tokens=12"
+      message: "providers=1 tools=1 operations=1 runs=1 tokens=12",
+      panel: {
+        kind: "status",
+        title: "Operational status",
+        status: {
+          platform: {
+            memory: { state: "unavailable" },
+            agents: { state: "unavailable" },
+            compact: { state: "unavailable" }
+          }
+        }
+      }
     });
     await expect(executeWorkbenchCommand(parseWorkbenchInput("/tree"), ctx)).resolves.toMatchObject({
       ok: true,
@@ -154,7 +165,11 @@ describe("workbench slash commands", () => {
     await expect(executeWorkbenchCommand(parseWorkbenchInput("/tasks"), ctx)).resolves.toMatchObject({
       ok: true,
       action: "tasks",
-      message: expect.stringContaining("task-1 completed attempt=1/2")
+      message: expect.stringContaining("task-1 completed attempt=1/2"),
+      panel: {
+        kind: "tasks",
+        title: "Code tasks"
+      }
     });
 
     expect(client.createSession).toHaveBeenCalledWith({ title: "New work" });
@@ -174,7 +189,12 @@ describe("workbench slash commands", () => {
     await expect(executeWorkbenchCommand(parseWorkbenchInput("/permissions"), ctx)).resolves.toMatchObject({
       ok: true,
       action: "permissions",
-      message: expect.stringContaining("tool:fs_write registered (source=plugin) trust=first-party")
+      message: expect.stringContaining("tool:fs_write registered (source=plugin) trust=first-party"),
+      panel: {
+        kind: "capabilities",
+        title: "Permissions",
+        capabilities: expect.arrayContaining([expect.objectContaining({ name: "fs_write" })])
+      }
     });
     await expect(executeWorkbenchCommand(parseWorkbenchInput("/mcp"), ctx)).resolves.toMatchObject({
       ok: true,
@@ -183,7 +203,11 @@ describe("workbench slash commands", () => {
     });
     await expect(executeWorkbenchCommand(parseWorkbenchInput("/tools"), ctx)).resolves.toMatchObject({
       ok: true,
-      action: "tools"
+      action: "tools",
+      panel: {
+        kind: "capabilities",
+        title: "Tools"
+      }
     });
     const tools = await executeWorkbenchCommand(parseWorkbenchInput("/tools"), ctx);
     expect(tools).toMatchObject({ ok: true });
@@ -385,6 +409,34 @@ function fakeClient(): HostClient {
         { type: "tool", name: "fs_write", source: "plugin", status: "registered" },
         { type: "operation", name: "provider.health", source: "plugin", status: "registered" }
       ],
+      platform: {
+        surfaces: [
+          { kind: "tool", name: "Tools", status: "available", source: "runtime", actions: ["inspect"], capabilityNames: ["fs_write"] },
+          { kind: "memory", name: "Memory", status: "unavailable", source: "runtime", actions: ["inspect"], reason: "No memory capabilities are registered" },
+          { kind: "agent", name: "Agents and delegation", status: "unavailable", source: "runtime", actions: ["inspect"], reason: "No delegation capabilities are registered" },
+          { kind: "compact", name: "Compaction", status: "unavailable", source: "host", actions: ["inspect"], reason: "Host compaction control is not implemented yet" }
+        ],
+        memory: {
+          state: "unavailable",
+          source: "host",
+          reason: "No memory capabilities are registered",
+          capabilityNames: [],
+          policy: { autoInject: false, autoWrite: false }
+        },
+        agents: {
+          state: "unavailable",
+          source: "host",
+          reason: "No delegation capabilities are registered",
+          capabilityNames: [],
+          coordinatorReady: false
+        },
+        compact: {
+          state: "unavailable",
+          source: "host",
+          reason: "Host compaction control is not implemented yet",
+          allowedActions: []
+        }
+      },
       health: [{ providerId: "mock", status: "healthy", checkedAt: "2026-05-28T00:00:00.000Z", diagnostics: [] }],
       audit: [{ runId: "run-1", toolCalls: { started: 0, completed: 0, failed: 0 }, permissions: { requested: 0, allowed: 0, denied: 0 }, usage: {} }],
       metrics: { updatedAt: "2026-05-28T00:00:00.000Z", counters: { "usage.total_tokens": 12 } },

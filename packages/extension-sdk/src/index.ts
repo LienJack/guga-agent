@@ -12,7 +12,8 @@ import type {
   Provider,
   SkillMetadata,
   ToolDefinition,
-  ToolRegistrationOptions
+  ToolRegistrationOptions,
+  ToolRuntimeMetadata
 } from "@guga-agent/core";
 
 export type ExtensionDefinition = Omit<ExtensionSpecMetadata, "owner"> & {
@@ -23,7 +24,9 @@ export type ExtensionDefinition = Omit<ExtensionSpecMetadata, "owner"> & {
 
 export type ExtensionCapabilityOptions = Omit<CapabilityRegistrationOptions, "override">;
 
-export type ExtensionToolOptions = ToolRegistrationOptions & ExtensionCapabilityOptions;
+export type ExtensionToolOptions = ToolRegistrationOptions & ExtensionCapabilityOptions & {
+  runtime?: Partial<ToolRuntimeMetadata>;
+};
 
 export type ExtensionLifecycleContext = {
   readonly pluginId: string;
@@ -182,7 +185,7 @@ function createSetupContext(
   const registerTool = (tool: ToolDefinition, options?: ExtensionToolOptions) => {
     base.assertActive();
     const enrichedOptions = enrichToolOptions(extension, coreContext.pluginId, options);
-    coreContext.registerTool(tool, enrichedOptions);
+    coreContext.registerTool(enrichToolDefinition(tool, extension, options), enrichedOptions);
   };
 
   const registerSkill = (skill: SkillMetadata, options?: ExtensionCapabilityOptions) => {
@@ -286,11 +289,41 @@ function enrichToolOptions(
   pluginId: string,
   options?: ExtensionToolOptions
 ): ExtensionToolOptions {
-  const { override, ...metadataOptions } = options ?? {};
+  const { override, runtime: _runtime, ...metadataOptions } = options ?? {};
   const enrichedOptions = enrichCapabilityOptions(extension, pluginId, metadataOptions);
   return {
     ...enrichedOptions,
     ...(override !== undefined ? { override } : {})
+  };
+}
+
+function enrichToolDefinition(
+  tool: ToolDefinition,
+  extension: ExtensionSpecMetadata,
+  options?: ExtensionToolOptions
+): ToolDefinition {
+  if (!options?.runtime) {
+    return tool;
+  }
+
+  const source = tool.runtime?.source ?? {
+    kind: options?.source === "mcp" ? "mcp" as const : "plugin" as const,
+    ...(extension.id ? { pluginId: extension.id } : {}),
+    ...(extension.source.packageName ? { packageName: extension.source.packageName } : {}),
+    ...(options?.namespace ?? extension.namespace ? { namespace: options?.namespace ?? extension.namespace } : {}),
+    debugName: extension.id
+  };
+
+  return {
+    ...tool,
+    runtime: {
+      ...tool.runtime,
+      ...options?.runtime,
+      source: {
+        ...source,
+        ...options?.runtime?.source
+      }
+    }
   };
 }
 

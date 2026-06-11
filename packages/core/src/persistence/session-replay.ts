@@ -1,4 +1,5 @@
 import type { ProjectionLedgerEntry } from "../contracts/context";
+import { summarizeContextSourceMetadata } from "../context/context-source-metadata";
 import { AgentEventType, type AgentEvent } from "../contracts/events";
 import type { CoreMessage } from "../contracts/messages";
 import type {
@@ -190,11 +191,21 @@ function rebuildProjectionLedger(events: readonly DurableEventEnvelope[]): Proje
       projectionId: projection.id,
       sourceRefs: projection.sourceDescriptors.flatMap((source) => source.references ?? []),
       sourceDescriptors: projection.sourceDescriptors.map(({ metadata: _metadata, ...descriptor }) => descriptor),
+      ...sourceMetadataSummariesFor(projection),
       policyDecisions: projection.policyDecisions,
       ...(projection.hash ? { projectionHash: projection.hash } : {})
     };
     return [entry];
   });
+}
+
+function sourceMetadataSummariesFor(
+  projection: Extract<AgentEvent, { type: typeof AgentEventType.ContextProjectionCreated }>["projection"]
+): Pick<ProjectionLedgerEntry, "sourceMetadataSummaries"> | Record<string, never> {
+  const summaries = projection.sourceDescriptors
+    .map((source) => summarizeContextSourceMetadata(source))
+    .filter((summary): summary is NonNullable<typeof summary> => summary !== undefined);
+  return summaries.length > 0 ? { sourceMetadataSummaries: summaries } : {};
 }
 
 function providerInputs(events: readonly DurableEventEnvelope[]): ProviderInputRecord[] {
@@ -228,6 +239,7 @@ function providerInputs(events: readonly DurableEventEnvelope[]): ProviderInputR
         effect: tool.effect
       })),
       sourceDescriptors: projection.sourceDescriptors.map(({ metadata: _metadata, ...descriptor }) => descriptor),
+      ...sourceMetadataSummariesFor(projection),
       policyDecisions: projection.policyDecisions,
       ...(event.projectionHash ?? projection.hash ? { projectionHash: event.projectionHash ?? projection.hash } : {}),
       artifactRefs: envelope.artifactRefs ?? []

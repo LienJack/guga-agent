@@ -5,6 +5,10 @@ import { createWorkbenchViewModel } from "../workbench/views";
 import { mapKeypressToIntent, type KeyIntent, type TerminalKeypress } from "../tui/keys";
 import { StatusBar } from "./components/status-bar";
 import { WelcomePanel } from "./components/welcome-panel";
+import { TaskProgressPanel } from "./components/task-progress-panel";
+import { ContinuityPanel } from "./components/continuity-panel";
+import { PlatformPanel } from "./components/platform-panel";
+import { PermissionOverlay } from "./components/permission-overlay";
 import { Transcript } from "./components/transcript";
 import { PromptEditor } from "./components/prompt-editor";
 import { SlashPalette } from "./components/slash-palette";
@@ -272,10 +276,12 @@ export function InkWorkbenchApp({ controller }: { readonly controller: Workbench
       <Text dimColor>{view.startup.configSourceLabel}</Text>
       <StatusBar status={view.statusBar} />
       <WelcomePanel welcome={view.welcome} columns={columns} colorMode={colorMode} />
+      <TaskProgressPanel task={view.taskProgress} />
+      <ContinuityPanel continuity={view.continuity} />
+      <PlatformPanel panel={view.platformPanel} />
       <Transcript blocks={view.transcript} />
       {notice ? <Text dimColor>{notice}</Text> : null}
-      {view.pendingPermission ? <Text>Permission: type allow or deny</Text> : null}
-      {view.pendingInteraction ? <Text>Interaction: enter response</Text> : null}
+      <PermissionOverlay permission={view.pendingPermission} interaction={view.pendingInteraction} />
       {selector ? <SelectorOverlay state={selector} /> : null}
       {slash ? <SlashPalette state={slash} /> : null}
       <PromptEditor prompt={prompt} inputMode={controller.inputMode} locked={view.statusBar.inputLocked} />

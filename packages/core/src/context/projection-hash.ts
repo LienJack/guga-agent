@@ -1,4 +1,5 @@
 import type { ModelInputProjection, ProjectionHashDescriptor } from "../contracts/context";
+import { summarizeContextSourceMetadata } from "./context-source-metadata";
 
 export function computeProjectionHash(projection: ModelInputProjection): ProjectionHashDescriptor {
   const payload = {
@@ -17,7 +18,10 @@ export function computeProjectionHash(projection: ModelInputProjection): Project
       kind: source.kind,
       priority: source.priority,
       contentHash: source.contentHash,
-      references: source.references?.map((reference) => ({ type: reference.type, id: reference.id }))
+      modelVisible: source.modelVisible,
+      protected: source.protected ?? false,
+      references: source.references?.map((reference) => ({ type: reference.type, id: reference.id })),
+      metadataSummary: summarizeContextSourceMetadata(source)
     })),
     policyDecisions: projection.policyDecisions.map((decision) => ({
       id: decision.id,

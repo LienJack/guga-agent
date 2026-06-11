@@ -18,6 +18,7 @@ Guga Agent 的最终形态不是“内置很多功能的 agent”，而是一个
 
 - M0-M12 主线已经完成：core、plugin host、provider、tools/permissions、context、session/replay、skills/MCP、host adapters、production ops、code agent、deep research agent、CLI/workbench protocol、learning/eval flywheel。
 - M13-M37 后续扩展也已经完成并归档：review/eval agent、多 agent delegation runtime、memory candidate/governance/JSONL/retrieval/Markdown/review/health/audit/capability surface 等。
+- 2026-06-10 首批 Claude Code 平台级 TUI parity 竖切已经落地：host platform surfaces、task progress panel、platform inspection panel、permission overlay、continuity panel、SDK/local-server/stdio parity contract 均有自动化测试；`/compact`、memory auto-inject/write、swarm、多 provider 运维和 IDE/desktop adapter 仍是显式后续范围。
 - 每个已完成模块都有对应的 `docs/research/`、`docs/plans/`、`docs/solutions/architecture-patterns/` 和 `blog/build-agent-from-zero-*` 记录。
 - 验证门禁在回填本状态前已通过：`pnpm -r typecheck`、`pnpm -r test`、`pnpm build`。
 

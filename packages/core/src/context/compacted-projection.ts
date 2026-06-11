@@ -79,9 +79,8 @@ export function compactionSummarySource(compaction: CompactionResult): ContextSo
   };
 }
 
-export function compactedRetryPolicyDecisions(projection: ModelInputProjection, compaction: CompactionResult) {
+export function compactedRetryPolicyDecisions(compaction: CompactionResult) {
   return [
-    ...projection.policyDecisions,
     {
       id: `${compaction.id}-retry`,
       kind: "reinjection" as const,

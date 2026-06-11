@@ -1,6 +1,13 @@
 import type { ToolCall } from "./messages";
 import type { ToolEffect } from "./tools";
-import type { ToolResourceScope } from "./tool-runtime";
+import type {
+  ToolActionMetadata,
+  ToolCredentialBinding,
+  ToolEnvironmentRequirement,
+  ToolIntent,
+  ToolPrincipalSummary,
+  ToolResourceScope
+} from "./tool-runtime";
 
 export type PermissionAction = "allow" | "ask" | "deny";
 
@@ -18,7 +25,11 @@ export type PermissionDecisionSource = "profile" | "host" | "plugin" | "remember
 export type PermissionSubject = {
   toolName: string;
   effect: ToolEffect;
+  action?: ToolActionMetadata;
   scopes?: ToolResourceScope[];
+  principal?: ToolPrincipalSummary;
+  credentials?: readonly ToolCredentialBinding[];
+  environment?: ToolEnvironmentRequirement;
   commandSummary?: string;
   resourceSummary?: string;
 };
@@ -43,6 +54,7 @@ export type PermissionRequest = {
   call: ToolCall;
   subject: PermissionSubject;
   profile: PermissionProfile;
+  intent?: ToolIntent;
   metadata?: Record<string, unknown>;
 };
 

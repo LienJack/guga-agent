@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { AgentEventType } from "../contracts/events";
 import { ModelEventType } from "../contracts/model-events";
 import { ProviderErrorCategory } from "../contracts/provider";
+import { ModelInputProjector } from "../context/model-input-projection";
+import { EventBus } from "../events/event-bus";
 import { CapabilityRegistry } from "../registry/capability-registry";
 import { createMockProvider } from "../testing/mock-provider";
+import { createTestTool } from "../testing/test-tool";
 import { ProviderRouter } from "./provider-router";
 
 const request = {
@@ -63,6 +67,37 @@ describe("ProviderRouter", () => {
 
     expect(router.metadataFor()).toMatchObject({ modelId: "primary", contextWindow: 100 });
     expect(router.metadataFor("summarizer")).toMatchObject({ modelId: "summarizer", contextWindow: 200 });
+  });
+
+  it("records projection tool lease metadata on routed provider requests", async () => {
+    const registry = new CapabilityRegistry();
+    const eventBus = new EventBus();
+    const tool = createTestTool({ name: "read_file", content: "unused" });
+    registry.registerProvider(createMockProvider([{ type: "final", content: "ok" }]));
+    registry.registerModel({ providerId: "mock", modelId: "primary", purposes: ["primary"] });
+    const projection = new ModelInputProjector({ idFactory: () => "router" }).assemble({
+      ...request,
+      tools: [tool],
+      toolLease: {
+        leaseId: "lease-router",
+        runId: request.runId,
+        turn: request.turn,
+        visibleToolNames: ["read_file"],
+        decisions: [{ visible: true, toolName: "read_file", reason: "available" }]
+      }
+    });
+
+    const result = await new ProviderRouter({
+      registry,
+      policy: { primary: { providerId: "mock", modelId: "primary" } }
+    }).route({ ...request, tools: [tool], eventBus, projection });
+
+    expect(result.ok).toBe(true);
+    expect(eventBus.events).toContainEqual(expect.objectContaining({
+      type: AgentEventType.ModelRequested,
+      toolNames: ["read_file"],
+      toolLease: expect.objectContaining({ leaseId: "lease-router" })
+    }));
   });
 
   it("falls back after a non-retryable rate-limit failure", async () => {

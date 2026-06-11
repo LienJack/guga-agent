@@ -36,6 +36,10 @@ import {
   type MetricsSnapshotResource,
   type OperationalDiagnosticResource,
   type OperationalStatusResource,
+  type PlatformStatusResource,
+  type PlatformSurfaceActionResource,
+  type PlatformSurfaceKindResource,
+  type PlatformSurfaceResource,
   type PermissionRequestResource,
   type PermissionResolution,
   type ProviderHealthResource,
@@ -918,9 +922,11 @@ export class HostRuntime {
 
   getOperationalStatus(): OperationalStatusResource {
     const metrics = this.getMetricsSnapshot();
+    const capabilities = this.listCapabilities();
     return {
       updatedAt: metrics.updatedAt,
-      capabilities: this.listCapabilities(),
+      capabilities,
+      platform: platformStatusFromCapabilities(capabilities),
       health: this.listProviderHealth(),
       audit: this.listAuditSummaries(),
       metrics,
@@ -1356,6 +1362,129 @@ function isDurableTaskHostEvent(event: HostEvent): boolean {
     || event.type === "task.cancelled"
     || event.type === "verification.started"
     || event.type === "verification.completed";
+}
+
+function platformStatusFromCapabilities(capabilities: CapabilityResource[]): PlatformStatusResource {
+  const memoryCapabilities = capabilities.filter(isMemoryCapability);
+  const agentCapabilities = capabilities.filter(isAgentCapability);
+  const toolCapabilities = capabilities.filter((capability) => capability.type === "tool");
+  const mcpCapabilities = capabilities.filter(isMcpCapability);
+  const skillCapabilities = capabilities.filter((capability) => capability.type === "skill");
+  const toolSurfaceOptions = platformSurfaceOptions(
+    capabilityNames(toolCapabilities),
+    toolCapabilities.length === 0 ? "No tool capabilities are registered" : undefined
+  );
+  const mcpSurfaceOptions = platformSurfaceOptions(
+    capabilityNames(mcpCapabilities),
+    mcpCapabilities.length === 0 ? "No MCP capabilities are registered" : undefined
+  );
+  const skillSurfaceOptions = platformSurfaceOptions(
+    capabilityNames(skillCapabilities),
+    skillCapabilities.length === 0 ? "No skill capabilities are registered" : undefined
+  );
+  const memorySurfaceOptions = platformSurfaceOptions(
+    capabilityNames(memoryCapabilities),
+    memoryCapabilities.length === 0 ? "No memory capabilities are registered" : undefined
+  );
+  const agentSurfaceOptions = platformSurfaceOptions(
+    capabilityNames(agentCapabilities),
+    agentCapabilities.length === 0 ? "No delegation capabilities are registered" : undefined
+  );
+  return {
+    surfaces: [
+      platformSurface("model", "Model selection", "host", "available", ["inspect", "select"]),
+      platformSurface("profile", "Profile selection", "host", "available", ["inspect", "select"]),
+      platformSurface("session", "Sessions", "host", "available", ["inspect", "resume", "fork"]),
+      platformSurface("tool", "Tools", "runtime", toolCapabilities.length > 0 ? "available" : "unavailable", ["inspect"], toolSurfaceOptions),
+      platformSurface("mcp", "MCP", "runtime", mcpCapabilities.length > 0 ? "available" : "unavailable", ["inspect"], mcpSurfaceOptions),
+      platformSurface("skill", "Skills", "runtime", skillCapabilities.length > 0 ? "available" : "unavailable", ["inspect"], skillSurfaceOptions),
+      platformSurface("permission", "Permissions", "host", "available", ["inspect"]),
+      platformSurface("memory", "Memory", "runtime", memoryCapabilities.length > 0 ? "available" : "unavailable", ["inspect"], memorySurfaceOptions),
+      platformSurface("agent", "Agents and delegation", "runtime", agentCapabilities.length > 0 ? "available" : "unavailable", ["inspect"], agentSurfaceOptions),
+      platformSurface("status", "Operational status", "host", "available", ["inspect"]),
+      platformSurface("compact", "Compaction", "host", "unavailable", ["inspect"], {
+        reason: "Host compaction control is not implemented yet"
+      }),
+      platformSurface("abort", "Abort run", "host", "available", ["abort"]),
+      platformSurface("resume", "Resume session", "host", "available", ["resume"]),
+      platformSurface("fork", "Fork session", "host", "available", ["fork"]),
+      platformSurface("task", "Code tasks", "host", "available", ["inspect"])
+    ],
+    memory: {
+      state: memoryCapabilities.length > 0 ? "available" : "unavailable",
+      source: memoryCapabilities.length > 0 ? "plugin" : "host",
+      ...(memoryCapabilities.length === 0 ? { reason: "No memory capabilities are registered" } : {}),
+      capabilityNames: capabilityNames(memoryCapabilities),
+      policy: {
+        autoInject: false,
+        autoWrite: false,
+        reason: "Memory must be injected by explicit policy; automatic writes are outside the first-stage TUI parity scope"
+      }
+    },
+    agents: {
+      state: agentCapabilities.length > 0 ? "available" : "unavailable",
+      source: agentCapabilities.length > 0 ? "plugin" : "host",
+      ...(agentCapabilities.length === 0 ? { reason: "No delegation capabilities are registered" } : {}),
+      capabilityNames: capabilityNames(agentCapabilities),
+      coordinatorReady: agentCapabilities.length > 0
+    },
+    compact: {
+      state: "unavailable",
+      source: "host",
+      reason: "Host compaction control is not implemented yet",
+      allowedActions: []
+    }
+  };
+}
+
+function platformSurfaceOptions(
+  capabilityNamesValue: string[],
+  reason: string | undefined
+): { capabilityNames: string[]; reason?: string } {
+  return {
+    capabilityNames: capabilityNamesValue,
+    ...(reason !== undefined ? { reason } : {})
+  };
+}
+
+function platformSurface(
+  kind: PlatformSurfaceKindResource,
+  name: string,
+  source: PlatformSurfaceResource["source"],
+  status: PlatformSurfaceResource["status"],
+  actions: PlatformSurfaceActionResource[],
+  options: {
+    reason?: string;
+    capabilityNames?: string[];
+  } = {}
+): PlatformSurfaceResource {
+  return {
+    kind,
+    name,
+    status,
+    source,
+    actions,
+    ...(options.reason !== undefined ? { reason: options.reason } : {}),
+    ...(options.capabilityNames !== undefined ? { capabilityNames: options.capabilityNames } : {})
+  };
+}
+
+function capabilityNames(capabilities: CapabilityResource[]): string[] {
+  return capabilities.map((capability) => capability.name).sort();
+}
+
+function isMemoryCapability(capability: CapabilityResource): boolean {
+  const searchable = `${capability.type} ${capability.name} ${capability.namespace ?? ""} ${capability.ownerPluginId ?? ""}`.toLowerCase();
+  return searchable.includes("memory");
+}
+
+function isAgentCapability(capability: CapabilityResource): boolean {
+  const searchable = `${capability.type} ${capability.name} ${capability.namespace ?? ""}`.toLowerCase();
+  return capability.type === "agent" || searchable.includes("delegate") || searchable.includes("delegation");
+}
+
+function isMcpCapability(capability: CapabilityResource): boolean {
+  return capability.source === "mcp" || capability.ownerPluginId?.includes("mcp") === true;
 }
 
 function toJsonObject(value: unknown): JsonObject {

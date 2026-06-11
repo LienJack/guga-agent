@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HookPhase } from "@guga-agent/core";
+import { ContextSourceKind, HookPhase } from "@guga-agent/core";
 import { DEFAULT_CONTEXT_POLICY_ID, defaultContextHooks, defaultContextPolicy } from "./default-context-policy";
 
 describe("default context policy", () => {
@@ -12,6 +12,12 @@ describe("default context policy", () => {
       warningThreshold: 0.7,
       compactThreshold: 0.85,
       summaryStripRetryLimit: 3
+    });
+    expect(policy.metadata?.attentionOS).toMatchObject({
+      sourceCategories: expect.arrayContaining(Object.values(ContextSourceKind)),
+      mutatesFacts: false,
+      promotesMemoryCandidates: false,
+      reinjectionAuthority: "below-system-and-developer"
     });
   });
 

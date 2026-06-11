@@ -41,7 +41,26 @@ describe("ResultPolicy", () => {
         applied: true,
         originalContentChars: 10,
         reference: expect.objectContaining({ id: expect.stringContaining("tool-result-run-result") }),
-        view: { llmPreview: expect.stringContaining("01234") }
+        view: {
+          llmPreview: expect.stringContaining("01234"),
+          uiProjection: expect.stringContaining("01234"),
+          auditMetadata: expect.objectContaining({
+            rawAvailable: true,
+            redaction: { state: "none" },
+            verifier: { status: "unverified" }
+          })
+        },
+        evidence: {
+          raw: expect.objectContaining({ source: "buffer", available: true, originalContentChars: 10 }),
+          model: expect.objectContaining({ preview: expect.stringContaining("01234") }),
+          ui: expect.objectContaining({ projection: expect.stringContaining("01234") }),
+          audit: expect.objectContaining({
+            redaction: { state: "none" },
+            verifier: { status: "unverified" }
+          })
+        },
+        redaction: { state: "none" },
+        verifier: { status: "unverified" }
       }
     });
     expect(eventBus.events).toContainEqual(expect.objectContaining({ type: AgentEventType.ToolResultBudgeted }));
@@ -120,15 +139,30 @@ describe("ResultPolicy", () => {
         },
         view: {
           llmPreview: expect.stringContaining("abcd"),
+          uiProjection: expect.stringContaining("abcd"),
           auditMetadata: {
             strategy: "truncate",
             referenceType: "artifact",
             providerRawPersistence: "descriptor-only",
+            rawAvailable: true,
+            redaction: { state: "none" },
+            verifier: { status: "unverified" },
             artifact: {
               artifactId: "tool-result-run-result-turn-0-attempt-1-batch-result-call-result",
               sizeBytes: 6
             }
           }
+        },
+        evidence: {
+          raw: expect.objectContaining({
+            source: "artifact",
+            available: true,
+            contentHash: "b".repeat(64)
+          }),
+          audit: expect.objectContaining({
+            redaction: { state: "none" },
+            verifier: { status: "unverified" }
+          })
         }
       }
     });

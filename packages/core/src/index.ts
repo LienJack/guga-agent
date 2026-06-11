@@ -48,12 +48,25 @@ export {
   ContextSourceKind,
   ContextSourcePriority
 } from "./contracts/context";
+export { buildAccountableTraceSource } from "./context/accountable-trace";
+export type { BuildAccountableTraceSourceOptions } from "./context/accountable-trace";
+export { summarizeContextSourceMetadata } from "./context/context-source-metadata";
+export { buildStateProjectionSource } from "./context/state-projection";
+export type { BuildStateProjectionSourceOptions } from "./context/state-projection";
 export type {
   CompactionBoundary,
   CompactionResult,
   CompactionSummaryFields,
+  AccountableTraceItem,
+  AccountableTraceItemKind,
+  AccountableTraceMetadata,
+  AttentionSourceMetadata,
   ContextBudget,
   ContextCompactionTrigger,
+  ContextSourceConfidence,
+  ContextSourceIntendedUsage,
+  ContextSourceScope,
+  ContextSourceSensitivity,
   ContextPolicy,
   ContextPolicyHookPhase,
   ContextPolicyDecision,
@@ -62,13 +75,19 @@ export type {
   ContextSourceDescriptor,
   ContextSourceProvenance,
   ContextSourceReference,
+  ContextSourceMetadataSummary,
   ContextSourceTokenEstimate,
   ContextSourceKind as ContextSourceKindValue,
   ContextSourcePriority as ContextSourcePriorityValue,
+  MemoryCandidateMetadata,
+  MemoryCandidateReference,
   ModelInputProjection,
   ProjectionHashDescriptor,
   ProjectionLedgerEntry,
   ReinjectionSource,
+  StateProjectionItem,
+  StateProjectionItemKind,
+  StateProjectionMetadata,
   ToolResultView
 } from "./contracts/context";
 export {
@@ -278,13 +297,29 @@ export type {
 } from "./contracts/tools";
 export type {
   BudgetedToolResult,
+  ToolActionCategory,
+  ToolActionEffect,
+  ToolActionEffectKind,
+  ToolActionMetadata,
+  ToolActionRisk,
   ToolAvailability,
   ToolAvailabilityContext,
   ToolAvailabilityResolver,
   ToolBackendRequirement,
   ToolCallCorrelation,
+  ToolCapabilityLease,
   ToolConcurrencyMode,
+  ToolCredentialBinding,
+  ToolEvidenceRedaction,
+  ToolEvidenceVerifier,
+  ToolEnvironmentAssessment,
+  ToolEnvironmentRequirement,
+  ToolEnvironmentStatus,
   ToolExecutionMode,
+  ToolIntent,
+  ToolMetadataEvalHints,
+  ToolPrincipalKind,
+  ToolPrincipalSummary,
   ToolProjection,
   ToolRendererCategory,
   ToolRendererMetadata,
@@ -293,7 +328,10 @@ export type {
   ToolResourceScope,
   ToolResourceScopeExtractor,
   ToolResultBudget,
+  ToolResultEvidence,
   ToolResultReference,
+  ToolSandboxNetworkPolicy,
+  ToolSandboxRequirement,
   RuntimeToolInvocationSource,
   RuntimeToolInvokeOptions,
   ToolRuntimeFailureReason,
@@ -301,6 +339,7 @@ export type {
   ToolSchedulerMetadata,
   ToolSourceKind,
   ToolSourceMetadata,
+  ToolView,
   ToolVisibility,
   ToolVisibilityDecision
 } from "./contracts/tool-runtime";

@@ -203,6 +203,63 @@ describe("defineExtension", () => {
     });
   });
 
+  it("forwards Action OS runtime metadata into registered extension tools", async () => {
+    const calls = createCapturingPluginContext("action-os-fixture");
+    const extension = defineExtension({
+      id: "action-os-fixture",
+      source: extensionSource,
+      namespace: "action-os",
+      setup(context) {
+        context.tool(createTool("action_os_tool"), {
+          source: "mcp",
+          runtime: {
+            action: {
+              category: "external",
+              risk: "high",
+              tags: ["mcp", "open-world"]
+            },
+            resultBudget: { maxContentChars: 1024, strategy: "reference" },
+            eval: {
+              categories: ["tool-action"],
+              coveredRisks: ["high"],
+              selectionTags: ["action-os"]
+            }
+          }
+        });
+      }
+    });
+
+    await extension.init(calls);
+
+    expect(calls.tools[0]).toMatchObject({
+      tool: {
+        name: "action_os_tool",
+        runtime: {
+          action: { category: "external", risk: "high", tags: ["mcp", "open-world"] },
+          resultBudget: { maxContentChars: 1024, strategy: "reference" },
+          eval: {
+            categories: ["tool-action"],
+            coveredRisks: ["high"],
+            selectionTags: ["action-os"]
+          },
+          source: {
+            kind: "mcp",
+            pluginId: "action-os-fixture",
+            packageName: "@guga-agent/extension-sdk-test",
+            namespace: "action-os",
+            debugName: "action-os-fixture"
+          }
+        }
+      },
+      options: expect.objectContaining({
+        source: "mcp",
+        layer: "extension",
+        namespace: "action-os",
+        ownerPluginId: "action-os-fixture"
+      })
+    });
+  });
+
   it("invalidates the setup context after setup returns", async () => {
     let captured: ExtensionSetupContext | undefined;
     const extension = defineExtension({

@@ -187,6 +187,47 @@ describe("AgentRuntime", () => {
     ]));
   });
 
+  it("uses runtime availability context when projecting tool visibility", async () => {
+    const credential = {
+      credentialRef: "credential://github/app",
+      providerId: "github",
+      required: true,
+      modelVisible: false as const
+    };
+    const sandbox = {
+      isolation: "workspace" as const,
+      network: "restricted" as const
+    };
+    const runtime = createAgentRuntime({
+      builtIns: false,
+      availabilityContext: { credentials: [credential], sandbox }
+    });
+    runtime.registerProvider(createMockProvider([
+      (request) => ({
+        type: "final",
+        content: request.tools.map((tool) => tool.name).join(",")
+      })
+    ]));
+    runtime.registerTool({
+      ...createTestTool({ name: "external_api", content: "unused" }),
+      effect: "external",
+      runtime: {
+        permission: { defaultAction: "allow" },
+        credentials: [credential],
+        sandbox
+      }
+    });
+
+    await expect(runtime.run({
+      input: "list available tools",
+      providerId: "mock",
+      runId: "runtime-env-visible"
+    })).resolves.toMatchObject({
+      ok: true,
+      finalAnswer: "external_api"
+    });
+  });
+
   it("can disable built-in capability registration", () => {
     const runtime = createAgentRuntime({
       builtIns: false

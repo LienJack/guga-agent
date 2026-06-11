@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec index for runtime work"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Core/plugin package ownership and export boundaries"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Runtime behavior testing and forbidden patterns"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Runtime context/audit event observability boundaries"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Source to projection to replay data-flow mapping"}
+{"file": "docs/solutions/architecture-patterns/context-policy-projection.md", "reason": "Existing M4 projection architecture pattern"}
+{"file": "docs/research/context-policy-plugins.md", "reason": "Current context policy research and contracts"}
+{"file": "docs/solutions/architecture-patterns/tool-permission-runtime.md", "reason": "Tool result governance and authority pattern"}
+{"file": "docs/solutions/architecture-patterns/plugin-capability-discovery.md", "reason": "Serializable plugin capability metadata pattern"}

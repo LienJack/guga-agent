@@ -121,6 +121,18 @@ describe("HostLocalServer", () => {
       ]
     });
     await expect(fetchJson(`${server.url}/operations/status`)).resolves.toMatchObject({
+      platform: {
+        surfaces: expect.arrayContaining([
+          expect.objectContaining({ kind: "tool", status: "available" }),
+          expect.objectContaining({ kind: "compact", status: "unavailable" })
+        ]),
+        memory: expect.objectContaining({ state: "unavailable" }),
+        agents: expect.objectContaining({ state: "unavailable" }),
+        compact: expect.objectContaining({
+          state: "unavailable",
+          reason: "Host compaction control is not implemented yet"
+        })
+      },
       metrics: expect.objectContaining({
         counters: expect.objectContaining({ "runs.completed": 1 })
       })

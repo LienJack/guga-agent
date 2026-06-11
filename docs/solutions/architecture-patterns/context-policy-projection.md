@@ -1,6 +1,6 @@
 # Context Policy Projection
 
-M4 upgrades model input from a raw message array to an explainable projection.
+M4 upgrades model input from a raw message array to an explainable Attention OS projection.
 
 ## Problem
 
@@ -20,6 +20,7 @@ M4 owns:
 
 - `ModelInputProjection`;
 - context source descriptors;
+- state projection, accountable trace, and memory-candidate source contracts;
 - budget and pressure tracking;
 - tool result previews and references;
 - pairing safety;
@@ -31,14 +32,15 @@ M4 owns:
 ## Why This Shape
 
 - **Context is a projection.** It is assembled from typed sources, not equated with chat history.
+- **Facts and derived surfaces stay separate.** Raw events, tool results, artifact references, and compaction boundaries are facts; state, trace, memory candidates, and summaries are rebuildable projections.
 - **Authority is visible.** System rules, user intent, tool output, summaries, and host context remain distinguishable.
-- **Compression is safer.** Compaction protects pending turns, tool pairing, recent tail, and active task state.
+- **Compression is safer.** Compaction protects pending turns, tool pairing, recent tail, active task state, state/trace continuity, and user constraints.
 - **Plugins can contribute policy.** Context behavior can evolve without making provider bridges assemble prompts.
-- **M5 gets replay material.** Projection hashes, source lists, and decisions prepare durable model-input replay.
+- **Replay gets safe metadata.** Projection hashes, source lists, decisions, and source metadata summaries prepare durable model-input replay without storing raw candidate/tool/artifact content.
 
 ## Current Limits
 
-- No long-term memory.
+- No long-term memory retrieval or automatic user-preference extraction.
 - No vector/session search.
 - No full durable event store.
 - No enterprise context governance product.
@@ -46,4 +48,4 @@ M4 owns:
 
 ## Verification
 
-M4 is protected by projection, budget, truncation, compaction, pairing safety, reinjection, tool result view, and default context policy tests.
+M4 is protected by projection, budget, truncation, compaction, pairing safety, reinjection, replay/audit, tool result view, and default context policy tests.

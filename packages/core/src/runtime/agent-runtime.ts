@@ -58,7 +58,10 @@ export class AgentRuntime implements AgentRuntimeContract {
   constructor(options: AgentRuntimeOptions = {}) {
     const plugins = options.model ? [options.model, ...(options.plugins ?? [])] : (options.plugins ?? []);
     const routerPolicy = options.routerPolicy ?? (options.model ? { primary: options.model.model } : undefined);
-    this.availabilityContext = options.permissions?.profile ? { profile: options.permissions.profile } : {};
+    this.availabilityContext = {
+      ...(options.availabilityContext ?? {}),
+      ...(options.permissions?.profile ? { profile: options.permissions.profile } : {})
+    };
     this.configuredSession = options.session ?? {};
     this.activeSession = {
       sessionId: this.configuredSession.sessionId ?? "default",

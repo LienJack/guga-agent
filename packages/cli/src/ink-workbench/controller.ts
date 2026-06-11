@@ -215,6 +215,13 @@ export class WorkbenchController {
     if (result.action === "clear") {
       this.setState(reduceWorkbenchAction(this.#state, { type: "ui.clear" }));
     }
+    if (result.panel) {
+      this.setState(reduceWorkbenchAction(this.#state, {
+        type: "platform.panel",
+        panel: result.panel,
+        statusText: result.message
+      }));
+    }
     if (result.action === "select-model" && isSelectedCliModel(result.data)) {
       this.#providerId = result.data.providerId;
       this.#modelId = result.data.modelId ?? result.data.id;
@@ -231,6 +238,17 @@ export class WorkbenchController {
       && isSessionSummary(result.data)
     ) {
       this.#session = result.data.session;
+      this.setState(reduceWorkbenchAction(this.#state, {
+        type: "session.continuity",
+        status: result.action === "new-session"
+          ? "session-created"
+          : result.action === "resume-session"
+            ? "session-resumed"
+            : "session-forked",
+        sessionId: result.data.session.id,
+        ...(result.data.session.activeBranchId ? { branchId: result.data.session.activeBranchId } : {}),
+        detail: result.message
+      }));
     }
     return { ok: true, message: result.message };
   }

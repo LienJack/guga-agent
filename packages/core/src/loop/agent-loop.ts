@@ -7,15 +7,17 @@ import type { LegacyProviderError, Provider, ProviderError, ProviderRequest, Pro
 import { ProviderErrorCategory } from "../contracts/provider";
 import type { AgentRunFailure, AgentRunOptions, AgentRunResult } from "../contracts/runtime";
 import type { DurablePublishResult } from "../events/event-bus";
-import type { ToolAvailabilityContext } from "../contracts/tool-runtime";
+import type { ToolAvailabilityContext, ToolCapabilityLease } from "../contracts/tool-runtime";
 import type { ToolDefinition } from "../contracts/tools";
 import { ModelInputProjector } from "../context/model-input-projection";
+import { buildAccountableTraceSource } from "../context/accountable-trace";
 import { contextPressureEvent, projectionCreatedEvent, shouldEmitContextPressure } from "../context/context-pressure";
 import { CompactionService } from "../context/compaction-service";
 import { compactionSummarySource, compactedRetryMessages, compactedRetryPolicyDecisions } from "../context/compacted-projection";
 import { truncateContextSources } from "../context/context-truncation";
 import { InMemoryContextDecisionLedger, type ContextDecisionLedger } from "../context/context-decision-ledger";
 import { ReinjectionService } from "../context/reinjection-service";
+import { buildStateProjectionSource } from "../context/state-projection";
 import type { CompactionResult, ContextPolicyDecision, ContextSourceDescriptor, ReinjectionSource } from "../contracts/context";
 import { ContextSourceKind, ContextSourcePriority } from "../contracts/context";
 import { EventBus } from "../events/event-bus";
@@ -24,7 +26,8 @@ import { PermissionKernel } from "../permissions/permission-kernel";
 import { CapabilityRegistry } from "../registry/capability-registry";
 import { ProviderRouter } from "../router/provider-router";
 import { ConversationState } from "../state/conversation-state";
-import { ExecutionPipeline, toolVisibilityDecision } from "../tools/execution-pipeline";
+import { ExecutionPipeline } from "../tools/execution-pipeline";
+import { projectToolView } from "../tools/tool-projection";
 import { ResultPolicy } from "../tools/result-policy";
 import { ToolScheduler } from "../tools/tool-scheduler";
 
@@ -100,12 +103,27 @@ export class AgentLoop {
 
     for (let turn = 0; turn < maxTurns; turn += 1) {
       const messages = state.snapshot();
-      const tools = visibleTools(this.registry.listTools(), this.availabilityContext, this.eventBus, runId, turn);
+      const toolView = projectToolView({
+        tools: this.registry.listTools(),
+        context: this.availabilityContext,
+        runId,
+        turn
+      });
+      for (const decision of toolView.filtered) {
+        this.publish({
+          type: AgentEventType.ToolVisibilityFiltered,
+          runId,
+          turn,
+          decision,
+          lease: toolView.lease
+        });
+      }
       const projectionResult = await this.prepareProjection({
         runId,
         turn,
         messages,
-        tools,
+        tools: toolView.visibleTools,
+        toolLease: toolView.lease,
         ...(overridePolicyDecisions ? { policyDecisions: overridePolicyDecisions } : {}),
         model: modelTargetFor({ router: this.router, registry: this.registry, directProvider, options })
       });
@@ -254,6 +272,7 @@ export class AgentLoop {
           turn,
           call: scheduledCall.call,
           batchId,
+          ...(projection.toolLease ? { toolLease: projection.toolLease } : {}),
           ...(options.signal ? { signal: options.signal } : {})
         }));
         const settled = batch.parallel
@@ -353,7 +372,8 @@ export class AgentLoop {
       turn,
       providerId: provider.id,
       messages,
-      toolNames: tools.map((tool) => tool.name)
+      toolNames: tools.map((tool) => tool.name),
+      ...(projection.toolLease ? { toolLease: projection.toolLease } : {})
     } as const;
     const start = await this.eventBus.publishDurable(requestEvent, {
       idempotencyKey: durableKey(runId, turn, "model.requested", provider.id)
@@ -536,7 +556,7 @@ export class AgentLoop {
     return {
       messages: compactedRetryMessages(projection, compacted.result, [compactionSummarySource(compacted.result), ...reinjected.descriptors]),
       policyDecisions: [
-        ...compactedRetryPolicyDecisions(projection, compacted.result),
+        ...compactedRetryPolicyDecisions(compacted.result),
         ...compacted.decisions,
         ...reinjected.decisions
       ]
@@ -548,6 +568,7 @@ export class AgentLoop {
     turn: number;
     messages: readonly CoreMessage[];
     tools: readonly ToolDefinition[];
+    toolLease?: ToolCapabilityLease;
     model: ReturnType<typeof modelTargetFor>;
     policyDecisions?: ContextPolicyDecision[];
   }): Promise<CoreError | { projection: ReturnType<ModelInputProjector["assemble"]>; alreadyCompacted: boolean }> {
@@ -560,16 +581,50 @@ export class AgentLoop {
       return discoverHook;
     }
     const discoveredSources = contextSourcesFromDecisions(discoverHook.decisions);
+    const basePolicyDecisions = [
+      ...(options.policyDecisions ? options.policyDecisions : []),
+      ...discoverHook.decisions
+    ];
+    let additionalSources = discoveredSources;
+    let policyDecisions = basePolicyDecisions;
 
     let projection = this.projector.assemble({
       runId: options.runId,
       turn: options.turn,
       messages: options.messages,
       tools: options.tools,
-      ...(options.policyDecisions ? { policyDecisions: options.policyDecisions } : {}),
-      ...(discoveredSources.length ? { additionalSources: discoveredSources } : {}),
+      ...(options.toolLease ? { toolLease: options.toolLease } : {}),
+      ...(policyDecisions.length ? { policyDecisions } : {}),
+      ...(additionalSources.length ? { additionalSources } : {}),
       ...modelTargetOption(options.model)
     });
+    const derivedSources = derivedContextSources(projection);
+    if (derivedSources.length > 0) {
+      additionalSources = [...additionalSources, ...derivedSources];
+      policyDecisions = [
+        ...policyDecisions,
+        {
+          id: `attention-derived-${projection.id}`,
+          kind: "annotation",
+          phase: "context.assemble",
+          sourceIds: derivedSources.map((source) => source.id),
+          reason: "derived state and trace context sources from the stable base projection",
+          metadata: {
+            sourceKinds: derivedSources.map((source) => source.kind)
+          }
+        }
+      ];
+      projection = this.projector.assemble({
+        runId: options.runId,
+        turn: options.turn,
+        messages: options.messages,
+        tools: options.tools,
+        ...(options.toolLease ? { toolLease: options.toolLease } : {}),
+        policyDecisions,
+        additionalSources,
+        ...modelTargetOption(options.model)
+      });
+    }
     let alreadyCompacted = hasCompactionSummary(projection.messages);
     const projectionPublished = await this.publishDurable(
       projectionCreatedEvent(projection),
@@ -622,11 +677,12 @@ export class AgentLoop {
           turn: options.turn,
           messages: messagesWithoutSnippedSources(projection.messages, truncated.snipped),
           tools: options.tools,
+          ...(options.toolLease ? { toolLease: options.toolLease } : {}),
           policyDecisions: [
-            ...projection.policyDecisions,
+            ...policyDecisions,
             ...truncated.decisions
           ],
-          additionalSources: discoveredSources.filter((source) => truncated.retained.some((retained) => retained.id === source.id)),
+          additionalSources: additionalSources.filter((source) => truncated.retained.some((retained) => retained.id === source.id)),
           ...modelTargetOption(options.model)
         });
         alreadyCompacted = alreadyCompacted || hasCompactionSummary(projection.messages);
@@ -835,6 +891,20 @@ function reinjectionSourcesFromDecisions(decisions: readonly ContextPolicyDecisi
 
 function defaultReinjectionSources(runId: string, projection: ReturnType<ModelInputProjector["assemble"]>): ReinjectionSource[] {
   return [
+    ...projection.sourceDescriptors
+      .filter(isAttentionReinjectionDescriptor)
+      .map((source) => ({
+        id: `reinjected-${source.id}`,
+        kind: source.kind,
+        priority: source.priority === ContextSourcePriority.Critical ? ContextSourcePriority.High : source.priority,
+        content: attentionReinjectionContent(source),
+        ...(source.references ? { references: source.references } : {}),
+        runtimeContextId: runId,
+        metadata: {
+          sourceId: source.id,
+          sourceKind: source.kind
+        }
+      })),
     ...projection.tools.map((tool) => ({
       id: `reinjected-tool-${tool.name}`,
       kind: ContextSourceKind.ActiveTool,
@@ -854,6 +924,52 @@ function defaultReinjectionSources(runId: string, projection: ReturnType<ModelIn
       runtimeContextId: runId
     }
   ];
+}
+
+function isAttentionReinjectionDescriptor(
+  source: ContextSourceDescriptor
+): source is ContextSourceDescriptor & { kind: typeof ContextSourceKind.StateProjection | typeof ContextSourceKind.AccountableTrace } {
+  return source.provenance.origin === "core" &&
+    (source.kind === ContextSourceKind.StateProjection || source.kind === ContextSourceKind.AccountableTrace);
+}
+
+function derivedContextSources(projection: ReturnType<ModelInputProjector["assemble"]>): ContextSourceDescriptor[] {
+  return [
+    buildStateProjectionSource(projection),
+    buildAccountableTraceSource(projection)
+  ].filter((source): source is ContextSourceDescriptor => source !== undefined);
+}
+
+function attentionReinjectionContent(source: ContextSourceDescriptor): string {
+  const labels = metadataItemLabels(source)
+    .map((label) => `- ${label}`)
+    .join("\n");
+  const references = (source.references ?? [])
+    .map((reference) => `${reference.type}:${reference.id}`)
+    .join(", ");
+  return [
+    `${source.kind} continuity from current runtime facts.`,
+    labels ? `Signals:\n${labels}` : "Signals: none",
+    references ? `References: ${references}` : "References: none"
+  ].join("\n");
+}
+
+function metadataItemLabels(source: ContextSourceDescriptor): string[] {
+  const items = source.metadata?.items;
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        return undefined;
+      }
+      const record = item as Record<string, unknown>;
+      return typeof record.kind === "string" && typeof record.label === "string"
+        ? `${record.kind}: ${record.label}`
+        : undefined;
+    })
+    .filter((label): label is string => typeof label === "string");
 }
 
 function messagesWithoutSnippedSources(messages: readonly CoreMessage[], snipped: readonly ContextSourceDescriptor[]): CoreMessage[] {
@@ -897,8 +1013,19 @@ function isReinjectionSource(value: unknown): value is ReinjectionSource {
   }
   const source = value as Partial<ReinjectionSource>;
   return typeof source.id === "string" &&
-    typeof source.kind === "string" &&
+    isReinjectionSourceKind(source.kind) &&
     typeof source.priority === "string";
+}
+
+function isReinjectionSourceKind(kind: unknown): kind is ReinjectionSource["kind"] {
+  return kind === ContextSourceKind.ResourceFile ||
+    kind === ContextSourceKind.PlanTodo ||
+    kind === ContextSourceKind.SkillBody ||
+    kind === ContextSourceKind.ActiveTool ||
+    kind === ContextSourceKind.PermissionMode ||
+    kind === ContextSourceKind.HostContext ||
+    kind === ContextSourceKind.StateProjection ||
+    kind === ContextSourceKind.AccountableTrace;
 }
 
 function normalizeProviderError(
@@ -940,28 +1067,6 @@ function providerErrorFromDetails(details: unknown): ProviderError | undefined {
 
 function isProviderError(error: unknown): error is ProviderError {
   return !!error && typeof error === "object" && "category" in error && "code" in error && "message" in error;
-}
-
-function visibleTools(
-  tools: ToolDefinition[],
-  context: ToolAvailabilityContext,
-  eventBus: EventBus,
-  runId: string,
-  turn: number
-): ToolDefinition[] {
-  return tools.filter((tool) => {
-    const decision = toolVisibilityDecision(tool, context);
-    if (decision.visible) {
-      return true;
-    }
-    eventBus.publish({
-      type: AgentEventType.ToolVisibilityFiltered,
-      runId,
-      turn,
-      decision
-    });
-    return false;
-  });
 }
 
 function durableKey(runId: string, turn: number, boundary: string, identity: string): string {

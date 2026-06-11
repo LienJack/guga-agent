@@ -1,4 +1,5 @@
 import type { CompactionBoundary, ModelInputProjection, ProjectionLedgerEntry } from "../contracts/context";
+import { summarizeContextSourceMetadata } from "./context-source-metadata";
 
 export type ContextDecisionLedger = {
   record(projection: ModelInputProjection, boundary?: CompactionBoundary): ProjectionLedgerEntry;
@@ -16,6 +17,7 @@ export class InMemoryContextDecisionLedger implements ContextDecisionLedger {
       projectionId: projection.id,
       sourceRefs: projection.sourceDescriptors.flatMap((source) => source.references ?? []),
       sourceDescriptors: projection.sourceDescriptors.map(({ metadata: _metadata, ...descriptor }) => descriptor),
+      ...sourceMetadataSummariesFor(projection),
       policyDecisions: projection.policyDecisions,
       ...(boundary ? { compactionBoundary: boundary } : {}),
       ...(projection.hash ? { projectionHash: projection.hash } : {})
@@ -29,4 +31,13 @@ export class InMemoryContextDecisionLedger implements ContextDecisionLedger {
       .filter((entry) => !runId || entry.runId === runId)
       .map((entry) => structuredClone(entry));
   }
+}
+
+function sourceMetadataSummariesFor(
+  projection: ModelInputProjection
+): Pick<ProjectionLedgerEntry, "sourceMetadataSummaries"> | Record<string, never> {
+  const summaries = projection.sourceDescriptors
+    .map((source) => summarizeContextSourceMetadata(source))
+    .filter((summary): summary is NonNullable<typeof summary> => summary !== undefined);
+  return summaries.length > 0 ? { sourceMetadataSummaries: summaries } : {};
 }

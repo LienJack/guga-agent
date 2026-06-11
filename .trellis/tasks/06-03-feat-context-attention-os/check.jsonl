@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Required typecheck/test/build gates"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Check runtime/audit event shape consistency"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Check data survives projection/replay boundaries"}
+{"file": "docs/research/context-policy-plugins.md", "reason": "Check Attention OS docs stay aligned with M4 context semantics"}

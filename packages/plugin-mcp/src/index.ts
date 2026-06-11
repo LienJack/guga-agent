@@ -12,10 +12,15 @@ export {
 export type {
   McpCallToolResult,
   McpClientInfo,
+  McpToolAnnotations,
   McpToolInfo
 } from "./mcp-stdio-client";
 export {
   createMcpToolDefinition,
   mcpToolName,
   stringifyMcpToolResult
+} from "./mcp-tool-adapter";
+export type {
+  McpToolPolicy,
+  McpToolPolicyResolver
 } from "./mcp-tool-adapter";

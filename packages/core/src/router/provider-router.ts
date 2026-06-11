@@ -116,7 +116,8 @@ export class ProviderRouter {
               turn: request.turn,
               providerId: candidate.providerId,
               messages: request.messages,
-              toolNames: request.tools.map((tool) => tool.name)
+              toolNames: request.tools.map((tool) => tool.name),
+              ...(request.projection?.toolLease ? { toolLease: request.projection.toolLease } : {})
             }, {
               idempotencyKey: durableKey(request.runId, request.turn, "model.requested", candidate.providerId, attempt)
             })
